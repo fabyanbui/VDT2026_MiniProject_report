@@ -1,0 +1,56 @@
+% ------------------------------------------------------------------------------
+% Chapter 1
+% Delete this content and replace with your own
+% ------------------------------------------------------------------------------
+\chapter{Giới thiệu} % enter the name of the chapter here
+\label{cha:gioi-thieu} % enter the chapter label here (for cross referencing)
+
+\section{Đặt vấn đề}
+
+Trong quá trình phát triển phần mềm, việc đưa một tính năng mới vào hệ thống luôn đi kèm với rủi ro. Mặc dù tính năng đã được kiểm thử trước khi triển khai, các vấn đề về logic nghiệp vụ, hiệu năng, khả năng tương thích hoặc hành vi của người dùng vẫn có thể chỉ xuất hiện trên môi trường thực tế. Nếu tính năng được phát hành đồng thời cho toàn bộ người dùng, phạm vi ảnh hưởng của sự cố có thể lớn, trong khi việc khắc phục thường đòi hỏi rollback phiên bản hoặc thực hiện một lần triển khai mới.
+
+Bên cạnh đó, nhu cầu phát hành phần mềm hiện nay không còn giới hạn ở hai trạng thái bật hoặc tắt cho toàn hệ thống. Đội phát triển có thể cần cung cấp tính năng cho một số người dùng cụ thể, một nhóm có vai trò nhất định hoặc một tỷ lệ người dùng được lựa chọn ổn định. Do đó, bài toán đặt ra là xây dựng một cơ chế cho phép kiểm soát việc phát hành tính năng độc lập với quá trình triển khai mã nguồn, đồng thời bảo đảm quyết định bật hoặc tắt tính năng được thực hiện nhất quán, có thể truy vết và dễ dàng quản lý.
+
+Feature Flag là một giải pháp phù hợp cho bài toán này. Tuy nhiên, khi số lượng flag và quy tắc tăng lên, việc sử dụng các biến cấu hình rời rạc hoặc cài đặt logic trực tiếp trong từng ứng dụng có thể dẫn đến cấu hình không nhất quán, khó kiểm soát lịch sử thay đổi và khó mở rộng. Vì vậy, đề tài lựa chọn nghiên cứu và xây dựng một nền tảng quản lý Feature Flag tập trung cho ứng dụng web.
+
+\section{Mục tiêu của báo cáo}
+
+Báo cáo hướng đến hai nhóm mục tiêu chính: mục tiêu nghiên cứu và mục tiêu triển khai.
+
+Về nghiên cứu, báo cáo làm rõ bản chất của Feature Flag, sự khác biệt giữa deploy và release, các loại flag phổ biến và vai trò của Feature Flag trong quản lý phát hành phần mềm. Báo cáo đồng thời phân tích các chiến lược đánh giá như bật toàn cục, nhắm mục tiêu theo người dùng, theo vai trò và rollout theo tỷ lệ phần trăm.
+
+Về triển khai, đề tài xây dựng một hệ thống có khả năng quản lý project, feature flag và các rule tương ứng; tiếp nhận evaluation context từ ứng dụng tích hợp; đánh giá trạng thái flag theo một thứ tự ưu tiên xác định; trả về kết quả có lý do rõ ràng; và ghi nhận các thay đổi cấu hình thông qua audit log. Hệ thống cũng cung cấp dashboard quản trị và demo app để chứng minh khả năng ứng dụng trong thực tế. Các thành phần này phù hợp với yêu cầu về backend API, frontend dashboard, evaluation engine, audit log và ứng dụng minh họa của mini project.
+
+Ngoài việc bảo đảm hệ thống có thể hoạt động, báo cáo còn tập trung giải thích các quyết định thiết kế và công nghệ, bao gồm cách tổ chức kiến trúc, mô hình dữ liệu, thứ tự đánh giá rule, cơ chế rollout ổn định, xử lý lỗi và khả năng mở rộng. Đây cũng là cơ sở để thể hiện khả năng giải quyết vấn đề, tư duy thiết kế và mức độ hiểu những nội dung đã triển khai.
+
+\section{Câu hỏi nghiên cứu}
+
+Báo cáo tập trung giải quyết các câu hỏi chính sau:
+
+\begin{enumerate}
+    \item Feature Flag giải quyết những hạn chế nào của quy trình triển khai và phát hành phần mềm truyền thống?
+    \item Làm thế nào để tách quá trình deploy mã nguồn khỏi quyết định release tính năng cho người dùng?
+    \item Một nền tảng Feature Flag cần những thành phần nào để hỗ trợ quản lý cấu hình, đánh giá rule, tích hợp với ứng dụng và truy vết thay đổi?
+    \item Làm thế nào để xác định thứ tự ưu tiên giữa các trạng thái và rule nhằm bảo đảm kết quả đánh giá rõ ràng, nhất quán và có thể dự đoán?
+    \item Làm thế nào để rollout tính năng theo tỷ lệ phần trăm mà vẫn giữ kết quả ổn định đối với cùng một người dùng?
+    \item Hệ thống nên xử lý như thế nào khi feature flag không tồn tại, dữ liệu context bị thiếu hoặc xảy ra lỗi trong quá trình đánh giá?
+    \item Kiến trúc và công nghệ nào phù hợp với quy mô của mini project, đồng thời vẫn tạo điều kiện để hệ thống được mở rộng trong tương lai?
+\end{enumerate}
+
+\section{Phạm vi triển khai}
+
+Trong phạm vi báo cáo, đề tài triển khai một nền tảng Feature Flag phục vụ các ứng dụng web, gồm bốn thành phần chính:
+
+\begin{itemize}
+    \item Backend API chịu trách nhiệm quản lý dữ liệu, xử lý nghiệp vụ và cung cấp evaluation endpoint.
+    \item Frontend dashboard hỗ trợ quản trị project, flag, cấu hình rule và audit log.
+    \item Evaluation engine thực hiện việc đánh giá flag dựa trên trạng thái cấu hình và context của request.
+    \item Demo app tích hợp evaluation API để minh họa việc hiển thị hoặc ẩn tính năng theo kết quả đánh giá.
+\end{itemize}
+
+Các chiến lược được hỗ trợ bao gồm bật hoặc tắt toàn cục, nhắm mục tiêu theo user ID, theo role và rollout theo phần trăm người dùng. Hệ thống lưu trữ project, môi trường, feature flag, cấu hình, rule, dữ liệu người dùng mẫu và audit log trong cơ sở dữ liệu. Ngoài ra, hệ thống thực hiện validation dữ liệu đầu vào, xử lý lỗi cơ bản, cung cấp dữ liệu mẫu và tài liệu hướng dẫn cài đặt.
+
+Đề tài tập trung vào việc chứng minh đầy đủ luồng hoạt động của Feature Flag, từ khâu tạo và cấu hình flag đến khi ứng dụng gửi context và nhận kết quả đánh giá. Các vấn đề ở quy mô hệ thống phân tán lớn như đồng bộ cấu hình đa vùng, streaming update theo thời gian thực, độ sẵn sàng đa trung tâm dữ liệu, phân tích thử nghiệm thống kê chuyên sâu và quản lý hàng triệu request mỗi giây không thuộc phạm vi triển khai chính.
+
+Các nội dung nâng cao như caching, SDK JavaScript, phân quyền, versioning cấu hình, thống kê lượt đánh giá, kill switch theo nhóm và Docker Compose được xem là phần mở rộng nhằm đánh giá khả năng phát triển tiếp của hệ thống, thay vì điều kiện bắt buộc để hoàn thành luồng chức năng cốt lõi.
+

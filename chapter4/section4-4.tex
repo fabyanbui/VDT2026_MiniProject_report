@@ -1,0 +1,79 @@
+\section{Hạn chế}
+
+\subsection{Hạn chế về kiến trúc}
+
+Mặc dù hệ thống đã đáp ứng đầy đủ các chức năng của một nền tảng Feature Flag trong phạm vi mini project, kiến trúc hiện tại vẫn còn một số hạn chế khi xét tới khả năng triển khai ở quy mô lớn hoặc trong môi trường phân tán. Các hạn chế này chủ yếu liên quan đến khả năng mở rộng, đồng bộ cấu hình và đánh giá hiệu năng dưới tải cao, đồng thời cũng là những hướng phát triển phổ biến của các nền tảng Feature Flag thương mại như LaunchDarkly hay Unleash \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Chưa hỗ trợ triển khai phân tán}
+
+Kiến trúc của hệ thống được thiết kế để triển khai trên một cụm dịch vụ đơn giản phục vụ mục tiêu học tập và trình diễn. Backend API, Evaluation Engine và Dashboard sử dụng chung cơ sở dữ liệu, trong khi cơ chế cache chủ yếu hoạt động trên từng instance của ứng dụng. Mô hình này giúp giảm độ phức tạp trong quá trình phát triển nhưng chưa giải quyết các bài toán thường gặp trong môi trường nhiều node như đồng bộ cache, cân bằng tải hay đảm bảo tính nhất quán giữa các instance.
+
+Trong các hệ thống Feature Flag thực tế, Evaluation Service thường được triển khai trên nhiều máy chủ kết hợp với cơ chế cache phân tán và đồng bộ cấu hình nhằm duy trì độ trễ thấp và khả năng chịu lỗi cao \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags}. Đây là hướng mở rộng chưa được triển khai trong phạm vi của đề tài.
+
+\subsubsection{Chưa có cơ chế đồng bộ cấu hình realtime}
+
+Sau khi cấu hình Feature Flag được thay đổi trên Dashboard, các instance của hệ thống hiện dựa vào cơ chế cache invalidation và tải lại dữ liệu khi cần thiết. Hệ thống chưa hỗ trợ các cơ chế truyền sự kiện thời gian thực như WebSocket, Server-Sent Events hoặc message broker để thông báo ngay lập tức tới các Evaluation Service hoặc SDK đang hoạt động.
+
+Do đó, trong trường hợp triển khai nhiều instance hoặc sử dụng cache với thời gian sống dài, có thể tồn tại khoảng thời gian ngắn mà các instance chưa đồng bộ hoàn toàn cấu hình mới. Trong các nền tảng thương mại, việc đồng bộ cấu hình theo thời gian thực là một thành phần quan trọng nhằm giảm độ trễ giữa thao tác quản trị và thời điểm cấu hình có hiệu lực trên toàn hệ thống \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Chưa đánh giá ở lưu lượng lớn}
+
+Các thử nghiệm của đề tài chủ yếu tập trung vào việc kiểm chứng tính đúng đắn của Rule Evaluation Engine, các kịch bản rollout và khả năng hoạt động của toàn bộ hệ thống trong môi trường demo. Chưa thực hiện các bài kiểm thử hiệu năng với số lượng lớn request đồng thời, nhiều instance hoặc khối lượng dữ liệu lớn.
+
+Vì vậy, báo cáo chưa đưa ra các chỉ số định lượng về throughput, độ trễ, khả năng mở rộng theo chiều ngang hay mức sử dụng tài nguyên của hệ thống. Việc xây dựng bộ kiểm thử tải bằng các công cụ chuyên dụng và đánh giá khả năng mở rộng trong nhiều điều kiện triển khai khác nhau sẽ là hướng nghiên cứu và hoàn thiện tiếp theo.
+
+\subsection{Hạn chế về chức năng}
+
+Bên cạnh việc đáp ứng đầy đủ các chức năng của mức MVP và hầu hết các chức năng khuyến khích trong đề bài, hệ thống vẫn còn một số hạn chế về mặt chức năng so với các nền tảng Feature Flag thương mại. Các hạn chế này chủ yếu nhằm giữ phạm vi mini project ở mức phù hợp, giảm độ phức tạp trong thiết kế và tập trung vào việc làm rõ nguyên lý hoạt động của Feature Flag thay vì xây dựng một nền tảng hoàn chỉnh \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Số loại rule còn giới hạn}
+
+Rule Evaluation Engine hiện hỗ trợ ba loại rule chính gồm targeting theo người dùng, targeting theo vai trò và percentage rollout. Đây là các chiến lược phổ biến, đủ để minh họa nguyên lý tách biệt giữa deploy và release cũng như đáp ứng các yêu cầu của đề tài.
+
+Tuy nhiên, hệ thống chưa hỗ trợ các rule phức tạp như điều kiện theo nhiều thuộc tính kết hợp, biểu thức logic AND/OR lồng nhau, targeting theo thời gian, vị trí địa lý, phiên bản ứng dụng hoặc các phân khúc người dùng được tạo động. Trong các nền tảng Feature Flag hiện đại, những khả năng này giúp đáp ứng nhiều kịch bản phát hành sản phẩm và cá nhân hóa hơn \cite{launchdarkly_targeting_rules,openfeature_evaluation_context}.
+
+\subsubsection{Chưa hỗ trợ nhiều variant đầy đủ}
+
+Hệ thống hiện tập trung vào mô hình Feature Flag dạng bật hoặc tắt, đồng thời hỗ trợ trả về giá trị variant cơ bản phục vụ quá trình evaluation. Tuy nhiên, chưa xây dựng đầy đủ cơ chế quản lý nhiều variant với trọng số phân phối, cấu hình riêng cho từng variant hoặc rollout độc lập theo từng biến thể.
+
+Việc mở rộng sang mô hình đa variant sẽ cho phép triển khai các kịch bản như A/B testing, multivariate testing hoặc phát hành nhiều phiên bản giao diện đồng thời. Đây là một trong những khả năng quan trọng của các nền tảng Feature Flag thương mại nhưng nằm ngoài phạm vi của mini project \cite{launchdarkly_feature_flags,fowler_feature_toggles}.
+
+\subsubsection{Chưa hỗ trợ approval workflow}
+
+Mọi thay đổi cấu hình Feature Flag trong hệ thống đều được áp dụng ngay sau khi người dùng có đủ quyền thực hiện thao tác. Hệ thống đã ghi nhận đầy đủ audit log và lịch sử thay đổi nhưng chưa hỗ trợ quy trình phê duyệt trước khi cấu hình được áp dụng.
+
+Trong môi trường doanh nghiệp, các thay đổi quan trọng thường phải trải qua quy trình nhiều bước như tạo yêu cầu, xem xét, phê duyệt và mới được phát hành nhằm giảm nguy cơ cấu hình sai hoặc thay đổi ngoài ý muốn. Chức năng này chưa được triển khai do vượt quá phạm vi của đề tài.
+
+\subsubsection{Chưa hỗ trợ stale flag detection}
+
+Hệ thống chưa cung cấp cơ chế tự động phát hiện các Feature Flag không còn được sử dụng hoặc đã tồn tại quá lâu trong mã nguồn. Việc quản lý vòng đời của Feature Flag hiện vẫn dựa trên thao tác thủ công của người quản trị.
+
+Trong thực tế, việc tồn tại quá nhiều Feature Flag không còn giá trị sẽ làm tăng độ phức tạp của mã nguồn, gây khó khăn cho bảo trì và hình thành \textit{feature flag debt}. Nhiều nền tảng hiện nay cung cấp khả năng theo dõi mức độ sử dụng, cảnh báo stale flag hoặc hỗ trợ dọn dẹp các flag không còn cần thiết nhằm duy trì chất lượng hệ thống \cite{mahdavi_hezaveh_feature_toggles,unleash_feature_flag_best_practices}.
+
+\subsection{Hạn chế về bảo mật và vận hành}
+
+Hệ thống đã áp dụng các cơ chế xác thực, phân quyền, validation dữ liệu, audit log và cache invalidation nhằm đáp ứng yêu cầu của đề tài. Tuy nhiên, nếu triển khai trong môi trường sản xuất với nhiều người dùng và lưu lượng truy cập lớn, hệ thống vẫn cần được bổ sung nhiều cơ chế về bảo mật và vận hành để đáp ứng các yêu cầu về tính sẵn sàng, khả năng giám sát và an toàn dữ liệu \cite{owasp_rest_security,owasp_logging}.
+
+\subsubsection{Mô hình xác thực còn đơn giản}
+
+Hệ thống sử dụng cơ chế xác thực và phân quyền phù hợp với phạm vi của mini project, cho phép phân biệt các vai trò quản trị như administrator, developer và viewer. Tuy nhiên, mô hình xác thực hiện vẫn còn đơn giản và chưa tích hợp với các hệ thống quản lý danh tính phổ biến như OAuth~2.0, OpenID Connect hoặc Single Sign-On (SSO).
+
+Ngoài ra, hệ thống cũng chưa hỗ trợ các cơ chế như xác thực đa yếu tố (Multi-Factor Authentication), quản lý phiên đăng nhập tập trung hay chính sách quản lý khóa truy cập dành cho các hệ thống tích hợp. Đây đều là những yêu cầu thường gặp đối với các nền tảng quản trị trong môi trường doanh nghiệp \cite{owasp_rest_security}.
+
+\subsubsection{Chưa có rate limiting đầy đủ}
+
+Các API của hệ thống hiện chưa triển khai cơ chế giới hạn tốc độ truy cập đối với từng người dùng hoặc từng địa chỉ IP. Trong điều kiện bình thường, điều này không ảnh hưởng đến việc trình diễn và đánh giá chức năng của hệ thống. Tuy nhiên, khi triển khai thực tế, việc thiếu rate limiting có thể làm tăng nguy cơ bị khai thác thông qua các cuộc tấn công gửi số lượng lớn request hoặc gây quá tải cho dịch vụ.
+
+Việc bổ sung rate limiting, quota theo API, giới hạn số lần evaluation trong một khoảng thời gian và cơ chế phát hiện bất thường sẽ góp phần nâng cao khả năng bảo vệ hệ thống trước các hành vi truy cập không hợp lệ \cite{owasp_rest_security}.
+
+\subsubsection{Chưa có hệ thống monitoring chuyên biệt}
+
+Hệ thống hiện ghi nhận audit log và thống kê số lần evaluation phục vụ việc quản trị Feature Flag, nhưng chưa tích hợp các nền tảng monitoring chuyên biệt để theo dõi trạng thái vận hành của toàn bộ hệ thống.
+
+Các chỉ số như thời gian phản hồi của Evaluation API, tỷ lệ lỗi, mức sử dụng CPU, bộ nhớ, trạng thái cache hay cảnh báo khi dịch vụ gặp sự cố vẫn chưa được thu thập và trực quan hóa. Trong môi trường sản xuất, việc kết hợp các công cụ monitoring và alerting sẽ giúp phát hiện sớm sự cố, rút ngắn thời gian xử lý và nâng cao độ tin cậy của hệ thống.
+
+\subsubsection{Chưa triển khai cơ chế backup và recovery}
+
+Hệ thống chưa xây dựng quy trình sao lưu và khôi phục dữ liệu cho cơ sở dữ liệu cũng như các thành phần cấu hình của Feature Flag. Mặc dù toàn bộ thay đổi đều được lưu trong audit log và dữ liệu được quản lý tập trung, nhưng chưa có cơ chế tự động tạo bản sao lưu định kỳ hoặc phục hồi sau sự cố.
+
+Trong môi trường triển khai thực tế, việc xây dựng chiến lược backup và disaster recovery là cần thiết nhằm giảm thiểu nguy cơ mất dữ liệu do lỗi phần cứng, thao tác nhầm hoặc sự cố hệ thống. Đây là một thành phần quan trọng để đảm bảo tính sẵn sàng và khả năng vận hành liên tục của nền tảng.

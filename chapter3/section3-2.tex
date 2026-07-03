@@ -1,0 +1,295 @@
+\section{Kết quả xây dựng Backend API}
+
+\subsection{Quản lý project và environment}
+
+Nhóm chức năng quản lý project và environment đóng vai trò là nền tảng của toàn bộ hệ thống Feature Flag. Mỗi feature flag được quản lý trong phạm vi một project và được cấu hình riêng cho từng environment, qua đó cho phép tách biệt cấu hình giữa các môi trường như Production hoặc các môi trường mở rộng trong tương lai. Thiết kế này phù hợp với kiến trúc của các nền tảng Feature Flag hiện đại như LaunchDarkly và Unleash, trong đó project và environment là hai thực thể cốt lõi để tổ chức cấu hình và triển khai tính năng \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+
+\subsubsection{Kết quả triển khai API project}
+
+Backend triển khai đầy đủ nhóm REST API quản lý project theo kiến trúc NestJS. Các endpoint bao gồm lấy danh sách project, lấy thông tin chi tiết theo khóa định danh (\texttt{projectKey}), tạo project mới, cập nhật thông tin và xóa project. Các thao tác thay đổi dữ liệu được bảo vệ bằng cơ chế phân quyền, trong khi các thao tác truy vấn chỉ yêu cầu quyền đọc tương ứng.
+
+Project được định danh bằng trường \texttt{key} duy nhất trong toàn hệ thống thay vì sử dụng khóa chính nội bộ. Cách tiếp cận này giúp API ổn định hơn khi tích hợp với các ứng dụng bên ngoài, đồng thời phù hợp với thông lệ xây dựng Feature Flag Platform \cite{launchdarkly_feature_flags}.
+
+Quá trình tạo project được thực hiện bên trong transaction nhằm đảm bảo tính toàn vẹn dữ liệu. Sau khi project được tạo thành công, hệ thống đồng thời khởi tạo environment mặc định và ghi một bản ghi audit log cho sự kiện tạo project. Nếu bất kỳ thao tác nào thất bại, toàn bộ transaction sẽ được rollback để tránh phát sinh trạng thái không nhất quán.
+
+\subsubsection{Kết quả triển khai API environment}
+
+Mỗi project quản lý tập các environment độc lập. Trong phạm vi mini project, backend xây dựng lớp repository để quản lý environment, bao gồm các thao tác tìm environment mặc định của project, tìm environment theo khóa định danh và truy vấn toàn bộ environment thuộc một project.
+
+Environment được sử dụng trong quá trình evaluation nhằm xác định bộ cấu hình feature flag tương ứng với từng môi trường triển khai. Thiết kế này cho phép cùng một feature flag có thể sở hữu các cấu hình khác nhau giữa các environment mà không làm thay đổi khóa định danh của feature flag, phù hợp với mô hình quản lý của các nền tảng Feature Flag hiện nay \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+
+Danh sách environment được sắp xếp theo trường \texttt{sortOrder} trước, sau đó theo khóa định danh, giúp giao diện quản trị luôn hiển thị các môi trường theo thứ tự xác định.
+
+\subsubsection{Environment mặc định}
+
+Khi tạo mới một project, hệ thống tự động sinh environment mặc định có khóa định danh là \texttt{production}. Environment này được đánh dấu bằng thuộc tính \texttt{isDefault = true} và được sử dụng khi Evaluation API không chỉ định environment trong yêu cầu đánh giá.
+
+Việc luôn tồn tại một environment mặc định giúp đơn giản hóa quá trình tích hợp với ứng dụng khách, đồng thời đảm bảo Evaluation Engine luôn có thể xác định được cấu hình cần sử dụng. Cách tổ chức này tương tự mô hình project--environment được áp dụng trong các hệ thống Feature Flag thương mại \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+
+Ngoài việc tạo environment mặc định, backend còn lưu thông tin này trong audit log của sự kiện tạo project để phục vụ truy vết lịch sử cấu hình sau này.
+
+\subsubsection{Validation và ràng buộc dữ liệu}
+
+Backend sử dụng DTO kết hợp thư viện \texttt{class-validator} để kiểm tra dữ liệu đầu vào trước khi xử lý nghiệp vụ. Các trường bắt buộc như \texttt{key} và \texttt{name} đều được kiểm tra kiểu dữ liệu, giới hạn độ dài và định dạng nhằm đảm bảo dữ liệu hợp lệ ngay từ tầng API.
+
+Ở mức cơ sở dữ liệu, bảng \texttt{Project} áp dụng ràng buộc duy nhất đối với trường \texttt{key}, trong khi bảng \texttt{Environment} sử dụng khóa duy nhất kết hợp \texttt{(projectId, key)} để bảo đảm không tồn tại hai environment trùng khóa trong cùng một project. Quan hệ giữa project và environment được thiết lập bằng khóa ngoại, đồng thời sử dụng chỉ mục trên các trường thường xuyên truy vấn nhằm tối ưu hiệu năng.
+
+Trước khi tạo project mới, backend kiểm tra sự tồn tại của khóa định danh để phát hiện xung đột và trả về lỗi phù hợp. Các lỗi không tìm thấy tài nguyên, dữ liệu không hợp lệ hoặc vi phạm ràng buộc đều được chuẩn hóa theo một cấu trúc phản hồi thống nhất, giúp client dễ dàng xử lý và truy vết lỗi. Việc kết hợp validation ở tầng ứng dụng với các ràng buộc toàn vẹn ở tầng cơ sở dữ liệu góp phần nâng cao tính đúng đắn và độ tin cậy của hệ thống \cite{owasp_rest_security}.
+
+\subsection{Quản lý Feature Flag}
+
+Nhóm chức năng quản lý Feature Flag là thành phần trung tâm của Backend API, cho phép tạo mới, cập nhật, lưu trữ và quản lý trạng thái của các feature flag trong từng project. Thay vì xóa trực tiếp khỏi hệ thống, feature flag được quản lý theo vòng đời (lifecycle), giúp bảo toàn lịch sử cấu hình, hỗ trợ audit log và tránh ảnh hưởng đến các ứng dụng đang tích hợp. Cách tiếp cận này phù hợp với khuyến nghị của các nền tảng Feature Flag hiện đại nhằm giảm rủi ro trong quá trình phát hành phần mềm và hạn chế phát sinh technical debt \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+\subsubsection{Tạo và truy vấn Feature Flag}
+
+Backend triển khai đầy đủ nhóm REST API phục vụ việc tạo mới và truy vấn feature flag. Khi tạo một feature flag, người dùng cung cấp các thông tin cơ bản như khóa định danh (\texttt{key}), tên hiển thị, mô tả và project tương ứng. Sau khi kiểm tra tính hợp lệ của dữ liệu, hệ thống tạo bản ghi feature flag đồng thời khởi tạo cấu hình mặc định cho environment mặc định của project.
+
+Mỗi feature flag được định danh duy nhất bởi cặp \texttt{(projectId, key)}, cho phép các project khác nhau sử dụng cùng một khóa mà không xảy ra xung đột. API hỗ trợ truy vấn danh sách feature flag theo project, tìm kiếm theo khóa định danh hoặc tên hiển thị, đồng thời hỗ trợ phân trang nhằm giảm tải cho cơ sở dữ liệu khi số lượng feature flag tăng lên.
+
+Các API truy vấn chỉ trả về những feature flag còn hoạt động theo mặc định, trong khi các feature flag đã archive chỉ được trả về khi người quản trị yêu cầu, giúp giao diện quản trị luôn hiển thị danh sách ngắn gọn và dễ theo dõi.
+
+\subsubsection{Cập nhật thông tin flag}
+
+Backend cho phép cập nhật các thông tin mô tả của feature flag như tên hiển thị, mô tả hoặc metadata mà không làm thay đổi khóa định danh. Việc giữ nguyên trường \texttt{key} giúp các ứng dụng khách tiếp tục sử dụng cùng một identifier trong Evaluation API mà không cần thay đổi mã nguồn.
+
+Mỗi yêu cầu cập nhật đều trải qua quá trình kiểm tra sự tồn tại của project và feature flag trước khi thực hiện. Sau khi cập nhật thành công, hệ thống ghi nhận đầy đủ trạng thái trước và sau thay đổi vào audit log để phục vụ truy vết. Quá trình này được thực hiện trong transaction nhằm đảm bảo dữ liệu luôn nhất quán nếu xảy ra lỗi trong quá trình ghi log.
+
+\subsubsection{Archive và restore flag}
+
+Thay vì xóa vật lý khỏi cơ sở dữ liệu, backend áp dụng cơ chế archive đối với feature flag. Khi archive, trường \texttt{lifecycleStatus} được chuyển từ \texttt{ACTIVE} sang \texttt{ARCHIVED}. Các feature flag ở trạng thái này sẽ không còn được Evaluation Engine sử dụng và trả về kết quả với lý do tương ứng nếu được yêu cầu đánh giá.
+
+Việc archive thay cho delete giúp bảo toàn toàn bộ lịch sử cấu hình, audit log và các quan hệ dữ liệu liên quan, đồng thời giảm nguy cơ ảnh hưởng đến những ứng dụng vẫn đang tham chiếu tới feature flag đó. Khi cần sử dụng lại, người quản trị có thể thực hiện thao tác restore để chuyển trạng thái trở lại \texttt{ACTIVE} mà không cần tạo mới feature flag. Cách quản lý vòng đời này phù hợp với khuyến nghị của các hệ thống Feature Flag trong thực tế \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+Mỗi thao tác archive hoặc restore đều được ghi nhận vào audit log cùng thông tin actor, thời gian thực hiện và snapshot trước, sau khi thay đổi nhằm đảm bảo khả năng truy vết.
+
+\subsubsection{Quản lý cấu hình theo environment}
+
+Backend tách riêng thông tin định danh của feature flag và cấu hình triển khai theo từng environment. Mỗi feature flag có thể sở hữu nhiều bản cấu hình (\texttt{FlagConfig}), trong đó mỗi cấu hình tương ứng với một environment khác nhau.
+
+Thông qua mô hình này, cùng một feature flag có thể được bật hoàn toàn trên môi trường Production nhưng vẫn ở trạng thái tắt hoặc rollout theo tỷ lệ trên các environment khác mà không cần tạo thêm feature flag mới. Mỗi cấu hình quản lý các thuộc tính như trạng thái kích hoạt, chế độ phục vụ (\texttt{GLOBAL\_ON} hoặc \texttt{TARGETED}), kill switch và tập luật đánh giá tương ứng.
+
+Evaluation Engine luôn xác định environment trước khi lấy cấu hình feature flag. Nếu yêu cầu đánh giá không chỉ định environment, hệ thống tự động sử dụng environment mặc định của project. Thiết kế này giúp Backend API hỗ trợ triển khai nhiều môi trường độc lập, đồng thời vẫn giữ được cùng một khóa định danh feature flag xuyên suốt toàn bộ vòng đời phát triển phần mềm, phù hợp với mô hình của LaunchDarkly và Unleash \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+
+\subsection{Quản lý rule và flag group}
+
+Backend API hỗ trợ cấu hình các luật (rule) quyết định trạng thái của feature flag tại thời điểm đánh giá. Mỗi rule được lưu độc lập trong cơ sở dữ liệu, liên kết với một cấu hình feature flag theo từng environment và được đánh giá theo thứ tự ưu tiên xác định trước. Trong phạm vi mini project, hệ thống hỗ trợ ba loại rule chính gồm user allowlist, role targeting và percentage rollout. Ngoài ra, backend còn triển khai cơ chế flag group kết hợp group kill switch nhằm cho phép vô hiệu hóa đồng thời nhiều feature flag khi cần thiết. Thiết kế này phù hợp với các chiến lược targeting và rollout được áp dụng trong các nền tảng Feature Flag hiện đại \cite{launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
+
+\subsubsection{Rule user allowlist}
+
+Rule user allowlist cho phép chỉ định danh sách các người dùng được phép sử dụng một tính năng cụ thể. Backend lưu danh sách các targeting key trong phần tham số của rule và thực hiện so sánh trực tiếp với thông tin được gửi trong evaluation context.
+
+Khi evaluation context chứa targeting key trùng với một phần tử trong allowlist, Evaluation Engine ngay lập tức trả về kết quả bật feature flag mà không cần tiếp tục đánh giá các rule có mức ưu tiên thấp hơn. Cơ chế này phù hợp với các kịch bản cấp quyền cho một nhóm người dùng thử nghiệm hoặc xử lý các trường hợp ngoại lệ trong quá trình phát hành tính năng.
+
+\subsubsection{Rule role targeting}
+
+Rule role targeting được sử dụng để bật feature flag cho những người dùng thuộc một hoặc nhiều vai trò xác định. Backend lưu danh sách role trong tham số của rule và so sánh với tập role được truyền trong evaluation context.
+
+Trong quá trình đánh giá, nếu tồn tại ít nhất một role của người dùng trùng với danh sách role được cấu hình, rule được xem là thỏa mãn và Evaluation Engine trả về kết quả tương ứng. Thiết kế này hỗ trợ các kịch bản phổ biến như chỉ kích hoạt tính năng cho nhóm quản trị viên, beta customer hoặc regular customer mà không cần cấu hình riêng cho từng người dùng \cite{launchdarkly_targeting_rules}.
+
+\subsubsection{Rule percentage rollout}
+
+Rule percentage rollout cho phép phát hành tính năng theo một tỷ lệ phần trăm người dùng xác định. Backend sử dụng thuật toán băm ổn định dựa trên \texttt{projectKey}, \texttt{flagKey} và \texttt{targetingKey} để tạo giá trị bucket cố định cho từng người dùng.
+
+Giá trị bucket được so sánh với tỷ lệ rollout đã cấu hình để quyết định người dùng có được bật feature hay không. Do sử dụng hàm băm ổn định, cùng một người dùng luôn nhận được kết quả nhất quán giữa các lần evaluation khi cấu hình không thay đổi. Khi điều chỉnh tỷ lệ rollout, chỉ những người dùng nằm trong phần bucket mới được bổ sung hoặc loại bỏ, giúp hạn chế biến động không cần thiết trong quá trình phát hành tính năng \cite{launchdarkly_percentage_rollouts}.
+
+\subsubsection{Quản lý độ ưu tiên rule}
+
+Mỗi rule được gán một trường \texttt{priority} để xác định thứ tự đánh giá. Backend luôn truy vấn và sắp xếp danh sách rule theo độ ưu tiên tăng dần trước khi chuyển cho Evaluation Engine xử lý.
+
+Evaluation Engine áp dụng nguyên tắc first-match-wins, nghĩa là ngay khi một rule thỏa mãn điều kiện, quá trình đánh giá kết thúc và trả về kết quả tương ứng. Cơ chế này giúp quá trình đánh giá có tính xác định, tránh xung đột giữa nhiều rule cùng áp dụng cho một người dùng, đồng thời tạo điều kiện mở rộng thêm các loại rule mới trong tương lai mà không ảnh hưởng đến kiến trúc hiện tại \cite{launchdarkly_targeting_rules}.
+
+\subsubsection{Group kill switch}
+
+Bên cạnh kill switch của từng feature flag, backend còn triển khai cơ chế flag group nhằm quản lý nhiều feature flag theo từng nhóm chức năng. Mỗi feature flag có thể được gán vào một flag group và kế thừa trạng thái group kill switch trong quá trình evaluation.
+
+Khi group kill switch được kích hoạt, toàn bộ feature flag thuộc nhóm tương ứng đều bị vô hiệu hóa mà không cần thay đổi cấu hình của từng feature flag riêng lẻ. Cơ chế này đặc biệt hữu ích khi cần phản ứng nhanh với sự cố trên production hoặc tạm thời vô hiệu hóa một nhóm chức năng có liên quan.
+
+Mọi thao tác tạo, cập nhật, đổi tên hoặc thay đổi trạng thái group kill switch đều được ghi nhận vào audit log nhằm đảm bảo khả năng truy vết và phục vụ công tác quản trị hệ thống. Việc bổ sung group kill switch cũng đáp ứng yêu cầu mở rộng được đề xuất trong mini project, đồng thời phù hợp với thực tiễn triển khai các hệ thống Feature Flag quy mô lớn \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+\subsection{Evaluation API}
+
+Evaluation API là thành phần quan trọng nhất của Backend API, chịu trách nhiệm xác định trạng thái cuối cùng của một feature flag tại thời điểm chạy dựa trên cấu hình hiện có và evaluation context do ứng dụng khách cung cấp. API được thiết kế theo mô hình đồng bộ (synchronous request--response), trong đó backend truy vấn toàn bộ cấu hình cần thiết, thực hiện đánh giá theo thứ tự ưu tiên xác định và trả về kết quả thống nhất gồm trạng thái bật/tắt, variant và reason code. Thiết kế này phù hợp với đặc tả Evaluation API của OpenFeature cũng như kiến trúc của các nền tảng Feature Flag hiện đại \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
+
+\subsubsection{Tiếp nhận evaluation context}
+
+Evaluation API tiếp nhận yêu cầu đánh giá thông qua phương thức \texttt{POST}, trong đó client gửi các thông tin gồm \texttt{projectKey}, \texttt{flagKey}, \texttt{environmentKey} (tùy chọn) và evaluation context.
+
+Evaluation context bao gồm \texttt{targetingKey}, \texttt{userId}, danh sách \texttt{roles} và tập thuộc tính mở rộng (\texttt{attributes}). Backend thực hiện validation dữ liệu đầu vào trước khi xử lý nhằm đảm bảo các trường bắt buộc có định dạng hợp lệ và loại bỏ các yêu cầu không hợp lệ ngay tại tầng API.
+
+Việc sử dụng evaluation context giúp Evaluation Engine không phụ thuộc vào mô hình dữ liệu của từng ứng dụng khách, đồng thời tạo điều kiện mở rộng thêm các loại targeting mới trong tương lai mà không cần thay đổi giao diện API \cite{openfeature_evaluation_context}.
+
+\subsubsection{Truy vấn evaluation snapshot}
+
+Sau khi hoàn thành bước validation, backend truy vấn toàn bộ dữ liệu cần thiết để đánh giá feature flag và xây dựng một evaluation snapshot thống nhất.
+
+Snapshot bao gồm thông tin project, environment, feature flag, cấu hình của environment tương ứng, trạng thái group kill switch và danh sách rule đã được sắp xếp theo độ ưu tiên. Việc gom toàn bộ dữ liệu cần thiết trước khi bắt đầu đánh giá giúp Evaluation Engine chỉ làm việc trên một tập dữ liệu bất biến trong suốt quá trình xử lý, tránh phát sinh nhiều lần truy vấn cơ sở dữ liệu và giảm nguy cơ xuất hiện trạng thái không nhất quán.
+
+Nếu client không truyền \texttt{environmentKey}, backend tự động sử dụng environment mặc định của project để truy vấn snapshot.
+
+\subsubsection{Thực thi evaluation precedence}
+
+Sau khi có evaluation snapshot, Evaluation Engine tiến hành đánh giá theo thứ tự ưu tiên đã được xác định trong quá trình thiết kế hệ thống.
+
+Trước tiên, engine kiểm tra các trạng thái có mức ưu tiên cao nhất như feature flag đã archive, cấu hình bị disable, group kill switch hoặc kill switch của chính feature flag. Nếu xuất hiện một trong các điều kiện này, quá trình evaluation kết thúc ngay và trả về kết quả tương ứng.
+
+Nếu feature flag vẫn được phép phục vụ, hệ thống tiếp tục xử lý theo serving mode. Đối với chế độ \texttt{GLOBAL\_ON}, feature được bật ngay mà không cần đánh giá các rule. Đối với chế độ \texttt{TARGETED}, Evaluation Engine lần lượt đánh giá các rule theo thứ tự ưu tiên gồm user allowlist, role targeting và percentage rollout. Engine áp dụng nguyên tắc \textit{first-match-wins}, nghĩa là rule đầu tiên thỏa mãn điều kiện sẽ quyết định kết quả cuối cùng \cite{launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
+
+Nếu không có rule nào phù hợp, hệ thống trả về giá trị mặc định đã cấu hình cho feature flag.
+
+\subsubsection{Trả về variant và reason code}
+
+Sau khi hoàn thành evaluation, backend trả về một đối tượng phản hồi thống nhất bao gồm khóa project, khóa feature flag, trạng thái bật hoặc tắt, variant, reason code và thông tin rule được áp dụng nếu có.
+
+Reason code phản ánh nguyên nhân trực tiếp dẫn đến kết quả evaluation, chẳng hạn như \texttt{GLOBAL\_ON}, \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_ROLLOUT}, \texttt{DEFAULT\_OFF}, \texttt{FLAG\_DISABLED}, \texttt{FLAG\_ARCHIVED}, \texttt{GROUP\_KILL\_SWITCH} hoặc \texttt{KILL\_SWITCH}. Việc trả về reason code giúp client, dashboard và hệ thống audit có thể giải thích rõ vì sao một feature flag được bật hoặc tắt, đồng thời hỗ trợ hiệu quả cho quá trình kiểm thử và xử lý sự cố \cite{openfeature_flag_evaluation}.
+
+\subsubsection{Error fallback}
+
+Evaluation API được thiết kế theo nguyên tắc fail-safe nhằm đảm bảo hệ thống luôn trả về kết quả xác định ngay cả khi xảy ra lỗi trong quá trình xử lý.
+
+Khi feature flag không tồn tại, environment không hợp lệ hoặc phát sinh lỗi nội bộ trong quá trình evaluation, backend không trả về trạng thái không xác định mà chuyển sang giá trị fallback an toàn. Trong các trường hợp này, API trả về trạng thái tắt cùng reason code phù hợp như \texttt{NOT\_FOUND} hoặc \texttt{ERROR}. Cách tiếp cận này giúp ứng dụng khách luôn nhận được phản hồi có cấu trúc thống nhất, hạn chế nguy cơ kích hoạt nhầm các tính năng chưa sẵn sàng trên môi trường production \cite{openfeature_flag_evaluation,owasp_rest_security}.
+
+\subsection{Audit log và lịch sử cấu hình}
+
+Để đảm bảo khả năng truy vết và kiểm toán toàn bộ quá trình quản trị Feature Flag, backend triển khai cơ chế audit log cho tất cả các thao tác thay đổi dữ liệu (mutation). Mỗi sự kiện đều ghi nhận đầy đủ thông tin về đối tượng bị tác động, hành động thực hiện, người thao tác, thời điểm thực hiện, request identifier và trạng thái dữ liệu trước và sau khi thay đổi. Thiết kế này đáp ứng yêu cầu về accountability và auditability của hệ thống, đồng thời phù hợp với các khuyến nghị của OWASP về ghi nhật ký bảo mật và quản lý thay đổi cấu hình \cite{owasp_logging,owasp_rest_security}.
+
+\subsubsection{Ghi audit log cho mutation}
+
+Backend tự động tạo bản ghi audit log sau mỗi thao tác mutation như tạo, cập nhật, archive, restore feature flag, thay đổi cấu hình environment, quản lý rule, quản lý flag group và các thao tác quản trị khác.
+
+Mỗi bản ghi chứa các thông tin như loại đối tượng (\texttt{targetType}), khóa định danh đối tượng, loại hành động (\texttt{action}), actor thực hiện, thời gian thực hiện và request identifier. Việc ghi nhận audit log được thực hiện cùng transaction với thao tác nghiệp vụ nhằm đảm bảo dữ liệu nghiệp vụ và lịch sử thay đổi luôn nhất quán.
+
+Thiết kế này cho phép truy vết đầy đủ mọi thay đổi phát sinh trong hệ thống mà không phụ thuộc vào ứng dụng khách.
+
+\subsubsection{Lưu snapshot trước và sau}
+
+Đối với mỗi thao tác cập nhật, backend lưu đồng thời hai bản snapshot gồm trạng thái trước khi thay đổi (\texttt{before}) và trạng thái sau khi thay đổi (\texttt{after}). Hai snapshot được lưu dưới dạng dữ liệu JSON nhằm bảo toàn toàn bộ cấu trúc của đối tượng tại thời điểm ghi nhận.
+
+Việc lưu snapshot giúp người quản trị dễ dàng xác định chính xác những trường dữ liệu đã thay đổi mà không cần so sánh thủ công giữa nhiều phiên bản cấu hình. Đồng thời, đây cũng là cơ sở để hỗ trợ các chức năng mở rộng như so sánh phiên bản hoặc khôi phục cấu hình trong tương lai. Việc sử dụng kiểu dữ liệu JSONB của PostgreSQL giúp lưu trữ linh hoạt các snapshot có cấu trúc thay đổi theo từng loại đối tượng \cite{postgresql_json_types}.
+
+\subsubsection{Truy vấn và lọc audit log}
+
+Backend cung cấp API truy vấn audit log phục vụ Dashboard quản trị. Người dùng có thể truy vấn theo nhiều tiêu chí như project, loại đối tượng, loại hành động, actor hoặc khoảng thời gian thực hiện.
+
+Kết quả được sắp xếp theo thời gian giảm dần nhằm ưu tiên hiển thị các thay đổi mới nhất. API đồng thời hỗ trợ phân trang để giảm tải cho cơ sở dữ liệu khi số lượng bản ghi tăng lên theo thời gian.
+
+Nhờ cơ chế lọc linh hoạt, người quản trị có thể nhanh chóng xác định nguyên nhân của các thay đổi cấu hình hoặc truy vết các thao tác phát sinh trong quá trình vận hành hệ thống.
+
+\subsubsection{Bảo vệ audit log khỏi sửa và xóa}
+
+Audit log được thiết kế theo mô hình append-only, nghĩa là chỉ cho phép thêm bản ghi mới và không cho phép cập nhật hoặc xóa các bản ghi đã tồn tại.
+
+Ở tầng cơ sở dữ liệu, backend sử dụng trigger để ngăn chặn các thao tác \texttt{UPDATE} và \texttt{DELETE} trên bảng audit log. Mọi yêu cầu sửa hoặc xóa đều bị từ chối nhằm đảm bảo tính toàn vẹn của lịch sử thay đổi.
+
+Cơ chế này giúp ngăn ngừa việc chỉnh sửa trái phép các bản ghi kiểm toán, đồng thời đáp ứng yêu cầu về tính tin cậy và khả năng truy vết của hệ thống theo khuyến nghị của OWASP \cite{owasp_logging}.
+
+\subsubsection{Theo dõi version cấu hình}
+
+Bên cạnh việc lưu snapshot, backend còn theo dõi sự thay đổi cấu hình thông qua chuỗi các bản ghi audit log được tạo theo trình tự thời gian. Mỗi lần thay đổi cấu hình đều tạo ra một phiên bản logic mới của đối tượng mà không ghi đè lên dữ liệu lịch sử.
+
+Thông qua các snapshot trước và sau cùng thông tin thời gian thực hiện, người quản trị có thể theo dõi toàn bộ quá trình tiến hóa của một feature flag, rule hoặc flag group trong suốt vòng đời hoạt động. Cách tiếp cận này đáp ứng yêu cầu versioning ở mức lịch sử cấu hình, đồng thời tạo nền tảng cho việc mở rộng các chức năng như xem lịch sử thay đổi hoặc phục hồi cấu hình trong các phiên bản tiếp theo của hệ thống \cite{unleash_feature_flag_best_practices,mahdavi_hezaveh_feature_toggles}.
+
+\subsection{Validation và xử lý lỗi}
+
+Để đảm bảo tính đúng đắn và ổn định của Backend API, hệ thống triển khai cơ chế validation dữ liệu đầu vào kết hợp với mô hình xử lý lỗi thống nhất trên toàn bộ ứng dụng. Việc kiểm tra dữ liệu được thực hiện ngay tại tầng API trước khi chuyển đến tầng nghiệp vụ, trong khi mọi ngoại lệ phát sinh đều được chuẩn hóa thành một định dạng phản hồi thống nhất. Thiết kế này giúp giảm thiểu dữ liệu không hợp lệ, nâng cao khả năng tích hợp với ứng dụng khách và phù hợp với các khuyến nghị về bảo mật REST API của OWASP \cite{owasp_rest_security}.
+
+\subsubsection{Validation DTO}
+
+Backend sử dụng các lớp Data Transfer Object (DTO) kết hợp với thư viện \texttt{class-validator} và \texttt{class-transformer} để kiểm tra dữ liệu đầu vào của tất cả các endpoint.
+
+Các trường dữ liệu được kiểm tra về kiểu dữ liệu, độ dài, giá trị bắt buộc, định dạng chuỗi và giới hạn miền giá trị trước khi chuyển tới tầng nghiệp vụ. Đối với các API quản lý Feature Flag, hệ thống kiểm tra tính hợp lệ của các trường như \texttt{projectKey}, \texttt{flagKey}, \texttt{environmentKey}, trạng thái cấu hình, tỷ lệ rollout và các tham số của rule.
+
+Validation được thực hiện thông qua \texttt{ValidationPipe} của NestJS, giúp loại bỏ dữ liệu không hợp lệ ngay từ tầng controller, giảm tải cho tầng nghiệp vụ và hạn chế phát sinh lỗi trong quá trình xử lý.
+
+\subsubsection{Chuẩn hóa phản hồi lỗi}
+
+Backend chuẩn hóa toàn bộ phản hồi lỗi theo một cấu trúc thống nhất để các ứng dụng khách có thể xử lý một cách nhất quán.
+
+Mỗi phản hồi lỗi bao gồm mã lỗi, thông điệp mô tả, danh sách chi tiết lỗi (nếu có) và request identifier phục vụ truy vết. Hệ thống phân biệt rõ các nhóm lỗi như validation error, không tìm thấy tài nguyên, xung đột dữ liệu và lỗi nội bộ máy chủ.
+
+Việc chuẩn hóa cấu trúc phản hồi giúp Dashboard, Demo App và các SDK có thể xử lý lỗi theo cùng một cơ chế mà không cần xây dựng logic riêng cho từng endpoint.
+
+\subsubsection{Request ID}
+
+Mỗi yêu cầu gửi tới Backend API đều được gắn một request identifier duy nhất trong suốt vòng đời xử lý.
+
+Request ID được truyền xuyên suốt giữa middleware, controller, service và audit log, đồng thời xuất hiện trong phản hồi lỗi khi có ngoại lệ xảy ra. Nhờ đó, người quản trị có thể nhanh chóng đối chiếu giữa yêu cầu từ phía client với bản ghi audit log hoặc log hệ thống để xác định nguyên nhân của sự cố.
+
+Việc bổ sung request ID giúp nâng cao khả năng quan sát (observability), hỗ trợ hiệu quả cho quá trình giám sát và gỡ lỗi trong môi trường vận hành.
+
+\subsubsection{Xử lý lỗi toàn cục}
+
+Backend triển khai Global Exception Filter để xử lý tập trung mọi ngoại lệ phát sinh trong quá trình thực thi API.
+
+Các ngoại lệ nghiệp vụ, lỗi validation và các lỗi không mong muốn đều được chuyển đổi thành cấu trúc phản hồi thống nhất trước khi gửi về client. Đối với các lỗi nội bộ, hệ thống không trả về thông tin nhạy cảm như stack trace hoặc chi tiết cài đặt của máy chủ, qua đó giảm nguy cơ rò rỉ thông tin hệ thống.
+
+Mô hình xử lý lỗi tập trung giúp toàn bộ Backend API duy trì cách phản hồi nhất quán, giảm trùng lặp mã nguồn giữa các controller và đáp ứng các khuyến nghị về bảo mật và thiết kế REST API của OWASP \cite{owasp_rest_security}.
+
+\subsection{Phân quyền người dùng quản trị}
+
+Để đảm bảo an toàn cho các thao tác quản trị và đáp ứng yêu cầu mở rộng của mini project, Backend API triển khai cơ chế phân quyền theo vai trò (Role-Based Access Control -- RBAC). Mỗi yêu cầu quản trị đều được xác định danh tính của người thực hiện và kiểm tra quyền trước khi xử lý nghiệp vụ. Thiết kế này giúp giới hạn phạm vi thao tác của từng nhóm người dùng, giảm nguy cơ thay đổi cấu hình ngoài ý muốn và phù hợp với các khuyến nghị về kiểm soát truy cập của OWASP \cite{owasp_rest_security}.
+
+\subsubsection{Mô hình role}
+
+Hệ thống định nghĩa ba vai trò quản trị gồm \texttt{ADMIN}, \texttt{DEVELOPER} và \texttt{VIEWER}. Mỗi vai trò được gán một tập quyền riêng nhằm phục vụ các nhu cầu quản trị khác nhau.
+
+Người dùng có vai trò \texttt{ADMIN} được phép thực hiện toàn bộ chức năng của hệ thống, bao gồm quản lý project, environment, feature flag, rule, flag group và audit log. Vai trò \texttt{DEVELOPER} được phép quản lý cấu hình feature flag nhưng bị giới hạn đối với một số thao tác quản trị hệ thống. Trong khi đó, \texttt{VIEWER} chỉ có quyền truy cập dữ liệu để theo dõi trạng thái và lịch sử thay đổi mà không được phép thực hiện các thao tác làm thay đổi dữ liệu.
+
+Việc tách biệt quyền theo vai trò giúp Dashboard phản ánh đúng trách nhiệm của từng nhóm người dùng và tạo nền tảng để mở rộng các chính sách phân quyền chi tiết hơn trong tương lai.
+
+\subsubsection{Kiểm tra quyền mutation}
+
+Các API thực hiện thao tác mutation như tạo, cập nhật, archive, restore feature flag, quản lý rule, thay đổi group kill switch hoặc cấu hình environment đều được bảo vệ bằng cơ chế kiểm tra quyền trước khi thực hiện nghiệp vụ.
+
+Backend sử dụng guard kết hợp thông tin actor trong request để xác định vai trò của người dùng. Chỉ khi người dùng sở hữu quyền phù hợp, yêu cầu mới được chuyển đến tầng service để xử lý. Nếu không đáp ứng điều kiện phân quyền, yêu cầu bị từ chối ngay tại tầng bảo vệ mà không truy cập vào logic nghiệp vụ hoặc cơ sở dữ liệu.
+
+Việc kiểm tra quyền tập trung giúp toàn bộ các endpoint mutation áp dụng cùng một chính sách bảo mật và giảm nguy cơ bỏ sót quyền kiểm tra tại từng controller.
+
+\subsubsection{Kiểm tra quyền truy vấn}
+
+Đối với các API chỉ đọc dữ liệu như truy vấn project, feature flag, environment hoặc audit log, backend vẫn thực hiện kiểm tra quyền truy cập trước khi trả về dữ liệu.
+
+Những người dùng có vai trò \texttt{VIEWER}, \texttt{DEVELOPER} và \texttt{ADMIN} đều được phép sử dụng các endpoint truy vấn trong phạm vi quyền được cấp. Việc phân tách rõ quyền đọc và quyền ghi giúp hạn chế các thao tác thay đổi ngoài ý muốn, đồng thời vẫn đảm bảo các nhóm người dùng có thể theo dõi trạng thái hệ thống và lịch sử cấu hình khi cần thiết.
+
+Cách tiếp cận này tuân theo nguyên tắc \textit{least privilege}, trong đó mỗi người dùng chỉ được cấp những quyền cần thiết để thực hiện công việc của mình \cite{owasp_rest_security}.
+
+\subsubsection{Xử lý truy cập không hợp lệ}
+
+Khi người dùng chưa được xác thực hoặc không có quyền thực hiện thao tác yêu cầu, backend từ chối truy cập và trả về mã trạng thái HTTP phù hợp cùng cấu trúc phản hồi lỗi thống nhất.
+
+Các phản hồi lỗi không tiết lộ thông tin nội bộ của hệ thống hoặc chi tiết triển khai cơ chế phân quyền nhằm hạn chế nguy cơ khai thác từ phía đối tượng tấn công. Đồng thời, các yêu cầu bị từ chối vẫn được gắn request ID để phục vụ quá trình truy vết và hỗ trợ phân tích sự cố khi cần thiết.
+
+Việc kết hợp xác thực actor, kiểm tra quyền tập trung và chuẩn hóa phản hồi lỗi giúp Backend API duy trì tính nhất quán trong toàn bộ cơ chế kiểm soát truy cập, đồng thời đáp ứng các yêu cầu bảo mật đối với hệ thống quản trị Feature Flag \cite{owasp_rest_security}.
+
+\subsection{Cache và evaluation metrics}
+
+Để giảm độ trễ của Evaluation API và hỗ trợ theo dõi quá trình vận hành hệ thống, backend triển khai cơ chế cache cho evaluation snapshot kết hợp với việc ghi nhận thống kê số lần evaluation của từng feature flag. Việc sử dụng cache giúp hạn chế truy vấn lặp lại tới cơ sở dữ liệu đối với các cấu hình ít thay đổi, trong khi các evaluation metrics cung cấp dữ liệu phục vụ Dashboard quản trị và đánh giá mức độ sử dụng của từng feature flag. Thiết kế này phù hợp với các khuyến nghị về caching trong hệ thống Feature Flag hiện đại \cite{unleash_feature_flag_best_practices,redis_client_side_caching}.
+
+\subsubsection{Cơ chế caching}
+
+Backend triển khai lớp cache tại tầng Evaluation Repository nhằm lưu trữ evaluation snapshot đã được xây dựng từ cơ sở dữ liệu. Mỗi snapshot bao gồm thông tin project, environment, feature flag, cấu hình của environment tương ứng, trạng thái group kill switch và danh sách rule đã được sắp xếp theo thứ tự ưu tiên.
+
+Khi Evaluation API nhận yêu cầu, hệ thống trước tiên kiểm tra cache. Nếu snapshot đã tồn tại và còn hiệu lực, backend sử dụng trực tiếp dữ liệu trong cache mà không cần truy vấn lại cơ sở dữ liệu. Trong trường hợp cache không chứa dữ liệu hoặc dữ liệu đã bị loại bỏ, backend xây dựng lại snapshot từ cơ sở dữ liệu và cập nhật cache cho các lần evaluation tiếp theo.
+
+Việc cache ở mức evaluation snapshot giúp giảm đáng kể số lượng truy vấn cơ sở dữ liệu trong khi vẫn đảm bảo Evaluation Engine luôn làm việc trên một tập dữ liệu đầy đủ và nhất quán.
+
+\subsubsection{Cache invalidation}
+
+Để đảm bảo dữ liệu cache luôn phản ánh đúng trạng thái hiện tại của hệ thống, backend thực hiện cache invalidation ngay sau mỗi thao tác mutation làm thay đổi cấu hình feature flag.
+
+Các thao tác như cập nhật project, environment, feature flag, flag configuration, rule hoặc group kill switch đều kích hoạt việc xóa các snapshot liên quan khỏi cache. Lần evaluation tiếp theo sẽ tự động xây dựng lại snapshot mới từ cơ sở dữ liệu trước khi lưu trở lại cache.
+
+Chiến lược invalidation theo sự kiện giúp tránh sử dụng cấu hình lỗi thời, đồng thời vẫn tận dụng được lợi ích về hiệu năng của cơ chế cache \cite{redis_client_side_caching}.
+
+\subsubsection{Ghi nhận số lần evaluation}
+
+Sau mỗi lần Evaluation Engine hoàn thành việc đánh giá feature flag, backend thực hiện ghi nhận thống kê số lần evaluation theo cơ chế best-effort mà không ảnh hưởng đến kết quả trả về cho ứng dụng khách.
+
+Thông tin thống kê được tổng hợp theo từng feature flag và environment, đồng thời lưu thêm thời điểm cập nhật gần nhất để phục vụ quá trình phân tích. Việc ghi nhận metrics được tách khỏi luồng xử lý chính nhằm đảm bảo Evaluation API vẫn duy trì độ trễ thấp ngay cả khi việc cập nhật thống kê gặp sự cố.
+
+Dữ liệu thống kê giúp người quản trị xác định các feature flag được sử dụng nhiều nhất, theo dõi mức độ khai thác của từng tính năng và hỗ trợ đánh giá hiệu quả của các chiến lược rollout.
+
+\subsubsection{Truy vấn dữ liệu thống kê}
+
+Backend cung cấp API phục vụ Dashboard truy vấn dữ liệu thống kê evaluation theo từng feature flag. Kết quả trả về bao gồm tổng số lần evaluation và các thông tin tổng hợp cần thiết để trực quan hóa dưới dạng biểu đồ.
+
+Các API thống kê chỉ thực hiện truy vấn dữ liệu tổng hợp thay vì phân tích trực tiếp audit log, giúp giảm chi phí xử lý và cải thiện thời gian phản hồi. Nhờ đó, Dashboard có thể hiển thị nhanh các chỉ số sử dụng của feature flag, hỗ trợ người quản trị theo dõi hiệu quả vận hành và phát hiện các tính năng ít được sử dụng để phục vụ quá trình tối ưu hoặc dọn dẹp technical debt \cite{mahdavi_hezaveh_feature_toggles,unleash_feature_flag_best_practices}.

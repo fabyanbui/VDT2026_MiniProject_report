@@ -1,0 +1,271 @@
+\section{Hiệu năng, nhất quán và bảo mật}
+
+\subsection{Caching kết quả evaluation}
+
+Trong hệ thống Feature Flag, Evaluation API có thể được gọi với tần suất rất lớn bởi nhiều ứng dụng khách trong quá trình xử lý request. Mỗi lần đánh giá đều cần truy xuất cấu hình feature flag, rule và environment trước khi thực hiện quá trình evaluation. Nếu mọi request đều truy cập trực tiếp cơ sở dữ liệu thì độ trễ sẽ tăng, đồng thời tạo áp lực không cần thiết lên hệ quản trị cơ sở dữ liệu. Vì vậy, caching là một kỹ thuật quan trọng nhằm giảm thời gian phản hồi, giảm số lần truy vấn dữ liệu và tăng khả năng mở rộng của hệ thống. Các nền tảng Feature Flag hiện đại đều khuyến nghị sử dụng cache để tối ưu quá trình evaluation trong khi vẫn đảm bảo tính đúng đắn của kết quả \cite{unleash_feature_flag_best_practices,redis_client_side_caching}.
+
+\subsubsection{Mục tiêu của caching}
+
+Mục tiêu chính của caching là giảm số lần truy cập cơ sở dữ liệu đối với các dữ liệu ít thay đổi nhưng được đọc rất thường xuyên. Trong hệ thống Feature Flag, cấu hình của một feature flag thường chỉ thay đổi khi người quản trị cập nhật trên dashboard, trong khi Evaluation API có thể được gọi hàng nghìn lần mỗi phút bởi các ứng dụng khách.
+
+Việc sử dụng cache mang lại nhiều lợi ích như giảm độ trễ của Evaluation API, tăng throughput của hệ thống, giảm tải cho PostgreSQL và cải thiện khả năng đáp ứng khi số lượng request tăng cao. Đồng thời, cache cũng góp phần duy trì trải nghiệm ổn định cho ứng dụng khách ngay cả khi cơ sở dữ liệu đang chịu tải lớn hoặc có độ trễ tạm thời \cite{unleash_feature_flag_best_practices}.
+
+Tuy nhiên, cache chỉ nên được sử dụng đối với dữ liệu có thể tái sử dụng giữa nhiều request. Những dữ liệu phụ thuộc vào evaluation context của từng người dùng cần được cân nhắc kỹ nhằm tránh trả về kết quả không chính xác.
+
+\subsubsection{Cache configuration snapshot}
+
+Trong hệ thống được đề xuất, dữ liệu phù hợp nhất để cache là configuration snapshot của feature flag. Snapshot bao gồm toàn bộ thông tin cần thiết cho quá trình evaluation như trạng thái của flag, serving mode, kill switch, danh sách rule và thứ tự ưu tiên của các rule.
+
+Khi nhận được request evaluation, hệ thống trước tiên tìm snapshot trong cache theo khóa gồm project, environment và feature flag. Nếu snapshot đã tồn tại, Evaluation Engine có thể thực hiện đánh giá ngay mà không cần truy vấn cơ sở dữ liệu. Nếu cache không có dữ liệu (cache miss), hệ thống mới truy xuất PostgreSQL, xây dựng snapshot và lưu lại vào cache để phục vụ các request tiếp theo.
+
+Do configuration chỉ thay đổi khi có thao tác quản trị, cache snapshot có tỷ lệ tái sử dụng rất cao. Khi người quản trị cập nhật cấu hình feature flag, hệ thống sẽ xóa hoặc làm mới cache tương ứng để đảm bảo các request evaluation tiếp theo luôn sử dụng cấu hình mới nhất. Cách tiếp cận này giúp giảm đáng kể số lần truy cập cơ sở dữ liệu trong khi vẫn duy trì tính nhất quán của cấu hình \cite{unleash_feature_flag_best_practices}.
+
+\subsubsection{Cache kết quả evaluation}
+
+Ngoài configuration snapshot, một số hệ thống còn cache trực tiếp kết quả evaluation. Tuy nhiên, cách tiếp cận này cần được áp dụng thận trọng vì kết quả evaluation phụ thuộc vào evaluation context của từng request, bao gồm targeting key, vai trò người dùng và các thuộc tính khác.
+
+Nếu cache kết quả evaluation, khóa cache phải bao gồm toàn bộ các thông tin ảnh hưởng đến kết quả đánh giá. Khi số lượng người dùng và thuộc tính lớn, số lượng khóa cache sẽ tăng nhanh, làm giảm hiệu quả sử dụng bộ nhớ và tăng chi phí invalidation khi cấu hình feature flag thay đổi.
+
+Trong phạm vi mini project, giải pháp được lựa chọn là ưu tiên cache configuration snapshot thay vì cache kết quả evaluation. Evaluation Engine vẫn thực hiện tính toán trên snapshot đã được cache, do thuật toán evaluation có độ phức tạp thấp và chỉ bao gồm các phép so sánh điều kiện đơn giản. Cách tiếp cận này giúp cân bằng giữa hiệu năng, tính đúng đắn và độ đơn giản của hệ thống.
+
+\subsubsection{Lựa chọn in-memory cache và Redis}
+
+Có hai phương án phổ biến để triển khai cache là in-memory cache và Redis.
+
+In-memory cache lưu dữ liệu trực tiếp trong bộ nhớ của tiến trình ứng dụng. Phương án này có ưu điểm là tốc độ truy cập rất nhanh, triển khai đơn giản và không yêu cầu thêm hạ tầng. Tuy nhiên, cache sẽ bị mất khi ứng dụng khởi động lại và không thể chia sẻ giữa nhiều instance của backend.
+
+Redis là hệ quản trị dữ liệu trong bộ nhớ hoạt động độc lập với ứng dụng. Redis cho phép nhiều backend cùng sử dụng một cache chung, hỗ trợ thời gian sống (TTL), cơ chế invalidation linh hoạt và khả năng mở rộng tốt hơn. Đổi lại, hệ thống cần triển khai thêm một thành phần riêng và phát sinh chi phí giao tiếp qua mạng \cite{redis_client_side_caching}.
+
+Trong phạm vi mini project, hệ thống ưu tiên sử dụng in-memory cache nhằm giảm độ phức tạp triển khai và đáp ứng đầy đủ yêu cầu về hiệu năng. Kiến trúc của lớp cache được thiết kế theo hướng trừu tượng hóa để có thể thay thế bằng Redis trong tương lai mà không cần thay đổi Evaluation Engine. Điều này phù hợp với định hướng mở rộng của hệ thống và cũng đáp ứng yêu cầu khuyến khích về caching trong đề tài.
+
+\subsection{Thiết kế cache key và thời gian tồn tại}
+
+Để cache hoạt động hiệu quả, mỗi đối tượng được lưu trong cache phải có khóa (cache key) duy nhất và phản ánh đầy đủ các yếu tố ảnh hưởng đến dữ liệu được lưu. Một cache key được thiết kế tốt giúp tăng tỷ lệ cache hit, giảm nguy cơ trả về dữ liệu sai và đơn giản hóa quá trình invalidation khi cấu hình feature flag thay đổi. Bên cạnh đó, thời gian tồn tại (Time To Live - TTL) của cache cũng cần được lựa chọn phù hợp nhằm cân bằng giữa hiệu năng và tính nhất quán của dữ liệu \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
+
+\subsubsection{Thành phần của cache key}
+
+Trong hệ thống được đề xuất, cache key được xây dựng từ các thành phần định danh duy nhất của configuration snapshot. Đối với mỗi feature flag, khóa cache bao gồm project key, environment key và feature flag key theo định dạng:
+
+\begin{center}
+\texttt{projectKey:environmentKey:flagKey}
+\end{center}
+
+Cách tổ chức này đảm bảo mỗi cấu hình của feature flag trong từng environment được lưu thành một bản ghi độc lập. Khi Evaluation API nhận request, hệ thống có thể xác định chính xác snapshot cần sử dụng chỉ thông qua các khóa định danh mà không phải truy vấn cơ sở dữ liệu.
+
+Việc sử dụng các khóa có ý nghĩa rõ ràng cũng giúp đơn giản hóa quá trình ghi log, giám sát cache và xóa cache khi cấu hình thay đổi.
+
+\subsubsection{Cache key theo environment}
+
+Một feature flag có thể được cấu hình khác nhau giữa các environment như Development, Staging và Production. Ví dụ, cùng một feature flag có thể được bật hoàn toàn trong môi trường Development nhưng chỉ rollout cho một tỷ lệ nhỏ người dùng trên Production.
+
+Do đó, environment phải là một thành phần bắt buộc trong cache key. Nếu chỉ sử dụng project key và feature flag key, snapshot của các environment khác nhau có thể ghi đè lên nhau, dẫn đến Evaluation Engine sử dụng sai cấu hình.
+
+Việc tách biệt cache theo environment cũng phù hợp với mô hình quản lý feature flag của các nền tảng hiện đại, trong đó mỗi environment được xem là một không gian cấu hình độc lập \cite{launchdarkly_feature_flags}.
+
+\subsubsection{Cache key theo evaluation context}
+
+Đối với configuration snapshot, cache key không cần bao gồm evaluation context vì snapshot chỉ chứa cấu hình của feature flag và không phụ thuộc vào người dùng cụ thể. Sau khi snapshot được lấy từ cache, Evaluation Engine sẽ áp dụng các rule dựa trên evaluation context của request để tính toán kết quả cuối cùng.
+
+Ngược lại, nếu lựa chọn cache trực tiếp kết quả evaluation thì evaluation context phải trở thành một phần của cache key. Khi đó, khóa cache cần phản ánh toàn bộ các thuộc tính có ảnh hưởng đến kết quả đánh giá, chẳng hạn như targeting key, vai trò người dùng hoặc các thuộc tính tùy chỉnh.
+
+Tuy nhiên, số lượng tổ hợp evaluation context trong thực tế rất lớn, khiến cache key tăng nhanh và làm giảm hiệu quả của cache. Vì lý do đó, hệ thống trong mini project không cache kết quả evaluation mà chỉ cache configuration snapshot, giúp cache có tỷ lệ tái sử dụng cao hơn và đơn giản hóa cơ chế invalidation.
+
+\subsubsection{Lựa chọn thời gian tồn tại}
+
+Thời gian tồn tại của cache cần được lựa chọn sao cho vừa tận dụng được lợi ích của cache vừa hạn chế nguy cơ sử dụng dữ liệu cũ. Hai phương pháp phổ biến là sử dụng TTL cố định hoặc chủ động invalidation khi dữ liệu thay đổi.
+
+Trong hệ thống được đề xuất, configuration snapshot được ưu tiên làm mới ngay sau mỗi lần người quản trị thay đổi cấu hình feature flag. Khi xảy ra thao tác tạo, cập nhật, bật, tắt hoặc thay đổi rule, cache tương ứng sẽ bị xóa hoặc ghi đè để các request evaluation tiếp theo sử dụng cấu hình mới nhất.
+
+Bên cạnh cơ chế invalidation chủ động, cache vẫn có thể được cấu hình TTL để tự động loại bỏ các bản ghi ít được sử dụng hoặc tồn tại quá lâu. TTL không đóng vai trò đảm bảo tính nhất quán mà chủ yếu hỗ trợ quản lý bộ nhớ và phục hồi trong các trường hợp invalidation không được thực hiện do lỗi hệ thống. Cách kết hợp giữa invalidation theo sự kiện và TTL giúp duy trì hiệu năng cao trong khi vẫn đảm bảo Evaluation Engine sử dụng cấu hình gần với trạng thái hiện tại của hệ thống \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
+
+\subsection{Cache invalidation}
+
+Một trong những thách thức lớn nhất của caching là đảm bảo dữ liệu trong cache luôn phản ánh đúng trạng thái hiện tại của hệ thống. Nếu cache không được cập nhật hoặc xóa kịp thời sau khi cấu hình feature flag thay đổi, Evaluation Engine có thể sử dụng dữ liệu cũ và trả về kết quả không chính xác. Vì vậy, cache invalidation cần được thực hiện ngay khi xảy ra các thay đổi ảnh hưởng đến quá trình evaluation, thay vì chỉ phụ thuộc vào thời gian sống (TTL) của cache \cite{unleash_feature_flag_best_practices,redis_client_side_caching}.
+
+\subsubsection{Invalidation khi cập nhật flag}
+
+Các thuộc tính của feature flag như trạng thái lifecycle, trạng thái bật hoặc tắt, serving mode hoặc kill switch đều ảnh hưởng trực tiếp đến kết quả evaluation. Khi một trong các thuộc tính này được cập nhật, configuration snapshot tương ứng không còn hợp lệ.
+
+Trong hệ thống được đề xuất, sau khi thao tác cập nhật feature flag được thực hiện thành công và dữ liệu đã được lưu vào cơ sở dữ liệu, backend sẽ xóa cache của feature flag tương ứng. Request evaluation tiếp theo sẽ truy xuất dữ liệu mới từ cơ sở dữ liệu, xây dựng lại snapshot và lưu trở lại cache. Cơ chế này giúp tránh việc Evaluation Engine tiếp tục sử dụng cấu hình cũ sau khi người quản trị đã thay đổi trạng thái của feature flag.
+
+\subsubsection{Invalidation khi cập nhật rule}
+
+Danh sách rule và thứ tự ưu tiên của các rule là thành phần quan trọng của configuration snapshot. Việc thêm, sửa, xóa hoặc thay đổi priority của bất kỳ rule nào đều có thể làm thay đổi kết quả evaluation đối với một hoặc nhiều người dùng.
+
+Do đó, mọi thao tác cập nhật rule đều phải thực hiện invalidation đối với cache snapshot của feature flag tương ứng. Sau khi cache bị xóa, snapshot mới sẽ được tạo lại từ dữ liệu mới nhất trong cơ sở dữ liệu khi có request evaluation tiếp theo. Việc invalidation theo feature flag thay vì toàn bộ hệ thống giúp giới hạn phạm vi ảnh hưởng và duy trì hiệu năng của cache.
+
+\subsubsection{Invalidation khi thay đổi group kill switch}
+
+Trong hệ thống hỗ trợ group kill switch, một nhóm feature flag có thể được bật hoặc tắt đồng thời thông qua một cấu hình chung. Khi trạng thái group kill switch thay đổi, kết quả evaluation của tất cả các feature flag thuộc nhóm đều có khả năng thay đổi mặc dù bản thân từng feature flag không được chỉnh sửa.
+
+Vì vậy, hệ thống cần thực hiện invalidation đối với toàn bộ configuration snapshot của các feature flag thuộc group bị ảnh hưởng. Thay vì xóa toàn bộ cache của hệ thống, backend chỉ cần xác định danh sách feature flag trong group và xóa các cache key tương ứng. Cách tiếp cận này giúp giảm phạm vi invalidation và giữ nguyên cache của các feature flag không liên quan.
+
+\subsubsection{Invalidation theo environment}
+
+Feature flag thường được cấu hình độc lập theo từng environment như Development, Staging và Production. Một thay đổi trong môi trường Production không làm thay đổi cấu hình của cùng feature flag trên Staging hoặc Development.
+
+Do cache key đã bao gồm environment, quá trình invalidation cũng được thực hiện theo từng environment riêng biệt. Khi cấu hình của một feature flag trong một environment được cập nhật, hệ thống chỉ xóa cache snapshot tương ứng với environment đó mà không ảnh hưởng đến cache của các environment khác.
+
+Cơ chế invalidation theo environment giúp hạn chế số lượng cache bị xóa sau mỗi lần cập nhật, tăng tỷ lệ cache hit đối với các môi trường không thay đổi và phù hợp với mô hình quản lý cấu hình độc lập của các nền tảng Feature Flag hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsection{Tính nhất quán của cấu hình}
+
+Trong hệ thống Feature Flag, tính nhất quán của cấu hình quyết định liệu Evaluation Engine có luôn sử dụng phiên bản cấu hình mới nhất hay không. Khi áp dụng caching nhằm cải thiện hiệu năng, hệ thống phải chấp nhận sự đánh đổi nhất định giữa tốc độ truy cập và độ mới của dữ liệu. Do đó, việc lựa chọn mô hình nhất quán phù hợp là một yếu tố quan trọng trong thiết kế kiến trúc của nền tảng Feature Flag \cite{unleash_feature_flag_best_practices}.
+
+\subsubsection{Strong consistency và eventual consistency}
+
+Strong consistency đảm bảo rằng ngay sau khi cấu hình feature flag được cập nhật thành công, mọi request evaluation tiếp theo đều quan sát được phiên bản mới nhất của cấu hình. Mô hình này mang lại kết quả chính xác tuyệt đối nhưng thường yêu cầu đồng bộ dữ liệu chặt chẽ, làm tăng độ trễ và giảm khả năng mở rộng của hệ thống.
+
+Ngược lại, eventual consistency cho phép tồn tại một khoảng thời gian ngắn mà các request evaluation vẫn có thể sử dụng cấu hình cũ. Sau khi quá trình đồng bộ hoặc invalidation hoàn tất, toàn bộ hệ thống sẽ hội tụ về cùng một trạng thái cấu hình. Đây là mô hình phổ biến trong các nền tảng Feature Flag hiện đại do đáp ứng tốt yêu cầu hiệu năng và khả năng mở rộng \cite{unleash_feature_flag_best_practices}.
+
+Trong phạm vi mini project, hệ thống ưu tiên cập nhật cache ngay sau khi cấu hình thay đổi nhằm giảm tối đa thời gian tồn tại của dữ liệu cũ. Tuy nhiên, trong trường hợp triển khai nhiều backend hoặc sử dụng cache phân tán, hệ thống vẫn chấp nhận mô hình eventual consistency trong khoảng thời gian rất ngắn.
+
+\subsubsection{Stale configuration}
+
+Stale configuration là trạng thái Evaluation Engine sử dụng một phiên bản cấu hình đã lỗi thời so với dữ liệu hiện có trong cơ sở dữ liệu. Hiện tượng này có thể xảy ra khi cache chưa được invalidation, quá trình đồng bộ bị chậm hoặc nhiều instance backend chưa cập nhật cùng một thời điểm.
+
+Việc sử dụng stale configuration có thể dẫn đến nhiều hậu quả như tiếp tục bật một feature đã bị tắt, áp dụng sai tỷ lệ rollout hoặc sử dụng danh sách rule không còn hợp lệ. Mặc dù khoảng thời gian tồn tại của dữ liệu cũ thường ngắn, hệ thống vẫn cần hạn chế tối đa hiện tượng này nhằm đảm bảo hành vi của ứng dụng phù hợp với cấu hình mà người quản trị đã thiết lập.
+
+Trong hệ thống được đề xuất, stale configuration được giảm thiểu bằng cách thực hiện cache invalidation ngay sau khi cấu hình được cập nhật thành công và chỉ tạo lại configuration snapshot khi có request evaluation tiếp theo.
+
+\subsubsection{Giao dịch khi cập nhật cấu hình}
+
+Việc cập nhật feature flag thường liên quan đến nhiều bảng dữ liệu như feature flag, flag configuration, rule và audit log. Nếu từng thao tác được thực hiện độc lập, hệ thống có thể rơi vào trạng thái chỉ cập nhật một phần dữ liệu khi xảy ra lỗi, dẫn đến cấu hình không nhất quán.
+
+Để đảm bảo tính toàn vẹn dữ liệu, các thay đổi liên quan đến cùng một thao tác quản trị nên được thực hiện trong một transaction của cơ sở dữ liệu. Chỉ khi transaction được commit thành công thì cache mới được invalidation hoặc làm mới. Nếu transaction bị rollback, cache hiện tại vẫn tiếp tục được sử dụng vì dữ liệu trong cơ sở dữ liệu chưa thay đổi.
+
+Trình tự này giúp đảm bảo cache luôn phản ánh một trạng thái cấu hình hợp lệ, đồng thời tránh việc xóa cache quá sớm khiến Evaluation Engine phải tải lại dữ liệu chưa được cập nhật đầy đủ.
+
+\subsubsection{Cân bằng giữa hiệu năng và độ mới dữ liệu}
+
+Một hệ thống Feature Flag cần cân bằng giữa hai mục tiêu là giảm độ trễ của Evaluation API và đảm bảo dữ liệu cấu hình luôn đủ mới để phản ánh các thay đổi của người quản trị.
+
+Nếu mọi request đều truy cập trực tiếp cơ sở dữ liệu để đảm bảo strong consistency, độ trễ của Evaluation API sẽ tăng và khả năng mở rộng của hệ thống bị hạn chế. Ngược lại, nếu phụ thuộc hoàn toàn vào cache với thời gian tồn tại dài, nguy cơ sử dụng stale configuration sẽ tăng lên.
+
+Giải pháp được lựa chọn trong mini project là ưu tiên cache configuration snapshot kết hợp với invalidation theo sự kiện mỗi khi cấu hình thay đổi. Cơ chế này cho phép phần lớn request evaluation được xử lý trực tiếp từ cache với độ trễ thấp, đồng thời vẫn nhanh chóng phản ánh các thay đổi của feature flag sau khi người quản trị cập nhật cấu hình. Cách tiếp cận này phù hợp với các khuyến nghị của các nền tảng Feature Flag hiện đại về việc cân bằng giữa hiệu năng, khả năng mở rộng và tính nhất quán của hệ thống \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags}.
+
+\subsection{Trust boundary của evaluation context}
+
+Evaluation context là tập hợp các thông tin được sử dụng để xác định trạng thái của một feature flag đối với từng request cụ thể. Các thông tin này có thể bao gồm targeting key, user ID, vai trò người dùng và các thuộc tính mở rộng như quốc gia hoặc loại thiết bị. Do Evaluation Engine hoàn toàn dựa trên evaluation context để thực hiện targeting, tính tin cậy của các dữ liệu này ảnh hưởng trực tiếp đến tính đúng đắn của kết quả evaluation. Vì vậy, hệ thống cần xác định rõ trust boundary giữa dữ liệu đáng tin cậy và dữ liệu do ứng dụng khách cung cấp \cite{openfeature_evaluation_context,owasp_rest_security}.
+
+\subsubsection{Nguồn tạo evaluation context}
+
+Evaluation context có thể được tạo từ nhiều nguồn khác nhau tùy theo kiến trúc của ứng dụng. Trong các hệ thống phía server, context thường được xây dựng sau khi request đã trải qua quá trình xác thực người dùng. Thông tin như user ID, vai trò và organization được lấy từ session, access token hoặc cơ sở dữ liệu của ứng dụng thay vì từ dữ liệu người dùng tự nhập.
+
+Đối với các ứng dụng phía client, một phần evaluation context có thể được lấy từ trạng thái hiện tại của ứng dụng hoặc thông tin đã được xác thực trước đó. Tuy nhiên, mọi dữ liệu nhận trực tiếp từ trình duyệt đều cần được xem là không hoàn toàn đáng tin cậy cho đến khi được phía server kiểm chứng \cite{openfeature_evaluation_context}.
+
+\subsubsection{Dữ liệu do client tự khai báo}
+
+Một số thuộc tính trong evaluation context có thể được client gửi trực tiếp thông qua Evaluation API, chẳng hạn như targeting key hoặc các thuộc tính phục vụ cá nhân hóa. Các dữ liệu này thuận tiện cho việc triển khai nhưng cũng làm tăng nguy cơ bị sửa đổi trước khi gửi tới server.
+
+Trong hệ thống được đề xuất, Evaluation Engine chỉ sử dụng các thuộc tính do client cung cấp cho mục đích targeting và không xem chúng là bằng chứng xác thực danh tính của người dùng. Những thuộc tính có ý nghĩa bảo mật cần được lấy từ nguồn đã được xác thực hoặc được server tự xây dựng trong quá trình xử lý request. Cách tiếp cận này giúp hạn chế nguy cơ người dùng thay đổi dữ liệu nhằm tác động đến kết quả evaluation \cite{owasp_rest_security}.
+
+\subsubsection{Nguy cơ giả mạo user ID và role}
+
+Nếu Evaluation API chấp nhận hoàn toàn user ID hoặc role do client gửi lên mà không kiểm chứng, người dùng có thể tự thay đổi các giá trị này để nhận được những tính năng không dành cho mình. Ví dụ, một người dùng thông thường có thể tự khai báo vai trò quản trị hoặc sử dụng user ID của tài khoản khác nhằm vượt qua các rule targeting.
+
+Để giảm thiểu rủi ro này, server nên lấy user ID và vai trò từ thông tin đã được xác thực, chẳng hạn như access token hoặc session của ứng dụng. Evaluation context chỉ nên chứa các giá trị đã được kiểm chứng thay vì dữ liệu do client tự khai báo. Đây cũng là nguyên tắc chung trong thiết kế các REST API an toàn nhằm tránh việc tin tưởng dữ liệu đầu vào từ phía người dùng \cite{owasp_rest_security}.
+
+\subsubsection{Evaluation phía client và phía server}
+
+Feature flag có thể được đánh giá ở phía client hoặc phía server tùy theo yêu cầu của ứng dụng.
+
+Evaluation phía client giúp giảm số lần gọi API và phản hồi nhanh hơn đối với các thay đổi giao diện. Tuy nhiên, evaluation context và kết quả evaluation đều có thể bị người dùng quan sát hoặc sửa đổi, do đó chỉ phù hợp với các tính năng không liên quan đến bảo mật hoặc dữ liệu nhạy cảm.
+
+Ngược lại, evaluation phía server diễn ra trong môi trường đáng tin cậy hơn vì server có thể tự xây dựng evaluation context từ dữ liệu đã xác thực và kiểm soát toàn bộ quá trình evaluation. Trong phạm vi mini project, Evaluation Engine được triển khai trên backend, còn ứng dụng khách chỉ gửi request tới Evaluation API để nhận kết quả. Cách tiếp cận này giúp giảm nguy cơ giả mạo evaluation context và đơn giản hóa việc quản lý cấu hình feature flag.
+
+\subsubsection{Giới hạn sử dụng Feature Flag cho phân quyền}
+
+Feature flag được thiết kế nhằm kiểm soát quá trình phát hành và triển khai tính năng, không phải để thay thế cơ chế xác thực hoặc phân quyền của hệ thống. Mặc dù rule targeting có thể sử dụng thuộc tính vai trò để bật hoặc tắt một tính năng đối với từng nhóm người dùng, việc này chỉ quyết định khả năng hiển thị hoặc kích hoạt chức năng, không quyết định quyền truy cập tài nguyên.
+
+Mọi thao tác liên quan đến dữ liệu quan trọng hoặc chức năng quản trị vẫn phải được kiểm tra bằng cơ chế authorization độc lập. Nếu chỉ dựa vào feature flag để bảo vệ các API nhạy cảm, người dùng có thể tìm cách bỏ qua giao diện và gọi trực tiếp endpoint của hệ thống. Do đó, feature flag nên được xem là lớp điều khiển hành vi của ứng dụng, trong khi việc bảo vệ tài nguyên vẫn thuộc trách nhiệm của cơ chế xác thực và phân quyền \cite{owasp_rest_security,launchdarkly_feature_flags}.
+
+\subsection{Bảo vệ Management API}
+
+Khác với Evaluation API chủ yếu phục vụ truy vấn trạng thái feature flag, Management API cho phép tạo, sửa và quản lý cấu hình của hệ thống. Các endpoint này có thể thay đổi trạng thái feature flag, cập nhật rule, bật hoặc tắt kill switch và xem lịch sử thay đổi. Nếu không được bảo vệ thích hợp, kẻ tấn công có thể thay đổi cấu hình feature flag hoặc che giấu các hành vi bất thường. Do đó, Management API cần được thiết kế theo nguyên tắc xác thực đầy đủ, phân quyền rõ ràng và ghi nhận đầy đủ các thao tác quản trị \cite{owasp_rest_security,owasp_logging}.
+
+\subsubsection{Xác thực người dùng quản trị}
+
+Mọi request gửi tới Management API phải được thực hiện bởi người dùng đã được xác thực. Trước khi cho phép truy cập các chức năng quản trị, hệ thống cần kiểm tra danh tính của người gửi thông qua cơ chế xác thực phù hợp như session hoặc access token.
+
+Sau khi xác thực thành công, thông tin người dùng được gắn vào request để phục vụ quá trình phân quyền và ghi nhận audit log. Các request không hợp lệ hoặc không có thông tin xác thực phải bị từ chối trước khi thực hiện bất kỳ thao tác nào trên dữ liệu của hệ thống. Việc tách riêng quá trình xác thực khỏi logic nghiệp vụ giúp giảm nguy cơ truy cập trái phép và đơn giản hóa việc mở rộng hệ thống trong tương lai.
+
+\subsubsection{Bảo vệ mutation endpoint}
+
+Các endpoint thực hiện thay đổi dữ liệu như tạo project, tạo feature flag, cập nhật rule, bật hoặc tắt kill switch và lưu cấu hình mới được gọi là mutation endpoint. Đây là nhóm endpoint có mức độ rủi ro cao vì có thể làm thay đổi hành vi của toàn bộ hệ thống.
+
+Đối với các endpoint này, hệ thống cần kiểm tra quyền truy cập trước khi thực hiện thao tác cập nhật dữ liệu. Ngoài việc xác thực người dùng, backend phải kiểm tra vai trò hoặc quyền tương ứng đối với từng loại thao tác nhằm đảm bảo chỉ những người được ủy quyền mới có thể thay đổi cấu hình. Đồng thời, toàn bộ thao tác cập nhật cần được thực hiện thông qua transaction và chỉ ghi audit log sau khi transaction được commit thành công.
+
+\subsubsection{Validation actor}
+
+Mỗi thao tác quản trị cần xác định rõ actor là người thực hiện thay đổi cấu hình. Actor thường bao gồm định danh người dùng, thời điểm thực hiện và các thông tin phục vụ truy vết như request ID hoặc địa chỉ IP nếu cần thiết.
+
+Trong hệ thống được đề xuất, mọi mutation endpoint đều yêu cầu actor hợp lệ trước khi thực hiện thay đổi dữ liệu. Nếu request không xác định được actor hoặc thông tin actor không hợp lệ, hệ thống sẽ từ chối xử lý thay vì tạo bản ghi audit log không đầy đủ. Điều này giúp đảm bảo mọi thay đổi cấu hình đều có thể truy vết về người thực hiện và đáp ứng yêu cầu về accountability của hệ thống \cite{owasp_logging}.
+
+\subsubsection{Giới hạn truy cập audit log}
+
+Audit log chứa lịch sử thay đổi cấu hình feature flag, bao gồm actor, thời gian thực hiện, hành động và dữ liệu trước và sau khi thay đổi. Đây là nguồn thông tin quan trọng phục vụ kiểm tra, khắc phục sự cố và điều tra các thay đổi bất thường.
+
+Do audit log có thể chứa thông tin nhạy cảm về cấu hình hệ thống và hoạt động của người quản trị, không phải mọi người dùng đều được phép truy cập. Trong phạm vi mini project, chỉ người dùng có quyền quản trị mới được xem audit log thông qua Management API. Hệ thống không cho phép chỉnh sửa hoặc xóa các bản ghi audit log, đảm bảo lịch sử thay đổi luôn mang tính append-only và có giá trị phục vụ truy vết sau này \cite{owasp_logging,owasp_rest_security}.
+
+\subsection{Phân quyền quản trị}
+
+Hệ thống quản lý Feature Flag bao gồm nhiều chức năng với mức độ ảnh hưởng khác nhau, từ xem cấu hình, đánh giá trạng thái đến thay đổi trực tiếp hành vi của ứng dụng đang chạy. Vì vậy, không phải mọi người dùng đều nên có cùng quyền truy cập đối với Management API và Dashboard. Việc áp dụng mô hình phân quyền theo vai trò (Role-Based Access Control -- RBAC) giúp giới hạn phạm vi thao tác của từng nhóm người dùng, giảm nguy cơ thay đổi cấu hình ngoài ý muốn và tăng khả năng truy vết khi xảy ra sự cố. Trong phạm vi mini project, hệ thống sử dụng ba vai trò gồm \textit{admin}, \textit{developer} và \textit{viewer} để minh họa cơ chế phân quyền \cite{owasp_rest_security}.
+
+\subsubsection{Quyền của admin}
+
+Admin là vai trò có quyền cao nhất trong hệ thống. Người dùng thuộc vai trò này có thể thực hiện toàn bộ các chức năng quản trị như tạo project, tạo và cập nhật feature flag, cấu hình rule, bật hoặc tắt kill switch, quản lý group, xem audit log và quản lý tài khoản người dùng.
+
+Do các thao tác của admin có thể ảnh hưởng trực tiếp đến hành vi của hệ thống đang vận hành, mọi thay đổi đều được ghi nhận vào audit log cùng với thông tin actor và thời điểm thực hiện. Đây là vai trò duy nhất được phép thực hiện các thao tác có khả năng thay đổi cấu hình của toàn bộ hệ thống.
+
+\subsubsection{Quyền của developer}
+
+Developer là vai trò phục vụ quá trình phát triển và kiểm thử tính năng. Người dùng thuộc nhóm này có thể xem danh sách project, feature flag, rule và trạng thái hiện tại của hệ thống. Tùy theo chính sách triển khai, developer cũng có thể được phép cập nhật một số cấu hình trong môi trường phát triển hoặc thử nghiệm.
+
+Trong phạm vi mini project, developer được phép quản lý feature flag và rule nhưng không được thực hiện các thao tác quản trị hệ thống như quản lý tài khoản hoặc thay đổi quyền của người dùng khác. Việc tách biệt quyền của developer giúp giảm rủi ro thay đổi ngoài ý muốn đối với các chức năng quản trị quan trọng.
+
+\subsubsection{Quyền của viewer}
+
+Viewer là vai trò chỉ có quyền đọc dữ liệu. Người dùng thuộc nhóm này có thể xem danh sách project, feature flag, trạng thái runtime và audit log nếu được cấp quyền, nhưng không được phép thực hiện bất kỳ thao tác thay đổi cấu hình nào.
+
+Mọi endpoint thực hiện tạo, cập nhật hoặc xóa dữ liệu đều phải từ chối request đến từ viewer. Vai trò này phù hợp với các đối tượng cần theo dõi trạng thái hệ thống hoặc kiểm tra cấu hình mà không tham gia vào quá trình quản trị.
+
+\subsubsection{Kiểm tra quyền tại Backend API}
+
+Việc kiểm tra quyền phải được thực hiện tại Backend API thay vì chỉ dựa trên giao diện người dùng. Mỗi request gửi tới Management API trước tiên được xác thực để xác định danh tính người dùng, sau đó backend kiểm tra vai trò tương ứng trước khi thực hiện logic nghiệp vụ.
+
+Nếu người dùng không có quyền thực hiện thao tác yêu cầu, hệ thống trả về mã lỗi phù hợp và không thực hiện bất kỳ thay đổi nào đối với dữ liệu. Cách tiếp cận này đảm bảo các endpoint vẫn được bảo vệ ngay cả khi người dùng bỏ qua Dashboard và gửi request trực tiếp tới API \cite{owasp_rest_security}.
+
+\subsubsection{Hiển thị quyền trên Dashboard}
+
+Bên cạnh việc kiểm tra quyền tại backend, Dashboard cũng cần phản ánh rõ quyền hạn của từng người dùng nhằm cải thiện trải nghiệm sử dụng. Các chức năng không được phép thực hiện có thể được ẩn hoàn toàn hoặc hiển thị ở trạng thái vô hiệu hóa, đồng thời cung cấp thông báo giải thích khi cần thiết.
+
+Tuy nhiên, việc ẩn nút chức năng trên giao diện chỉ mang ý nghĩa hỗ trợ người dùng và không thay thế cho cơ chế kiểm tra quyền tại Backend API. Mọi thao tác thay đổi cấu hình vẫn phải được xác thực và phân quyền ở phía server để đảm bảo an toàn cho hệ thống.
+
+\subsection{Auditability và truy vết thay đổi}
+
+Một trong những yêu cầu quan trọng của hệ thống Feature Flag là mọi thay đổi cấu hình đều phải có khả năng truy vết. Khi xảy ra sự cố trên môi trường thực tế, đội phát triển cần xác định ai đã thực hiện thay đổi, thay đổi những gì và thay đổi vào thời điểm nào. Vì vậy, hệ thống cần xây dựng cơ chế audit log đầy đủ, đảm bảo mọi thao tác quản trị đều được ghi nhận và không thể bị chỉnh sửa sau khi lưu trữ. Điều này không chỉ hỗ trợ điều tra sự cố mà còn tăng tính minh bạch và trách nhiệm trong quá trình quản trị hệ thống \cite{owasp_logging}.
+
+\subsubsection{Ghi nhận actor}
+
+Mỗi bản ghi audit log cần xác định rõ actor là người thực hiện thao tác. Actor thường bao gồm định danh người dùng đã được xác thực và có thể kèm theo các thông tin bổ sung như tên hiển thị hoặc vai trò tại thời điểm thực hiện thao tác.
+
+Việc ghi nhận actor giúp xác định trách nhiệm đối với từng thay đổi cấu hình và hỗ trợ quá trình kiểm tra khi có sự cố hoặc thay đổi ngoài mong muốn. Trong hệ thống được đề xuất, mọi mutation endpoint đều yêu cầu actor hợp lệ trước khi thực hiện thay đổi dữ liệu. Nếu không xác định được actor, request sẽ bị từ chối thay vì tạo bản ghi audit log không đầy đủ.
+
+\subsubsection{Ghi nhận request ID}
+
+Bên cạnh actor, mỗi thao tác quản trị cũng được gắn với một request ID duy nhất. Request ID được tạo khi request đi vào hệ thống và được truyền xuyên suốt qua các thành phần của backend như controller, service, repository và audit log.
+
+Việc lưu request ID giúp liên kết các bản ghi log của cùng một request, hỗ trợ quá trình truy vết khi phân tích lỗi hoặc điều tra sự cố. Khi kết hợp với log của ứng dụng và cơ sở dữ liệu, request ID giúp tái hiện toàn bộ luồng xử lý của một thao tác quản trị mà không cần suy luận từ thời gian thực hiện.
+
+\subsubsection{Snapshot trước và sau thay đổi}
+
+Để biết chính xác nội dung đã được chỉnh sửa, audit log không chỉ ghi nhận loại thao tác mà còn lưu snapshot của dữ liệu trước và sau khi thay đổi. Snapshot có thể bao gồm các thông tin như trạng thái feature flag, serving mode, danh sách rule hoặc các thuộc tính cấu hình khác tùy theo đối tượng được cập nhật.
+
+Việc lưu cả hai phiên bản dữ liệu giúp dễ dàng xác định các trường đã thay đổi, hỗ trợ khôi phục cấu hình khi cần thiết và phục vụ quá trình kiểm tra lịch sử thay đổi. Trong hệ thống được đề xuất, snapshot được lưu dưới dạng dữ liệu JSON nhằm biểu diễn đầy đủ cấu trúc của từng đối tượng mà không phụ thuộc vào số lượng thuộc tính của từng bảng dữ liệu \cite{postgresql_json_types}.
+
+\subsubsection{Bảo vệ tính toàn vẹn audit log}
+
+Audit log chỉ có giá trị khi các bản ghi không thể bị chỉnh sửa hoặc xóa sau khi đã được tạo. Nếu lịch sử thay đổi có thể bị sửa đổi, hệ thống sẽ mất khả năng truy vết và không còn đáp ứng yêu cầu về tính minh bạch của quá trình quản trị.
+
+Trong phạm vi mini project, audit log được thiết kế theo mô hình append-only. Sau khi một bản ghi được tạo, hệ thống không cung cấp API cập nhật hoặc xóa dữ liệu. Đồng thời, cơ sở dữ liệu có thể áp dụng các ràng buộc hoặc trigger để ngăn chặn thao tác \texttt{UPDATE} và \texttt{DELETE} trên bảng audit log. Cách tiếp cận này giúp bảo vệ tính toàn vẹn của lịch sử thay đổi và đảm bảo mọi thao tác quản trị đều có thể được truy vết về sau \cite{owasp_logging}.

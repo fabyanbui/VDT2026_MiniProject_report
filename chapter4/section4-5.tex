@@ -1,0 +1,113 @@
+\section{Hướng phát triển}
+
+\section{Mở rộng Rule Evaluation Engine}
+
+Mặc dù Rule Evaluation Engine đã đáp ứng đầy đủ các yêu cầu của mini project với các chiến lược bật hoặc tắt toàn cục, targeting theo người dùng, targeting theo vai trò và percentage rollout, hệ thống vẫn còn nhiều hướng mở rộng nhằm đáp ứng các nhu cầu triển khai trong môi trường sản xuất quy mô lớn. Việc mở rộng engine theo hướng mô-đun sẽ giúp bổ sung các loại rule mới mà không ảnh hưởng đến các rule hiện có, đồng thời phù hợp với định hướng phát triển của các nền tảng Feature Flag hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsection{Targeting theo thuộc tính}
+
+Hiện tại hệ thống chủ yếu đánh giá dựa trên \texttt{userId}, \texttt{role} và \texttt{targetingKey}. Trong tương lai, Evaluation Engine có thể hỗ trợ nhiều thuộc tính hơn như loại thiết bị, hệ điều hành, phiên bản ứng dụng, gói dịch vụ, quốc gia hoặc các thuộc tính nghiệp vụ do ứng dụng khách cung cấp thông qua Evaluation Context.
+
+Các điều kiện này có thể được biểu diễn dưới dạng tập luật với các toán tử so sánh như bằng, khác, thuộc tập giá trị, so khớp chuỗi hoặc biểu thức chính quy. Cách tiếp cận này giúp hệ thống linh hoạt hơn trong việc triển khai tính năng cho các nhóm người dùng cụ thể mà không cần thay đổi mã nguồn của ứng dụng khách. Hướng phát triển này cũng phù hợp với mô hình Evaluation Context được đề xuất trong OpenFeature \cite{openfeature_evaluation_context}.
+
+\subsection{Targeting theo organization}
+
+Trong nhiều hệ thống SaaS, Feature Flag thường được quản lý theo từng khách hàng hoặc từng tổ chức thay vì từng người dùng riêng lẻ. Do đó, một hướng phát triển quan trọng là bổ sung khả năng targeting dựa trên \texttt{organizationId} hoặc các thuộc tính của tổ chức.
+
+Khi đó, Evaluation Engine có thể kích hoạt hoặc vô hiệu hóa tính năng cho toàn bộ doanh nghiệp, nhóm khách hàng hoặc tenant cụ thể. Việc này giúp đơn giản hóa quá trình quản trị khi số lượng người dùng lớn, đồng thời hỗ trợ triển khai các gói tính năng khác nhau cho từng khách hàng doanh nghiệp mà vẫn sử dụng chung một hệ thống.
+
+\subsection{Targeting theo thời gian và vị trí}
+
+Một hướng phát triển khác là bổ sung các rule phụ thuộc vào thời gian hoặc vị trí địa lý. Ví dụ, Feature Flag chỉ được kích hoạt trong một khoảng thời gian xác định để phục vụ chiến dịch marketing, sự kiện đặc biệt hoặc quá trình phát hành theo từng giai đoạn.
+
+Ngoài ra, hệ thống có thể hỗ trợ triển khai tính năng theo khu vực hoặc quốc gia nhằm đáp ứng yêu cầu pháp lý hoặc chiến lược phát hành riêng của từng thị trường. Để thực hiện điều này, Evaluation Context cần được mở rộng với các thông tin về thời gian, múi giờ hoặc vị trí, đồng thời Evaluation Engine cần bổ sung các bộ đánh giá tương ứng mà vẫn đảm bảo thứ tự ưu tiên giữa các loại rule.
+
+\subsection{Hỗ trợ nhiều variant và A/B testing}
+
+Phiên bản hiện tại chủ yếu trả về kết quả bật hoặc tắt cùng một giá trị \texttt{variant} đơn giản. Trong tương lai, hệ thống có thể mở rộng để hỗ trợ nhiều biến thể của cùng một Feature Flag, cho phép phân phối nhiều phiên bản giao diện hoặc thuật toán khác nhau đến các nhóm người dùng.
+
+Trên cơ sở đó, nền tảng có thể hỗ trợ các kịch bản A/B testing hoặc multivariate testing, trong đó người dùng được phân bổ ổn định vào từng biến thể thông qua cơ chế băm nhất quán. Kết hợp với hệ thống thống kê evaluation và các chỉ số nghiệp vụ, kết quả thử nghiệm có thể được sử dụng để đánh giá hiệu quả của từng biến thể trước khi triển khai rộng rãi. Đây là một trong những khả năng quan trọng của các nền tảng Feature Flag hiện đại và là hướng phát triển phù hợp cho hệ thống trong tương lai \cite{launchdarkly_percentage_rollouts,fowler_feature_toggles}.
+
+\section{Mở rộng khả năng tích hợp}
+
+Trong phạm vi mini project, hệ thống đã cung cấp REST API và JavaScript SDK để các ứng dụng web có thể tích hợp và sử dụng Feature Flag. Tuy nhiên, nhằm đáp ứng nhu cầu triển khai trong nhiều môi trường và ngôn ngữ lập trình khác nhau, nền tảng vẫn còn nhiều hướng phát triển về khả năng tích hợp với các hệ thống bên ngoài, đồng thời nâng cao khả năng đồng bộ cấu hình và tính tương thích với các tiêu chuẩn mở của ngành \cite{openfeature_flag_evaluation,launchdarkly_feature_flags}.
+
+\subsection{SDK cho nhiều ngôn ngữ}
+
+Hiện nay SDK mới được xây dựng cho ứng dụng JavaScript nhằm minh họa quá trình gọi Evaluation API. Trong tương lai, hệ thống có thể phát triển thêm SDK cho các ngôn ngữ phổ biến như Java, Go, Python, C\#, PHP hoặc Kotlin để hỗ trợ nhiều loại ứng dụng khác nhau.
+
+Các SDK nên cung cấp giao diện lập trình thống nhất, hỗ trợ quản lý Evaluation Context, xử lý lỗi, caching cục bộ và trả về kết quả đánh giá theo cùng một định dạng. Điều này giúp giảm đáng kể khối lượng mã nguồn tích hợp phía ứng dụng khách, đồng thời đảm bảo hành vi đánh giá Feature Flag nhất quán trên nhiều nền tảng.
+
+\subsection{Webhook khi cấu hình thay đổi}
+
+Một hướng phát triển khác là bổ sung cơ chế webhook để thông báo cho các hệ thống bên ngoài khi cấu hình Feature Flag thay đổi. Mỗi khi Feature Flag, Rule hoặc Environment được cập nhật, hệ thống có thể gửi sự kiện đến các URL đã đăng ký trước.
+
+Webhook giúp các hệ thống tích hợp chủ động thực hiện các tác vụ như làm mới cache, đồng bộ dữ liệu, ghi nhận sự kiện hoặc kích hoạt quy trình CI/CD mà không cần liên tục truy vấn Management API. Cơ chế này cũng góp phần giảm lưu lượng truy cập và tăng khả năng mở rộng của toàn hệ thống.
+
+\subsection{Đồng bộ cấu hình theo thời gian thực}
+
+Phiên bản hiện tại chủ yếu sử dụng cơ chế cache kết hợp với invalidation sau khi có thay đổi cấu hình. Trong tương lai, hệ thống có thể mở rộng theo hướng đồng bộ cấu hình theo thời gian thực thông qua các công nghệ như WebSocket hoặc Server-Sent Events.
+
+Khi đó, các SDK hoặc Evaluation Service có thể nhận ngay thông tin cập nhật mà không cần polling định kỳ. Việc đồng bộ theo thời gian thực giúp giảm độ trễ giữa thời điểm thay đổi cấu hình và thời điểm áp dụng trong ứng dụng khách, đồng thời cải thiện tính nhất quán của dữ liệu trong môi trường có nhiều instance triển khai \cite{unleash_feature_flag_best_practices}.
+
+\subsection{Tương thích OpenFeature}
+
+OpenFeature đang dần trở thành tiêu chuẩn mở cho việc tích hợp Feature Flag giữa nhiều nền tảng khác nhau. Do đó, một hướng phát triển quan trọng là điều chỉnh SDK và Evaluation API để tương thích với các đặc tả của OpenFeature.
+
+Việc hỗ trợ đầy đủ các khái niệm như Provider, Evaluation Context, Resolution Details và Evaluation API sẽ giúp ứng dụng khách có thể chuyển đổi giữa nhiều nhà cung cấp Feature Flag mà không cần thay đổi đáng kể mã nguồn. Điều này không chỉ nâng cao khả năng tái sử dụng của hệ thống mà còn tạo điều kiện để nền tảng dễ dàng tích hợp với hệ sinh thái Feature Flag hiện đại trong tương lai \cite{openfeature_evaluation_context,openfeature_flag_evaluation}.
+
+\section{Mở rộng quản trị vòng đời flag}
+
+Trong phiên bản hiện tại, hệ thống đã hỗ trợ các trạng thái cơ bản của Feature Flag cùng khả năng lưu vết thay đổi thông qua audit log và versioning. Tuy nhiên, việc quản trị vòng đời của Feature Flag trong môi trường sản xuất còn bao gồm nhiều quy trình liên quan đến phê duyệt, lập lịch triển khai và quản lý các flag không còn sử dụng. Đây là những chức năng thường xuất hiện trong các nền tảng Feature Flag quy mô lớn nhằm giảm rủi ro vận hành và hạn chế phát sinh technical debt \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+\subsection{Approval workflow}
+
+Một hướng phát triển quan trọng là xây dựng quy trình phê duyệt trước khi các thay đổi cấu hình được áp dụng vào môi trường production. Thay vì cho phép cập nhật trực tiếp, các thao tác quan trọng như bật hoặc tắt Feature Flag, thay đổi rule hoặc điều chỉnh rollout có thể được chuyển sang trạng thái chờ phê duyệt.
+
+Quy trình này có thể phân tách vai trò giữa người đề xuất và người phê duyệt, đồng thời lưu đầy đủ lịch sử của từng bước xử lý trong audit log. Cách tiếp cận này giúp giảm nguy cơ cấu hình sai, tăng khả năng kiểm soát thay đổi và đáp ứng tốt hơn các yêu cầu về quản trị trong doanh nghiệp.
+
+\subsection{Lập lịch bật và tắt flag}
+
+Hiện tại mọi thay đổi đều được thực hiện thủ công thông qua Dashboard hoặc API. Trong tương lai, hệ thống có thể hỗ trợ lập lịch tự động kích hoạt hoặc vô hiệu hóa Feature Flag tại một thời điểm xác định.
+
+Chức năng này đặc biệt hữu ích đối với các chiến dịch marketing, sự kiện theo mùa hoặc kế hoạch phát hành đã được chuẩn bị trước. Việc tự động thực thi theo lịch giúp giảm thao tác thủ công, hạn chế sai sót của con người và đảm bảo các thay đổi được áp dụng đúng thời điểm dự kiến.
+
+\subsection{Phát hiện stale flag}
+
+Sau khi một tính năng đã được triển khai ổn định, nhiều Feature Flag không còn giá trị sử dụng nhưng vẫn tồn tại trong hệ thống và trong mã nguồn ứng dụng. Điều này làm tăng độ phức tạp của logic xử lý và gây khó khăn cho quá trình bảo trì.
+
+Do đó, hệ thống có thể được mở rộng để phát hiện các stale flag dựa trên nhiều tiêu chí như thời gian không cập nhật, thời gian không được evaluate, trạng thái luôn bật hoặc luôn tắt trong thời gian dài hoặc không còn được tham chiếu trong ứng dụng. Việc nhận diện sớm các stale flag giúp giảm technical debt và duy trì hệ thống ở trạng thái dễ quản lý hơn \cite{fowler_feature_toggles,mahdavi_hezaveh_feature_toggles}.
+
+\subsection{Nhắc nhở và tự động dọn dẹp flag}
+
+Sau khi phát hiện stale flag, nền tảng có thể tiếp tục hỗ trợ cơ chế nhắc nhở hoặc tự động xử lý theo các chính sách được cấu hình trước. Ví dụ, hệ thống có thể gửi thông báo cho quản trị viên khi Feature Flag vượt quá thời gian tồn tại dự kiến hoặc đề xuất chuyển sang trạng thái lưu trữ.
+
+Trong các phiên bản nâng cao, hệ thống còn có thể hỗ trợ quy trình tự động archive hoặc đánh dấu các Feature Flag cần được loại bỏ sau khi đã hoàn tất quá trình kiểm tra. Việc quản lý vòng đời theo hướng chủ động giúp hạn chế sự tích lũy của Feature Flag không còn sử dụng, giảm chi phí bảo trì và phù hợp với các thực tiễn được khuyến nghị trong các nền tảng Feature Flag hiện đại \cite{unleash_feature_flag_best_practices,mahdavi_hezaveh_feature_toggles}.
+
+\section{Mở rộng khả năng vận hành}
+
+Phiên bản hiện tại đáp ứng tốt mục tiêu nghiên cứu và triển khai trong phạm vi mini project với quy mô nhỏ. Tuy nhiên, khi số lượng Feature Flag, người dùng và yêu cầu truy cập đồng thời tăng lên, hệ thống cần được mở rộng về khả năng vận hành nhằm đảm bảo tính sẵn sàng, hiệu năng và độ tin cậy. Các hướng phát triển dưới đây tập trung vào việc nâng cao khả năng mở rộng của hạ tầng mà vẫn giữ nguyên kiến trúc tổng thể của nền tảng \cite{unleash_feature_flag_best_practices,docker_compose}.
+
+\subsection{High availability}
+
+Một hướng phát triển quan trọng là triển khai nhiều instance cho Backend API và Dashboard nhằm loại bỏ điểm lỗi đơn (Single Point of Failure). Các instance có thể được đặt sau bộ cân bằng tải để phân phối lưu lượng truy cập và tự động chuyển hướng khi một nút gặp sự cố.
+
+Bên cạnh đó, cơ sở dữ liệu cũng có thể được mở rộng theo mô hình primary--replica nhằm tăng khả năng chịu lỗi và cải thiện hiệu năng đọc. Cách tiếp cận này giúp Evaluation API duy trì khả năng phục vụ ngay cả khi một phần hạ tầng gặp sự cố, từ đó nâng cao độ sẵn sàng của toàn hệ thống.
+
+\subsection{Distributed cache}
+
+Hiện tại hệ thống sử dụng cơ chế cache đơn giản phục vụ quá trình evaluation. Trong môi trường có nhiều Backend API hoạt động đồng thời, mỗi instance sẽ có bộ nhớ đệm riêng, dẫn đến nguy cơ dữ liệu không đồng bộ sau khi cấu hình thay đổi.
+
+Để khắc phục hạn chế này, hệ thống có thể sử dụng distributed cache dựa trên Redis hoặc các giải pháp tương tự làm tầng cache dùng chung giữa các instance. Kết hợp với cơ chế cache invalidation hoặc publish/subscribe, mọi thay đổi cấu hình có thể được đồng bộ nhanh chóng đến toàn bộ hệ thống, góp phần giảm độ trễ và duy trì tính nhất quán của dữ liệu \cite{redis_client_side_caching}.
+
+\subsection{Monitoring và alerting}
+
+Một hướng phát triển khác là xây dựng hệ thống giám sát và cảnh báo chuyên biệt cho nền tảng Feature Flag. Các chỉ số như số lượng evaluation, thời gian phản hồi API, tỷ lệ lỗi, số lần cache hit hoặc cache miss và mức sử dụng tài nguyên có thể được thu thập và trực quan hóa thông qua các công cụ giám sát.
+
+Kết hợp với cơ chế cảnh báo tự động, hệ thống có thể nhanh chóng phát hiện các bất thường như tỷ lệ lỗi tăng cao, Evaluation API không khả dụng hoặc số lượng request vượt ngưỡng cho phép. Điều này giúp đội ngũ vận hành phản ứng kịp thời và giảm thiểu ảnh hưởng đến các ứng dụng đang sử dụng Feature Flag.
+
+\subsection{Triển khai trên Kubernetes}
+
+Phiên bản hiện tại sử dụng Docker Compose để đơn giản hóa quá trình triển khai trong môi trường phát triển và trình diễn. Trong tương lai, hệ thống có thể được mở rộng để triển khai trên Kubernetes nhằm đáp ứng yêu cầu vận hành ở quy mô lớn.
+
+Việc sử dụng Kubernetes cho phép tự động mở rộng số lượng instance theo tải hệ thống, hỗ trợ rolling update, tự động khởi động lại các dịch vụ gặp lỗi và quản lý tài nguyên hiệu quả hơn. Đồng thời, nền tảng cũng có thể tận dụng các khả năng như Service Discovery, ConfigMap, Secret và Horizontal Pod Autoscaler để nâng cao tính linh hoạt và khả năng vận hành trong môi trường production \cite{docker_compose}.

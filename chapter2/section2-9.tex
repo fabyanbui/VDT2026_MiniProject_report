@@ -1,0 +1,465 @@
+\section{Phương pháp kiểm thử và đánh giá}
+
+\subsection{Unit test cho Rule Evaluation Engine}
+
+Rule Evaluation Engine là thành phần quyết định trạng thái cuối cùng của mỗi feature flag dựa trên cấu hình và evaluation context. Do đây là thành phần chứa phần lớn logic nghiệp vụ của hệ thống, việc xây dựng các bài kiểm thử đơn vị (unit test) giúp xác minh tính đúng đắn của thuật toán, đảm bảo mỗi quy tắc được thực thi theo đúng thứ tự ưu tiên đã thiết kế và hạn chế lỗi khi thay đổi mã nguồn trong tương lai. Các bài kiểm thử được thực hiện độc lập với cơ sở dữ liệu và API, chỉ tập trung đánh giá đầu vào và đầu ra của Evaluation Engine. Cách tiếp cận này phù hợp với khuyến nghị tách biệt logic đánh giá feature flag khỏi các thành phần lưu trữ và giao tiếp mạng để tăng khả năng kiểm thử và bảo trì \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
+
+\subsubsection{Kiểm thử trạng thái archived và disabled}
+
+Nhóm kiểm thử đầu tiên xác minh các trạng thái đặc biệt của feature flag. Khi một flag ở trạng thái \texttt{ARCHIVED}, hệ thống phải trả về kết quả tắt ngay lập tức và không tiếp tục đánh giá các rule phía sau. Tương tự, khi cấu hình của flag ở trạng thái \texttt{DISABLED}, Evaluation Engine cũng phải kết thúc quá trình đánh giá và trả về reason tương ứng.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Flag ở trạng thái \texttt{ARCHIVED}.
+    \item Flag ở trạng thái \texttt{DISABLED}.
+    \item Flag ở trạng thái hoạt động bình thường để xác nhận Evaluation Engine tiếp tục đánh giá các rule còn lại.
+\end{itemize}
+
+Các bài kiểm thử này nhằm đảm bảo thứ tự ưu tiên của các trạng thái hệ thống luôn được duy trì, tránh việc một flag đã bị vô hiệu hóa vẫn có thể được bật bởi các rule targeting phía sau \cite{launchdarkly_feature_flags,fowler_feature_toggles}.
+
+\subsubsection{Kiểm thử kill switch}
+
+Kill switch là cơ chế cho phép vô hiệu hóa ngay lập tức một feature mà không cần triển khai lại ứng dụng. Vì vậy, Evaluation Engine phải ưu tiên kiểm tra kill switch trước các rule targeting.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Kill switch bật, kết quả evaluation luôn trả về \texttt{enabled = false}.
+    \item Kill switch tắt, Evaluation Engine tiếp tục đánh giá các rule tiếp theo.
+    \item Kill switch bật đồng thời tồn tại rule user hoặc role phù hợp, kết quả vẫn phải ưu tiên kill switch.
+\end{itemize}
+
+Việc kiểm thử bảo đảm hệ thống luôn có khả năng rollback nhanh khi phát sinh sự cố trên môi trường production, đúng với mục tiêu của Feature Flag trong quy trình phát hành phần mềm hiện đại \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+\subsubsection{Kiểm thử user và role targeting}
+
+Nhóm kiểm thử này xác minh khả năng đánh giá các rule dựa trên thuộc tính của người dùng trong evaluation context. Evaluation Engine phải xác định đúng khi người dùng thuộc danh sách cho phép hoặc sở hữu vai trò phù hợp với cấu hình của feature flag.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item User ID nằm trong danh sách cho phép.
+    \item User ID không nằm trong danh sách.
+    \item Role của người dùng khớp với rule.
+    \item Role không khớp với bất kỳ rule nào.
+    \item Đồng thời tồn tại nhiều rule với mức ưu tiên khác nhau.
+\end{itemize}
+
+Các bài kiểm thử cũng xác nhận Evaluation Engine áp dụng đúng thứ tự ưu tiên giữa các rule, đảm bảo kết quả evaluation luôn xác định và nhất quán \cite{launchdarkly_targeting_rules,openfeature_evaluation_context}.
+
+\subsubsection{Kiểm thử percentage rollout}
+
+Percentage rollout sử dụng giá trị băm ổn định của \texttt{targetingKey} để phân bổ người dùng vào các bucket phần trăm. Do đó, các bài kiểm thử không chỉ kiểm tra việc so sánh với ngưỡng rollout mà còn phải bảo đảm tính ổn định của thuật toán.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Rollout bằng $0\%$.
+    \item Rollout bằng $100\%$.
+    \item Rollout với các giá trị trung gian như $10\%$, $25\%$, $50\%$ và $75\%$.
+    \item Cùng một \texttt{targetingKey} luôn cho kết quả giống nhau qua nhiều lần evaluation.
+    \item Hai \texttt{targetingKey} khác nhau có thể thuộc các bucket khác nhau.
+\end{itemize}
+
+Những bài kiểm thử này giúp bảo đảm việc phân phối người dùng ổn định giữa các lần đánh giá, tránh hiện tượng người dùng liên tục thay đổi trạng thái feature sau mỗi request \cite{launchdarkly_percentage_rollouts}.
+
+\subsubsection{Kiểm thử default và error fallback}
+
+Ngoài các trường hợp thành công, Evaluation Engine cũng cần xử lý an toàn khi không tìm được rule phù hợp hoặc xảy ra lỗi trong quá trình đánh giá. Theo nguyên tắc fail-safe, hệ thống phải trả về giá trị mặc định thay vì phát sinh hành vi không xác định.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Không có rule nào khớp, trả về giá trị mặc định.
+    \item Evaluation context thiếu thông tin bắt buộc.
+    \item Flag không tồn tại.
+    \item Xuất hiện ngoại lệ trong quá trình evaluation.
+\end{itemize}
+
+Kết quả mong đợi là Evaluation Engine luôn trả về phản hồi hợp lệ với reason code phù hợp thay vì làm gián đoạn ứng dụng sử dụng Feature Flag. Điều này giúp tăng tính ổn định và khả năng chịu lỗi của hệ thống trong môi trường thực tế \cite{openfeature_flag_evaluation,owasp_rest_security}.
+
+\subsection{Integration test cho API}
+
+Bên cạnh các bài kiểm thử đơn vị đối với Rule Evaluation Engine, hệ thống còn được kiểm thử tích hợp (integration test) nhằm xác minh sự phối hợp giữa các thành phần như Controller, Service, Repository, cơ sở dữ liệu và các middleware. Các bài kiểm thử được thực hiện thông qua việc gửi yêu cầu HTTP tới các endpoint của Backend API và kiểm tra toàn bộ phản hồi, dữ liệu được lưu trong cơ sở dữ liệu cũng như các tác động phát sinh sau mỗi thao tác. Cách tiếp cận này giúp đánh giá tính đúng đắn của API từ góc nhìn của ứng dụng khách, đồng thời bảo đảm các endpoint tuân thủ hợp đồng API đã thiết kế \cite{openfeature_flag_evaluation,owasp_rest_security}.
+
+\subsubsection{Kiểm thử API quản trị}
+
+Nhóm kiểm thử đầu tiên tập trung vào các API quản trị phục vụ việc quản lý project, feature flag, cấu hình rule và group. Mỗi endpoint được kiểm tra cả trường hợp thành công lẫn các tình huống dữ liệu không hợp lệ.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Tạo mới project và feature flag thành công.
+    \item Cập nhật thông tin feature flag.
+    \item Thêm, sửa và xóa rule.
+    \item Thay đổi trạng thái enabled, disabled hoặc archived.
+    \item Gửi dữ liệu không hợp lệ và kiểm tra phản hồi validation.
+    \item Kiểm tra các trường hợp conflict hoặc tài nguyên không tồn tại.
+\end{itemize}
+
+Kết quả mong đợi là API trả về đúng mã trạng thái HTTP, dữ liệu được lưu chính xác trong cơ sở dữ liệu và phản hồi tuân theo cấu trúc thống nhất đã thiết kế \cite{owasp_rest_security}.
+
+\subsubsection{Kiểm thử Evaluation API}
+
+Evaluation API là endpoint quan trọng nhất của hệ thống vì được các ứng dụng khách sử dụng tại thời điểm chạy. Các bài kiểm thử xác minh toàn bộ luồng từ việc nhận evaluation context, truy xuất cấu hình flag đến trả về kết quả cuối cùng.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Đánh giá feature được bật toàn cục.
+    \item Đánh giá theo user targeting.
+    \item Đánh giá theo role targeting.
+    \item Đánh giá theo percentage rollout.
+    \item Flag không tồn tại.
+    \item Evaluation context thiếu dữ liệu.
+    \item Kiểm tra reason code và variant trả về.
+\end{itemize}
+
+Các bài kiểm thử bảo đảm Evaluation API luôn trả về kết quả xác định với cùng một evaluation context, đồng thời phản hồi đúng giá trị mặc định khi không có rule phù hợp hoặc xảy ra lỗi trong quá trình đánh giá \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
+
+\subsubsection{Kiểm thử audit log}
+
+Audit log được sử dụng để ghi nhận toàn bộ thay đổi cấu hình nhằm phục vụ truy vết và kiểm toán sau này. Vì vậy, mỗi thao tác thay đổi dữ liệu đều phải tạo ra một bản ghi audit tương ứng.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Tạo mới feature flag.
+    \item Cập nhật cấu hình flag.
+    \item Thay đổi rule.
+    \item Thay đổi trạng thái archived hoặc restored.
+    \item Kiểm tra thông tin actor, request ID, thời gian và snapshot trước/sau thay đổi.
+    \item Xác minh các bản ghi audit không bị cập nhật hoặc xóa sau khi tạo.
+\end{itemize}
+
+Kết quả mong đợi là mỗi thao tác quản trị tạo đúng một bản ghi audit với đầy đủ thông tin phục vụ truy vết, đồng thời bảo đảm tính toàn vẹn của lịch sử thay đổi \cite{owasp_logging}.
+
+\subsubsection{Kiểm thử quyền truy cập}
+
+Hệ thống áp dụng cơ chế phân quyền theo vai trò nhằm giới hạn các thao tác quản trị đối với từng nhóm người dùng. Các bài kiểm thử tích hợp xác minh việc kiểm tra quyền được thực hiện chính xác tại Backend API.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Người dùng có quyền quản trị thực hiện thành công các thao tác tạo, sửa và lưu trữ feature flag.
+    \item Người dùng không đủ quyền bị từ chối truy cập các mutation endpoint.
+    \item Người dùng chỉ có quyền xem vẫn có thể truy cập các API chỉ đọc.
+    \item Yêu cầu không có thông tin xác thực bị từ chối.
+    \item Kiểm tra mã trạng thái HTTP và thông báo lỗi khi truy cập trái phép.
+\end{itemize}
+
+Các bài kiểm thử này giúp bảo đảm chỉ những người dùng được cấp quyền mới có thể thay đổi cấu hình feature flag, giảm nguy cơ thay đổi trái phép và phù hợp với các khuyến nghị về bảo vệ REST API cũng như kiểm soát truy cập \cite{owasp_rest_security}.
+
+\subsection{Kiểm thử validation và xử lý lỗi}
+
+Ngoài việc kiểm thử các luồng xử lý thành công, hệ thống còn được kiểm thử đối với các tình huống ngoại lệ nhằm đánh giá khả năng validation dữ liệu và xử lý lỗi của Backend API. Mục tiêu của nhóm kiểm thử này là bảo đảm mọi yêu cầu không hợp lệ đều được phát hiện sớm, trả về thông báo lỗi rõ ràng và không làm ảnh hưởng đến tính nhất quán của dữ liệu. Đồng thời, API phải duy trì cấu trúc phản hồi lỗi thống nhất để ứng dụng khách có thể xử lý một cách nhất quán \cite{owasp_rest_security,openfeature_flag_evaluation}.
+
+\subsubsection{Dữ liệu đầu vào không hợp lệ}
+
+Nhóm kiểm thử đầu tiên xác minh cơ chế validation đối với các tham số được gửi từ ứng dụng khách. Các ràng buộc về định dạng, kiểu dữ liệu, phạm vi giá trị và các trường bắt buộc đều được kiểm tra trước khi yêu cầu được xử lý.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Thiếu các trường bắt buộc trong request.
+    \item Feature flag key không đúng định dạng.
+    \item Giá trị percentage rollout nằm ngoài khoảng từ $0$ đến $100$.
+    \item Enum hoặc trạng thái không hợp lệ.
+    \item Kiểu dữ liệu của các trường không đúng với API specification.
+\end{itemize}
+
+Kết quả mong đợi là API trả về mã lỗi phù hợp cùng danh sách các trường vi phạm để ứng dụng khách có thể dễ dàng xác định nguyên nhân và thực hiện sửa lỗi.
+
+\subsubsection{Resource không tồn tại}
+
+Nhóm kiểm thử này xác minh khả năng xử lý khi tài nguyên được yêu cầu không còn tồn tại hoặc chưa từng được tạo trong hệ thống.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Project không tồn tại.
+    \item Feature flag không tồn tại.
+    \item Rule không tồn tại.
+    \item Environment không tồn tại.
+    \item Evaluation API yêu cầu đánh giá một flag không tồn tại.
+\end{itemize}
+
+Trong các trường hợp trên, hệ thống phải trả về mã trạng thái HTTP phù hợp cùng thông báo lỗi rõ ràng. Đối với Evaluation API, hệ thống trả về giá trị mặc định theo nguyên tắc fail-safe thay vì làm gián đoạn ứng dụng khách \cite{openfeature_flag_evaluation}.
+
+\subsubsection{Xung đột dữ liệu}
+
+Các bài kiểm thử xung đột dữ liệu được sử dụng để xác minh việc áp dụng các ràng buộc toàn vẹn trong cơ sở dữ liệu cũng như logic nghiệp vụ của hệ thống.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Tạo feature flag với key đã tồn tại trong cùng project.
+    \item Tạo environment mặc định khi project đã có environment mặc định khác.
+    \item Tạo dữ liệu vi phạm các ràng buộc khóa duy nhất.
+    \item Thực hiện thao tác không hợp lệ đối với tài nguyên đã được lưu trữ.
+\end{itemize}
+
+Kết quả mong đợi là hệ thống từ chối thao tác, không làm thay đổi dữ liệu hiện có và trả về thông tin lỗi thể hiện rõ nguyên nhân xảy ra xung đột.
+
+\subsubsection{Lỗi nội bộ hệ thống}
+
+Bên cạnh các lỗi do dữ liệu đầu vào, hệ thống cũng được kiểm thử đối với các lỗi phát sinh trong quá trình xử lý nhằm đánh giá khả năng chịu lỗi và duy trì tính ổn định của dịch vụ.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Không thể kết nối cơ sở dữ liệu.
+    \item Phát sinh ngoại lệ trong Rule Evaluation Engine.
+    \item Lỗi khi ghi audit log.
+    \item Lỗi không xác định trong quá trình xử lý request.
+\end{itemize}
+
+Trong các trường hợp này, API phải trả về phản hồi lỗi theo cấu trúc thống nhất, bao gồm mã lỗi, thông báo mô tả và request ID để phục vụ việc truy vết. Hệ thống không được để lộ thông tin nội bộ như stack trace hoặc chi tiết triển khai nhằm giảm thiểu nguy cơ khai thác lỗ hổng bảo mật, đồng thời vẫn bảo đảm khả năng chẩn đoán sự cố thông qua cơ chế ghi log \cite{owasp_rest_security,owasp_logging}.
+
+\subsection{Kiểm thử stable percentage rollout}
+
+Percentage rollout là cơ chế cho phép phát hành tính năng dần dần tới một tỷ lệ người dùng xác định. Để bảo đảm trải nghiệm nhất quán, hệ thống sử dụng thuật toán băm ổn định (stable hashing) dựa trên \texttt{targetingKey} nhằm ánh xạ mỗi người dùng vào một bucket cố định. Do đó, việc kiểm thử không chỉ đánh giá tỷ lệ phân phối mà còn phải xác minh tính ổn định của kết quả khi thực hiện nhiều lần evaluation cũng như khi thay đổi giá trị rollout. Đây là một đặc điểm quan trọng của các hệ thống Feature Flag hiện đại nhằm tránh hiện tượng người dùng liên tục thay đổi trạng thái của cùng một feature giữa các lần truy cập \cite{launchdarkly_percentage_rollouts,launchdarkly_targeting_rules}.
+
+\subsubsection{Tính ổn định của bucket}
+
+Nhóm kiểm thử đầu tiên xác minh rằng cùng một \texttt{targetingKey} luôn được ánh xạ tới cùng một bucket khi cấu hình feature flag không thay đổi.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Thực hiện evaluation nhiều lần với cùng một \texttt{targetingKey}.
+    \item Khởi động lại ứng dụng và thực hiện evaluation lại.
+    \item Đánh giá cùng một người dùng trên nhiều request khác nhau.
+    \item So sánh kết quả trước và sau khi làm mới cache.
+\end{itemize}
+
+Kết quả mong đợi là giá trị bucket và trạng thái feature luôn giữ nguyên trong mọi lần đánh giá. Điều này bảo đảm người dùng không bị thay đổi trạng thái feature một cách ngẫu nhiên do thuật toán phân phối.
+
+\subsubsection{Phân bố người dùng theo phần trăm}
+
+Nhóm kiểm thử này đánh giá khả năng phân phối người dùng của thuật toán stable hashing trên tập dữ liệu mẫu với số lượng lớn người dùng.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Rollout ở mức $10\%$.
+    \item Rollout ở mức $25\%$.
+    \item Rollout ở mức $50\%$.
+    \item Rollout ở mức $75\%$.
+    \item Rollout ở mức $100\%$.
+\end{itemize}
+
+Đối với mỗi mức rollout, hệ thống thực hiện evaluation trên tập người dùng mẫu và thống kê số lượng người dùng được bật feature. Kết quả mong đợi là tỷ lệ phân bố xấp xỉ giá trị cấu hình, đồng thời không xuất hiện hiện tượng thiên lệch rõ rệt giữa các bucket \cite{launchdarkly_percentage_rollouts}.
+
+\subsubsection{Ảnh hưởng khi tăng tỷ lệ rollout}
+
+Khi tăng giá trị rollout, hệ thống cần bảo đảm những người dùng đã được bật feature trước đó vẫn tiếp tục được bật, đồng thời chỉ bổ sung thêm người dùng mới vào tập được phục vụ.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Tăng rollout từ $10\%$ lên $25\%$.
+    \item Tăng rollout từ $25\%$ lên $50\%$.
+    \item Tăng rollout từ $50\%$ lên $100\%$.
+\end{itemize}
+
+Kết quả mong đợi là toàn bộ người dùng thuộc rollout cũ vẫn giữ nguyên trạng thái được bật feature, trong khi chỉ các bucket mới được bổ sung trở thành người dùng được phục vụ. Điều này giúp quá trình phát hành diễn ra liên tục và hạn chế ảnh hưởng tới người dùng đã tham gia rollout trước đó \cite{launchdarkly_percentage_rollouts}.
+
+\subsubsection{Ảnh hưởng khi giảm tỷ lệ rollout}
+
+Ngược lại, khi giảm tỷ lệ rollout, hệ thống phải loại bỏ những người dùng nằm ngoài ngưỡng rollout mới nhưng vẫn duy trì tính ổn định đối với các bucket còn lại.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Giảm rollout từ $100\%$ xuống $50\%$.
+    \item Giảm rollout từ $50\%$ xuống $25\%$.
+    \item Giảm rollout từ $25\%$ xuống $10\%$.
+\end{itemize}
+
+Kết quả mong đợi là những người dùng vẫn nằm trong khoảng rollout mới tiếp tục được bật feature, trong khi chỉ các bucket vượt quá ngưỡng mới bị tắt. Việc kiểm thử này xác nhận rằng quá trình thu hẹp phạm vi phát hành được thực hiện có kiểm soát, không làm thay đổi trạng thái của toàn bộ người dùng và vẫn bảo đảm tính xác định của thuật toán stable hashing \cite{launchdarkly_percentage_rollouts,unleash_feature_flag_best_practices}.
+
+\subsection{Kiểm thử cache và invalidation}
+
+Để giảm độ trễ của Evaluation API và hạn chế số lần truy cập cơ sở dữ liệu, hệ thống sử dụng cơ chế cache đối với cấu hình feature flag. Tuy nhiên, việc sử dụng cache phải đi kèm cơ chế invalidation phù hợp nhằm bảo đảm dữ liệu được sử dụng trong quá trình evaluation luôn phản ánh cấu hình mới nhất. Do đó, nhóm kiểm thử này tập trung đánh giá tính đúng đắn của cache trong các tình huống truy cập thông thường, cập nhật cấu hình và xử lý sự cố. Các nguyên tắc này cũng phù hợp với khuyến nghị về quản lý cache trong các hệ thống Feature Flag hiện đại \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
+
+\subsubsection{Cache hit và cache miss}
+
+Nhóm kiểm thử đầu tiên xác minh hành vi của hệ thống khi dữ liệu đã tồn tại hoặc chưa tồn tại trong cache.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Lần đánh giá đầu tiên khi cache chưa có dữ liệu (cache miss).
+    \item Các lần đánh giá tiếp theo đối với cùng một feature flag (cache hit).
+    \item Đánh giá nhiều feature flag khác nhau để xác nhận mỗi cấu hình được lưu độc lập.
+    \item So sánh kết quả evaluation giữa cache hit và cache miss.
+\end{itemize}
+
+Kết quả mong đợi là cache miss sẽ tải dữ liệu từ cơ sở dữ liệu và lưu vào cache, trong khi các lần truy cập tiếp theo sử dụng dữ liệu đã lưu mà vẫn trả về kết quả evaluation giống nhau.
+
+\subsubsection{Invalidation sau mutation}
+
+Khi cấu hình feature flag thay đổi, dữ liệu cũ trong cache phải được loại bỏ hoặc cập nhật để tránh sử dụng cấu hình không còn hợp lệ.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Thay đổi trạng thái enabled hoặc disabled của feature flag.
+    \item Thay đổi serving mode hoặc kill switch.
+    \item Thêm, sửa hoặc xóa rule targeting.
+    \item Lưu trữ hoặc khôi phục feature flag.
+\end{itemize}
+
+Sau mỗi thao tác mutation, yêu cầu evaluation tiếp theo phải đọc cấu hình mới thay vì sử dụng dữ liệu cũ trong cache. Điều này bảo đảm cấu hình được cập nhật nhất quán giữa Dashboard và Evaluation API \cite{redis_client_side_caching}.
+
+\subsubsection{Isolation giữa các environment}
+
+Một feature flag có thể được cấu hình khác nhau giữa các environment như Development, Staging và Production. Vì vậy, cache phải được tách biệt theo từng environment để tránh sử dụng nhầm cấu hình.
+
+Các trường hợp kiểm thử bao gồm:
+\begin{itemize}
+    \item Hai environment có cấu hình khác nhau cho cùng một feature flag.
+    \item Cập nhật cấu hình tại một environment.
+    \item Kiểm tra dữ liệu cache của environment còn lại không bị ảnh hưởng.
+    \item Thực hiện evaluation đồng thời trên nhiều environment.
+\end{itemize}
+
+Kết quả mong đợi là mỗi environment sử dụng vùng cache riêng và việc invalidation chỉ tác động đến environment có thay đổi cấu hình, bảo đảm tính độc lập giữa các môi trường triển khai.
+
+\subsubsection{Hành vi khi cache không khả dụng}
+
+Cache chỉ đóng vai trò tối ưu hiệu năng và không được trở thành điểm gây gián đoạn dịch vụ. Khi cache gặp sự cố, hệ thống vẫn phải tiếp tục phục vụ yêu cầu bằng cách truy xuất trực tiếp cơ sở dữ liệu.
+
+Các trường hợp kiểm thử gồm:
+\begin{itemize}
+    \item Cache service không khả dụng.
+    \item Lỗi khi đọc dữ liệu từ cache.
+    \item Lỗi khi ghi dữ liệu vào cache.
+    \item Cache bị xóa toàn bộ trong khi hệ thống đang hoạt động.
+\end{itemize}
+
+Kết quả mong đợi là Evaluation API vẫn trả về kết quả chính xác bằng cách sử dụng dữ liệu từ cơ sở dữ liệu. Mặc dù thời gian phản hồi có thể tăng do không còn cache hỗ trợ, hệ thống vẫn duy trì tính đúng đắn của kết quả và không làm gián đoạn dịch vụ \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
+
+\subsection{Đánh giá Dashboard}
+
+Bên cạnh các tiêu chí về tính đúng đắn của Backend API, hệ thống còn được đánh giá thông qua Dashboard quản trị nhằm xác định mức độ hỗ trợ người quản trị trong quá trình cấu hình và theo dõi feature flag. Việc đánh giá tập trung vào khả năng hiển thị trạng thái, cấu hình rule, truy vết thay đổi và hạn chế các thao tác gây ảnh hưởng ngoài ý muốn. Các tiêu chí này phù hợp với mục tiêu xây dựng một hệ thống Feature Flag dễ sử dụng, dễ quản trị và giảm thiểu rủi ro do lỗi cấu hình \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Khả năng nhận biết trạng thái flag}
+
+Dashboard cần thể hiện trực quan trạng thái hiện tại của mỗi feature flag để người quản trị có thể nhanh chóng xác định khả năng phục vụ của hệ thống mà không cần kiểm tra từng cấu hình chi tiết.
+
+Các tiêu chí đánh giá bao gồm:
+\begin{itemize}
+    \item Hiển thị rõ trạng thái enabled, disabled và archived.
+    \item Hiển thị serving mode hiện tại của feature flag.
+    \item Phân biệt trực quan các trạng thái bằng màu sắc hoặc badge.
+    \item Cho phép tìm kiếm và lọc feature flag theo trạng thái.
+\end{itemize}
+
+Kết quả mong đợi là người quản trị có thể nhanh chóng xác định trạng thái hoạt động của từng feature flag, từ đó giảm thời gian thao tác và hạn chế nhầm lẫn trong quá trình vận hành.
+
+\subsubsection{Khả năng cấu hình rule}
+
+Dashboard cần hỗ trợ việc tạo và chỉnh sửa các rule targeting một cách trực quan, đồng thời phản ánh đúng mô hình dữ liệu của hệ thống.
+
+Các tiêu chí đánh giá gồm:
+\begin{itemize}
+    \item Tạo mới và chỉnh sửa các rule theo user, role và percentage rollout.
+    \item Thay đổi thứ tự ưu tiên của các rule.
+    \item Cập nhật trạng thái hoặc serving mode của feature flag.
+    \item Validation dữ liệu ngay trên giao diện trước khi gửi yêu cầu đến Backend API.
+\end{itemize}
+
+Kết quả mong đợi là người quản trị có thể hoàn thành việc cấu hình feature flag với số bước thao tác tối thiểu, đồng thời giảm nguy cơ tạo ra cấu hình không hợp lệ.
+
+\subsubsection{Khả năng theo dõi thay đổi}
+
+Dashboard cần hỗ trợ việc theo dõi lịch sử thay đổi cấu hình nhằm phục vụ kiểm toán và truy vết khi xảy ra sự cố.
+
+Các tiêu chí đánh giá bao gồm:
+\begin{itemize}
+    \item Hiển thị danh sách các bản ghi audit log.
+    \item Hiển thị actor thực hiện thay đổi.
+    \item Hiển thị thời gian và hành động tương ứng.
+    \item Hiển thị thông tin before và after của mỗi lần cập nhật.
+    \item Hỗ trợ tìm kiếm hoặc lọc lịch sử thay đổi.
+\end{itemize}
+
+Kết quả mong đợi là người quản trị có thể nhanh chóng xác định ai đã thực hiện thay đổi, thời điểm thực hiện và nội dung đã được cập nhật, từ đó nâng cao khả năng truy vết và kiểm toán của hệ thống \cite{owasp_logging}.
+
+\subsubsection{Khả năng hạn chế thao tác sai}
+
+Một Dashboard quản trị không chỉ hỗ trợ thao tác nhanh mà còn cần giảm thiểu các lỗi do người dùng gây ra thông qua các cơ chế xác nhận và kiểm tra dữ liệu.
+
+Các tiêu chí đánh giá gồm:
+\begin{itemize}
+    \item Xác nhận trước các thao tác quan trọng như archived hoặc kill switch.
+    \item Vô hiệu hóa các chức năng mà người dùng không có quyền thực hiện.
+    \item Hiển thị thông báo lỗi khi validation không thành công.
+    \item Hiển thị thông báo kết quả sau khi thao tác thành công hoặc thất bại.
+\end{itemize}
+
+Kết quả mong đợi là Dashboard hỗ trợ người quản trị thực hiện cấu hình một cách an toàn, giảm thiểu thao tác ngoài ý muốn và bảo đảm chỉ những người dùng được cấp quyền mới có thể thay đổi cấu hình của hệ thống \cite{owasp_rest_security,launchdarkly_feature_flags}.
+
+\subsection{Thiết kế kịch bản demo}
+
+Bên cạnh các bài kiểm thử tự động, hệ thống được đánh giá thông qua các kịch bản trình diễn (demo scenario) nhằm minh họa trực quan giá trị của Feature Flag trong quá trình phát triển và vận hành phần mềm. Mỗi kịch bản được xây dựng để phản ánh một tình huống sử dụng phổ biến trong thực tế, đồng thời chứng minh sự phối hợp giữa Dashboard quản trị, Backend API, Rule Evaluation Engine và ứng dụng khách. Việc thiết kế các kịch bản này cũng bám sát các chức năng bắt buộc và khuyến khích của mini project, giúp đánh giá toàn diện khả năng triển khai của hệ thống \cite{fowler_feature_toggles,launchdarkly_feature_flags}.
+
+\subsubsection{Kịch bản bật và tắt toàn cục}
+
+Kịch bản đầu tiên minh họa khả năng phát hành hoặc thu hồi một tính năng cho toàn bộ người dùng mà không cần triển khai lại ứng dụng.
+
+Các bước thực hiện gồm:
+\begin{itemize}
+    \item Tạo một feature flag trên Dashboard.
+    \item Chuyển serving mode sang chế độ bật toàn cục.
+    \item Truy cập Demo App để xác nhận tính năng được hiển thị cho tất cả người dùng.
+    \item Chuyển trạng thái về disabled hoặc tắt chế độ bật toàn cục.
+    \item Thực hiện evaluation lại và xác nhận tính năng không còn được hiển thị.
+\end{itemize}
+
+Kịch bản này chứng minh khả năng tách biệt giữa quá trình triển khai và phát hành tính năng, cho phép thay đổi hành vi của hệ thống ngay tại thời điểm chạy mà không cần triển khai lại ứng dụng \cite{fowler_feature_toggles,microsoft_devops}.
+
+\subsubsection{Kịch bản targeting theo user và role}
+
+Kịch bản thứ hai minh họa khả năng phát hành tính năng cho một nhóm người dùng xác định dựa trên user hoặc role.
+
+Các bước thực hiện gồm:
+\begin{itemize}
+    \item Cấu hình rule theo user ID hoặc role trên Dashboard.
+    \item Đăng nhập hoặc lựa chọn người dùng phù hợp trong Demo App.
+    \item Thực hiện evaluation và xác nhận tính năng được bật.
+    \item Thay đổi sang người dùng không thỏa điều kiện.
+    \item Thực hiện evaluation lại và xác nhận tính năng không được bật.
+\end{itemize}
+
+Kịch bản này chứng minh khả năng triển khai từng phần cho các nhóm người dùng cụ thể, hỗ trợ thử nghiệm nội bộ hoặc phát hành giới hạn trước khi triển khai rộng rãi \cite{launchdarkly_targeting_rules,openfeature_evaluation_context}.
+
+\subsubsection{Kịch bản percentage rollout}
+
+Kịch bản này minh họa cơ chế phát hành theo tỷ lệ phần trăm người dùng dựa trên stable hashing.
+
+Các bước thực hiện gồm:
+\begin{itemize}
+    \item Cấu hình rollout ở một tỷ lệ xác định, ví dụ $20\%$ hoặc $50\%$.
+    \item Thực hiện evaluation trên nhiều người dùng mẫu.
+    \item Ghi nhận số lượng người dùng được bật feature.
+    \item Tăng hoặc giảm tỷ lệ rollout.
+    \item Thực hiện evaluation lại để quan sát sự thay đổi của nhóm người dùng được phục vụ.
+\end{itemize}
+
+Kết quả mong đợi là cùng một người dùng luôn nhận được kết quả nhất quán trong cùng một mức rollout, đồng thời việc tăng hoặc giảm tỷ lệ chỉ ảnh hưởng đến các bucket mới được thêm hoặc loại bỏ \cite{launchdarkly_percentage_rollouts}.
+
+\subsubsection{Kịch bản kill switch}
+
+Kịch bản này mô phỏng tình huống phát hiện lỗi trên môi trường production và cần vô hiệu hóa tính năng ngay lập tức.
+
+Các bước thực hiện gồm:
+\begin{itemize}
+    \item Cấu hình feature đang được bật cho một nhóm người dùng.
+    \item Kích hoạt kill switch trên Dashboard.
+    \item Thực hiện evaluation lại từ Demo App.
+    \item Xác nhận toàn bộ người dùng đều nhận kết quả tắt feature.
+    \item Hủy kích hoạt kill switch và xác nhận hệ thống quay lại trạng thái ban đầu.
+\end{itemize}
+
+Kịch bản chứng minh khả năng rollback nhanh của hệ thống mà không cần triển khai phiên bản mới, góp phần giảm phạm vi ảnh hưởng khi xảy ra sự cố trên môi trường thực tế \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+\subsubsection{Kịch bản audit log và thống kê}
+
+Kịch bản cuối cùng minh họa khả năng theo dõi lịch sử thay đổi và quan sát hoạt động của hệ thống sau mỗi thao tác quản trị.
+
+Các bước thực hiện gồm:
+\begin{itemize}
+    \item Thực hiện tạo mới hoặc cập nhật feature flag.
+    \item Thay đổi cấu hình rule hoặc trạng thái của feature.
+    \item Kiểm tra Dashboard để xác nhận bản ghi audit được tạo.
+    \item Thực hiện nhiều yêu cầu evaluation từ Demo App.
+    \item Quan sát số liệu thống kê và lịch sử thay đổi của feature flag.
+\end{itemize}
+
+Kết quả mong đợi là mỗi thao tác quản trị đều được ghi nhận đầy đủ với thông tin actor, thời gian và nội dung thay đổi, đồng thời các số liệu thống kê phản ánh hoạt động của Evaluation API. Kịch bản này giúp chứng minh khả năng truy vết, kiểm toán và giám sát của hệ thống trong quá trình vận hành \cite{owasp_logging,launchdarkly_feature_flags}.
+

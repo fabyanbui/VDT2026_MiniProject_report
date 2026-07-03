@@ -1,0 +1,321 @@
+\section{Phân tích bài toán và yêu cầu hệ thống}
+
+\subsection{Các đối tượng sử dụng hệ thống}
+
+Hệ thống Feature Flag Platform phục vụ nhiều nhóm người dùng với nhu cầu và phạm vi quyền hạn khác nhau. Việc phân tách rõ các đối tượng sử dụng giúp đơn giản hóa quá trình quản trị, tăng tính an toàn khi thay đổi cấu hình và tạo nền tảng để triển khai cơ chế phân quyền theo vai trò (Role-Based Access Control -- RBAC). Trong phạm vi mini project, hệ thống định nghĩa ba nhóm người dùng trên dashboard quản trị và một nhóm ứng dụng khách sử dụng API evaluation để tích hợp Feature Flag vào quá trình thực thi của hệ thống. Cách phân chia này phù hợp với mô hình quản lý Feature Flag của nhiều nền tảng hiện nay như LaunchDarkly và Unleash \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+
+\subsubsection{Quản trị viên}
+
+Quản trị viên (Administrator) là đối tượng có quyền cao nhất trong hệ thống. Người dùng thuộc nhóm này chịu trách nhiệm quản lý toàn bộ tài nguyên và cấu hình Feature Flag.
+
+Các chức năng chính của quản trị viên bao gồm:
+
+\begin{itemize}
+    \item Quản lý project và environment.
+    \item Tạo, chỉnh sửa, lưu trữ hoặc khôi phục Feature Flag.
+    \item Cấu hình trạng thái hoạt động của Feature Flag.
+    \item Thiết lập các rule như bật toàn cục, theo người dùng, theo vai trò và rollout theo phần trăm.
+    \item Quản lý nhóm Feature Flag và Kill Switch.
+    \item Quản lý người dùng và phân quyền.
+    \item Theo dõi audit log và thống kê hoạt động của hệ thống.
+\end{itemize}
+
+Quản trị viên có thể thực hiện mọi thao tác thay đổi cấu hình. Mỗi thay đổi đều được ghi nhận vào audit log nhằm phục vụ truy vết và kiểm toán sau này \cite{owasp_logging}.
+
+\subsubsection{Nhà phát triển}
+
+Nhà phát triển (Developer) là đối tượng trực tiếp tích hợp Feature Flag vào ứng dụng và quản lý cấu hình của các tính năng trong phạm vi được phân quyền.
+
+Các chức năng chính bao gồm:
+
+\begin{itemize}
+    \item Tạo và chỉnh sửa Feature Flag.
+    \item Cấu hình rule evaluation cho từng Feature Flag.
+    \item Kiểm tra trạng thái Feature Flag.
+    \item Theo dõi lịch sử thay đổi của các Feature Flag thuộc phạm vi phụ trách.
+    \item Tích hợp Evaluation API vào ứng dụng thông qua SDK hoặc lời gọi HTTP.
+\end{itemize}
+
+Nhà phát triển không có quyền quản lý người dùng hoặc thay đổi các thiết lập quản trị của toàn hệ thống. Việc giới hạn quyền giúp giảm nguy cơ thay đổi ngoài ý muốn đối với các cấu hình quan trọng \cite{unleash_feature_flag_best_practices}.
+
+\subsubsection{Người xem}
+
+Người xem (Viewer) là nhóm người dùng chỉ có quyền truy cập để quan sát trạng thái hệ thống mà không được phép thay đổi cấu hình.
+
+Các chức năng bao gồm:
+
+\begin{itemize}
+    \item Xem danh sách project và Feature Flag.
+    \item Theo dõi trạng thái hoạt động của Feature Flag.
+    \item Xem các rule đã được cấu hình.
+    \item Xem audit log và thống kê evaluate.
+\end{itemize}
+
+Việc tách riêng vai trò người xem giúp các bên liên quan như quản lý dự án, kiểm thử hoặc vận hành có thể theo dõi hệ thống mà không làm ảnh hưởng đến cấu hình đang hoạt động.
+
+\subsubsection{Ứng dụng tích hợp Feature Flag}
+
+Bên cạnh người dùng truy cập dashboard quản trị, hệ thống còn phục vụ các ứng dụng khách (Client Application) tích hợp Feature Flag thông qua Evaluation API.
+
+Ứng dụng khách gửi yêu cầu evaluate kèm theo Evaluation Context, bao gồm các thông tin như \texttt{targetingKey}, vai trò hoặc các thuộc tính cần thiết. Rule engine sẽ đánh giá các rule theo thứ tự ưu tiên và trả về kết quả bật hoặc tắt của Feature Flag cùng với lý do đánh giá. Mô hình này tương đồng với đặc tả của OpenFeature và các nền tảng Feature Flag hiện đại \cite{openfeature_evaluation_context,openfeature_flag_evaluation}.
+
+Trong mini project, ứng dụng tích hợp được hiện thực dưới dạng một demo web application nhằm minh họa việc thay đổi giao diện hoặc chức năng theo trạng thái của Feature Flag mà không cần triển khai lại hệ thống. Điều này thể hiện đúng mục tiêu tách biệt giữa quá trình triển khai (deploy) và phát hành tính năng (release) trong quá trình phát triển phần mềm \cite{fowler_feature_toggles,microsoft_devops}.
+
+\subsection{Các ca sử dụng chính}
+
+Dựa trên yêu cầu của mini project, hệ thống Feature Flag Platform được xây dựng xoay quanh năm nhóm chức năng chính, bao gồm quản lý tài nguyên, quản lý Feature Flag, cấu hình chiến lược rollout, đánh giá Feature Flag và theo dõi hoạt động của hệ thống. Các ca sử dụng này bao quát toàn bộ vòng đời của một Feature Flag, từ khi được tạo ra, cấu hình, sử dụng trong ứng dụng cho đến khi được lưu trữ hoặc ngừng sử dụng. Đồng thời, các chức năng cũng đáp ứng đầy đủ các yêu cầu bắt buộc và phần lớn các yêu cầu khuyến khích của đề tài \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Quản lý project và environment}
+
+Project là đơn vị quản lý cao nhất trong hệ thống, dùng để phân tách các ứng dụng hoặc dịch vụ khác nhau. Mỗi project có thể bao gồm nhiều environment như Development, Staging hoặc Production nhằm quản lý cấu hình Feature Flag độc lập giữa các môi trường triển khai.
+
+Các chức năng chính bao gồm:
+
+\begin{itemize}
+    \item Tạo, cập nhật và quản lý project.
+    \item Tạo và quản lý các environment thuộc project.
+    \item Thiết lập environment mặc định.
+    \item Phân tách cấu hình Feature Flag theo từng environment.
+\end{itemize}
+
+Việc tách biệt project và environment giúp các thay đổi được kiểm thử trước khi áp dụng lên môi trường production, phù hợp với quy trình phát triển và phát hành phần mềm hiện đại \cite{microsoft_devops}.
+
+\subsubsection{Quản lý Feature Flag}
+
+Đây là chức năng trung tâm của hệ thống, cho phép quản trị viên hoặc nhà phát triển tạo và quản lý các Feature Flag phục vụ quá trình phát hành tính năng.
+
+Các chức năng chính gồm:
+
+\begin{itemize}
+    \item Tạo Feature Flag mới.
+    \item Cập nhật thông tin Feature Flag.
+    \item Bật hoặc vô hiệu hóa Feature Flag.
+    \item Lưu trữ (archive) hoặc khôi phục Feature Flag.
+    \item Quản lý nhóm Feature Flag và Kill Switch.
+\end{itemize}
+
+Việc sử dụng trạng thái lưu trữ thay cho xóa vật lý giúp bảo toàn lịch sử cấu hình và giảm nguy cơ mất dữ liệu, đồng thời phù hợp với thực tiễn quản lý Feature Flag của các nền tảng thương mại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Cấu hình chiến lược rollout}
+
+Sau khi tạo Feature Flag, người quản trị có thể cấu hình cách thức phát hành tính năng thông qua các rule evaluation.
+
+Trong phạm vi mini project, hệ thống hỗ trợ các chiến lược rollout sau:
+
+\begin{itemize}
+    \item Bật hoặc tắt toàn cục.
+    \item Cho phép theo danh sách người dùng.
+    \item Cho phép theo vai trò người dùng.
+    \item Rollout theo phần trăm người dùng.
+    \item Thiết lập thứ tự ưu tiên giữa các rule.
+\end{itemize}
+
+Các rule được đánh giá theo một thứ tự xác định nhằm đảm bảo kết quả nhất quán. Đối với rollout theo phần trăm, hệ thống sử dụng cơ chế băm ổn định (stable hashing) để bảo đảm một người dùng luôn nhận được cùng một kết quả khi cấu hình không thay đổi \cite{launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
+
+\subsubsection{Đánh giá Feature Flag}
+
+Đây là chức năng được các ứng dụng tích hợp sử dụng nhiều nhất trong quá trình vận hành.
+
+Ứng dụng khách gửi yêu cầu tới Evaluation API kèm theo Evaluation Context. Rule engine sẽ lấy cấu hình tương ứng, đánh giá các rule theo thứ tự ưu tiên và trả về kết quả bao gồm trạng thái của Feature Flag, lý do đánh giá và các thông tin liên quan.
+
+Quá trình evaluate bao gồm các bước chính:
+
+\begin{enumerate}
+    \item Tiếp nhận Evaluation Context.
+    \item Xác định project, environment và Feature Flag.
+    \item Kiểm tra trạng thái hoạt động của Feature Flag.
+    \item Thực hiện đánh giá các rule.
+    \item Trả về kết quả evaluate cho ứng dụng.
+\end{enumerate}
+
+Thiết kế này tương thích với mô hình Evaluation API và Evaluation Context được đề xuất trong OpenFeature Specification \cite{openfeature_evaluation_context,openfeature_flag_evaluation}.
+
+\subsubsection{Theo dõi thay đổi và thống kê}
+
+Để tăng khả năng quản trị và hỗ trợ truy vết, hệ thống ghi nhận các thao tác thay đổi cấu hình cũng như thống kê hoạt động evaluate của Feature Flag.
+
+Các chức năng bao gồm:
+
+\begin{itemize}
+    \item Ghi nhận audit log cho các thao tác tạo, cập nhật, lưu trữ và thay đổi rule.
+    \item Lưu thông tin người thực hiện và thời điểm thay đổi.
+    \item Theo dõi số lần evaluate của từng Feature Flag.
+    \item Hiển thị thống kê phục vụ việc phân tích mức độ sử dụng.
+\end{itemize}
+
+Audit log giúp đảm bảo khả năng truy vết, hỗ trợ kiểm toán và phân tích nguyên nhân khi xảy ra sự cố, trong khi thống kê evaluate cung cấp cơ sở để đánh giá hiệu quả của từng Feature Flag và lập kế hoạch dọn dẹp các Feature Flag không còn được sử dụng \cite{owasp_logging,mahdavi_hezaveh_feature_toggles}.
+
+\subsection{Yêu cầu chức năng mức MVP}
+
+Dựa trên mô tả và yêu cầu của mini project, hệ thống được xây dựng theo mô hình gồm bốn thành phần chính: Backend API, Frontend Dashboard, Demo Application và bộ dữ liệu cùng tài liệu hỗ trợ. Các chức năng trong mức MVP tập trung vào việc chứng minh đầy đủ quy trình quản lý và sử dụng Feature Flag từ phía quản trị cho đến ứng dụng tích hợp, đồng thời đáp ứng các yêu cầu kỹ thuật cơ bản về tính đúng đắn, khả năng mở rộng và dễ triển khai \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Yêu cầu đối với Backend API}
+
+Backend API là thành phần trung tâm của hệ thống, chịu trách nhiệm quản lý dữ liệu, thực hiện đánh giá Feature Flag và cung cấp giao diện lập trình cho các ứng dụng tích hợp.
+
+Các yêu cầu chức năng chính bao gồm:
+
+\begin{itemize}
+    \item Cung cấp API quản lý project và environment.
+    \item Cung cấp API tạo, cập nhật và quản lý Feature Flag.
+    \item Cung cấp API cấu hình rule cho Feature Flag.
+    \item Hỗ trợ các chiến lược rollout gồm:
+    \begin{itemize}
+        \item bật hoặc tắt toàn cục;
+        \item theo người dùng;
+        \item theo vai trò;
+        \item theo phần trăm người dùng.
+    \end{itemize}
+    \item Cung cấp Evaluation API để ứng dụng khách kiểm tra trạng thái Feature Flag theo Evaluation Context.
+    \item Ghi nhận audit log cho các thao tác thay đổi cấu hình.
+    \item Thực hiện validation dữ liệu đầu vào.
+    \item Trả về mã lỗi và thông báo phù hợp khi xảy ra lỗi.
+\end{itemize}
+
+Evaluation API cần hoạt động theo cơ chế fail-safe, trong đó mọi yêu cầu đều nhận được kết quả xác định ngay cả khi xảy ra lỗi trong quá trình đánh giá, nhằm hạn chế ảnh hưởng đến ứng dụng sử dụng Feature Flag \cite{openfeature_flag_evaluation,owasp_rest_security}.
+
+\subsubsection{Yêu cầu đối với Frontend Dashboard}
+
+Frontend Dashboard là giao diện quản trị cho phép người dùng thao tác trực tiếp với các tài nguyên của hệ thống.
+
+Các yêu cầu chức năng bao gồm:
+
+\begin{itemize}
+    \item Hiển thị danh sách project.
+    \item Hiển thị danh sách Feature Flag.
+    \item Tạo và chỉnh sửa Feature Flag.
+    \item Cấu hình các rule rollout.
+    \item Hiển thị trạng thái hoạt động của Feature Flag.
+    \item Xem lịch sử thay đổi thông qua audit log.
+\end{itemize}
+
+Giao diện cần trực quan, phản ánh chính xác trạng thái hiện tại của từng Feature Flag và hỗ trợ người quản trị thực hiện các thao tác cấu hình một cách thuận tiện \cite{launchdarkly_feature_flags}.
+
+\subsubsection{Yêu cầu đối với Demo Application}
+
+Demo Application được xây dựng nhằm minh họa cách một ứng dụng thực tế tích hợp Feature Flag Platform.
+
+Các yêu cầu chức năng gồm:
+
+\begin{itemize}
+    \item Gửi yêu cầu tới Evaluation API.
+    \item Truyền Evaluation Context của người dùng.
+    \item Hiển thị hoặc ẩn tính năng dựa trên kết quả evaluate.
+    \item Minh họa tối thiểu hai kịch bản:
+    \begin{itemize}
+        \item bật hoặc tắt tính năng toàn cục;
+        \item bật tính năng theo vai trò hoặc theo phần trăm người dùng.
+    \end{itemize}
+\end{itemize}
+
+Thông qua Demo Application, hệ thống cần chứng minh được khả năng tách biệt giữa quá trình triển khai phần mềm và phát hành tính năng, đồng thời cho phép thay đổi hành vi của ứng dụng mà không cần triển khai lại phiên bản mới \cite{fowler_feature_toggles,microsoft_devops}.
+
+\subsubsection{Yêu cầu đối với dữ liệu và tài liệu}
+
+Bên cạnh các chức năng của hệ thống, mini project còn yêu cầu chuẩn bị đầy đủ dữ liệu mẫu và tài liệu kỹ thuật nhằm hỗ trợ quá trình cài đặt, vận hành và đánh giá.
+
+Các yêu cầu bao gồm:
+
+\begin{itemize}
+    \item Cơ sở dữ liệu lưu trữ project, environment, Feature Flag, rule, dữ liệu người dùng mẫu và audit log.
+    \item Seed data hoặc script khởi tạo dữ liệu mẫu.
+    \item README hướng dẫn cài đặt và chạy hệ thống.
+    \item Tài liệu mô tả kiến trúc hệ thống.
+    \item Tài liệu thiết kế cơ sở dữ liệu.
+    \item Tài liệu đặc tả API.
+\end{itemize}
+
+Việc chuẩn bị đầy đủ dữ liệu và tài liệu giúp hệ thống có thể được triển khai nhanh chóng, hỗ trợ kiểm thử, đánh giá và tạo nền tảng cho các bước mở rộng trong tương lai \cite{postgresql_json_types,docker_compose}.
+
+\subsection{Yêu cầu phi chức năng}
+
+Bên cạnh các yêu cầu chức năng, hệ thống Feature Flag Platform cần đáp ứng các yêu cầu phi chức năng nhằm đảm bảo tính ổn định, hiệu quả và khả năng mở rộng trong quá trình vận hành. Các yêu cầu này tập trung vào chất lượng của hệ thống thay vì các chức năng nghiệp vụ cụ thể, đồng thời phản ánh những đặc điểm quan trọng của các nền tảng Feature Flag hiện đại \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags}.
+
+\subsubsection{Tính đúng đắn và xác định của kết quả}
+
+Evaluation API phải luôn trả về kết quả nhất quán đối với cùng một cấu hình Feature Flag và cùng một Evaluation Context. Thứ tự đánh giá các rule cần được xác định rõ ràng, tránh các trường hợp phụ thuộc vào thứ tự lưu trữ dữ liệu hoặc điều kiện thực thi.
+
+Đối với rollout theo phần trăm người dùng, hệ thống cần sử dụng cơ chế băm ổn định để bảo đảm cùng một người dùng luôn được phân vào cùng một nhóm khi cấu hình không thay đổi. Điều này giúp hạn chế hiện tượng thay đổi kết quả giữa các lần evaluate và đảm bảo trải nghiệm nhất quán cho người dùng \cite{launchdarkly_percentage_rollouts,openfeature_flag_evaluation}.
+
+\subsubsection{Hiệu năng evaluation}
+
+Evaluation API là thành phần được gọi với tần suất cao trong quá trình vận hành ứng dụng, do đó cần có thời gian phản hồi thấp và không làm ảnh hưởng đến hiệu năng của hệ thống tích hợp.
+
+Quá trình evaluate cần giới hạn số lượng thao tác truy cập cơ sở dữ liệu, thực hiện đánh giá rule theo thứ tự ưu tiên và hỗ trợ cơ chế cache để giảm độ trễ trong các lần truy cập lặp lại. Trong phạm vi mở rộng của mini project, hệ thống có thể sử dụng bộ nhớ trong hoặc Redis để lưu kết quả evaluate phù hợp với các yêu cầu về hiệu năng \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
+
+\subsubsection{Tính nhất quán của cấu hình}
+
+Mọi thay đổi đối với Feature Flag cần được phản ánh nhất quán trong toàn bộ hệ thống. Khi cấu hình được cập nhật, các lần evaluate tiếp theo phải sử dụng phiên bản cấu hình mới, đồng thời tránh các trạng thái không đồng bộ giữa dữ liệu lưu trữ và dữ liệu được sử dụng trong quá trình đánh giá.
+
+Hệ thống cũng cần định nghĩa giá trị mặc định khi Feature Flag không tồn tại hoặc xảy ra lỗi trong quá trình evaluate nhằm đảm bảo ứng dụng luôn hoạt động theo cơ chế an toàn (fail-safe) \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
+
+\subsubsection{Khả năng bảo trì và mở rộng}
+
+Kiến trúc hệ thống cần được thiết kế theo hướng phân tách rõ các thành phần như Backend API, Rule Engine, Frontend Dashboard và Demo Application nhằm giảm sự phụ thuộc giữa các mô-đun.
+
+Các loại rule cần được thiết kế theo hướng dễ mở rộng để có thể bổ sung các chiến lược rollout mới mà không ảnh hưởng đáng kể đến cơ chế evaluation hiện có. Đồng thời, cấu hình rule và thuộc tính người dùng nên được lưu dưới dạng JSONB nhằm tăng tính linh hoạt khi mở rộng mô hình dữ liệu \cite{postgresql_json_types}.
+
+\subsubsection{Khả năng kiểm thử}
+
+Hệ thống cần được xây dựng theo hướng dễ kiểm thử ở cả mức chức năng và mức thành phần.
+
+Rule Engine nên được tách biệt khỏi các thành phần giao tiếp với cơ sở dữ liệu để có thể xây dựng các bộ kiểm thử độc lập cho từng chiến lược rollout. Đồng thời, Evaluation API cần có dữ liệu mẫu và các kịch bản kiểm thử nhằm xác minh tính đúng đắn của quá trình đánh giá Feature Flag đối với nhiều trường hợp khác nhau \cite{openfeature_flag_evaluation}.
+
+\subsubsection{Bảo mật và khả năng truy vết}
+
+Các API quản trị cần được bảo vệ bằng cơ chế xác thực và phân quyền phù hợp nhằm ngăn chặn các thao tác thay đổi cấu hình trái phép. Dữ liệu đầu vào phải được kiểm tra tính hợp lệ trước khi xử lý và chỉ những thông tin cần thiết mới được ghi nhận trong quá trình giao tiếp giữa các thành phần của hệ thống \cite{owasp_rest_security}.
+
+Bên cạnh đó, mọi thao tác thay đổi Feature Flag, rule hoặc cấu hình hệ thống cần được ghi nhận vào audit log với đầy đủ thông tin về thời gian, người thực hiện và nội dung thay đổi. Khả năng truy vết này giúp hỗ trợ điều tra sự cố, kiểm toán hệ thống và xác định nguyên nhân khi xảy ra các thay đổi ngoài mong muốn \cite{owasp_logging}.
+
+\subsection{Các yêu cầu khuyến khích}
+
+Bên cạnh các chức năng trong mức MVP, đề tài còn đề xuất một số yêu cầu khuyến khích nhằm nâng cao hiệu năng, khả năng mở rộng và tính hoàn thiện của hệ thống. Các chức năng này phản ánh nhiều đặc điểm thường gặp trong các nền tảng Feature Flag thương mại, đồng thời tạo nền tảng cho việc phát triển hệ thống theo hướng sẵn sàng vận hành trong môi trường thực tế \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Caching kết quả evaluation}
+
+Evaluation API thường được gọi với tần suất rất lớn, do đó việc truy cập cơ sở dữ liệu cho mỗi lần evaluate có thể làm tăng độ trễ và giảm khả năng đáp ứng của hệ thống.
+
+Hệ thống có thể bổ sung cơ chế cache bằng bộ nhớ trong hoặc Redis để lưu tạm kết quả evaluate trong một khoảng thời gian phù hợp. Khi cấu hình Feature Flag thay đổi, dữ liệu cache cần được làm mới hoặc loại bỏ nhằm đảm bảo tính nhất quán giữa cấu hình và kết quả đánh giá \cite{redis_client_side_caching}.
+
+\subsubsection{JavaScript SDK}
+
+Thay vì để ứng dụng khách tự xây dựng các lời gọi HTTP tới Evaluation API, hệ thống có thể cung cấp một JavaScript SDK đóng vai trò là lớp trung gian giữa ứng dụng và Feature Flag Platform.
+
+SDK thực hiện việc đóng gói các thao tác gửi yêu cầu, xử lý lỗi, phân tích kết quả và cung cấp giao diện lập trình thống nhất cho các ứng dụng tích hợp. Điều này giúp giảm chi phí tích hợp và tăng khả năng tái sử dụng mã nguồn \cite{openfeature_flag_evaluation}.
+
+\subsubsection{Unit test cho Rule Evaluation Engine}
+
+Rule Evaluation Engine là thành phần quyết định kết quả cuối cùng của Feature Flag, do đó cần được kiểm thử độc lập.
+
+Các bộ unit test cần bao phủ đầy đủ các trường hợp như bật toàn cục, theo người dùng, theo vai trò, rollout theo phần trăm, thứ tự ưu tiên giữa các rule và các trường hợp lỗi. Việc kiểm thử giúp phát hiện sớm sai sót trong thuật toán evaluation và hạn chế lỗi hồi quy khi mở rộng hệ thống.
+
+\subsubsection{Versioning và lịch sử cấu hình}
+
+Mỗi lần thay đổi cấu hình Feature Flag hoặc rule có thể tạo ra một phiên bản mới thay vì ghi đè trực tiếp lên dữ liệu hiện có.
+
+Versioning giúp theo dõi quá trình thay đổi cấu hình theo thời gian, hỗ trợ so sánh giữa các phiên bản và phục hồi về cấu hình trước đó khi cần thiết. Chức năng này bổ sung cho audit log bằng cách lưu giữ toàn bộ trạng thái cấu hình thay vì chỉ ghi nhận sự kiện thay đổi \cite{mahdavi_hezaveh_feature_toggles}.
+
+\subsubsection{Phân quyền người dùng quản trị}
+
+Hệ thống có thể triển khai cơ chế phân quyền theo vai trò nhằm giới hạn phạm vi thao tác của từng nhóm người dùng.
+
+Trong phạm vi mini project, ba vai trò gồm Administrator, Developer và Viewer được sử dụng để minh họa mô hình phân quyền. Mỗi vai trò được cấp các quyền khác nhau đối với việc quản lý Feature Flag, cấu hình rule và theo dõi hệ thống, góp phần giảm nguy cơ thay đổi cấu hình ngoài ý muốn \cite{owasp_rest_security}.
+
+\subsubsection{Thống kê số lần evaluation}
+
+Hệ thống có thể thu thập số liệu về số lần Evaluation API được gọi đối với từng Feature Flag.
+
+Các thống kê này được sử dụng để hiển thị biểu đồ trực quan trên Dashboard, giúp người quản trị đánh giá mức độ sử dụng của từng Feature Flag, xác định các Feature Flag ít được sử dụng và hỗ trợ quá trình dọn dẹp các Feature Flag không còn cần thiết \cite{mahdavi_hezaveh_feature_toggles}.
+
+\subsubsection{Group kill switch}
+
+Ngoài Kill Switch cho từng Feature Flag, hệ thống có thể hỗ trợ Kill Switch ở cấp nhóm nhằm vô hiệu hóa đồng thời nhiều Feature Flag có liên quan.
+
+Khi Group Kill Switch được kích hoạt, toàn bộ Feature Flag trong nhóm sẽ bị tắt ngay lập tức mà không cần chỉnh sửa từng Feature Flag riêng lẻ. Chức năng này giúp giảm thời gian phản ứng khi xảy ra sự cố trên môi trường production và hỗ trợ quá trình rollback ở phạm vi lớn \cite{fowler_feature_toggles}.
+
+\subsubsection{Triển khai bằng Docker Compose}
+
+Hệ thống có thể được đóng gói dưới dạng nhiều container bao gồm Backend API, Frontend Dashboard, Demo Application, cơ sở dữ liệu và các dịch vụ hỗ trợ khác.
+
+Docker Compose cho phép khởi tạo toàn bộ môi trường chỉ với một lệnh, giúp đơn giản hóa quá trình cài đặt, kiểm thử và trình diễn hệ thống trên nhiều máy tính khác nhau. Đồng thời, việc chuẩn hóa môi trường chạy cũng giúp giảm các khác biệt giữa môi trường phát triển và môi trường triển khai \cite{docker_compose}.
+

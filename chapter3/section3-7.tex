@@ -1,0 +1,259 @@
+\section{Đánh giá kết quả thực hiện}
+
+\subsection{Mức độ đáp ứng yêu cầu MVP}
+
+Đề tài được xây dựng theo các yêu cầu bắt buộc của Mini Project Feature Flag Platform, bao gồm báo cáo nghiên cứu, Backend API, Dashboard quản trị, Demo Application và các yêu cầu kỹ thuật tối thiểu. Kết quả thực hiện cho thấy hệ thống đáp ứng đầy đủ các chức năng cốt lõi của một nền tảng Feature Flag, đồng thời triển khai thêm nhiều chức năng thuộc mức khuyến khích như caching, JavaScript SDK, phân quyền, thống kê evaluation, group kill switch và triển khai bằng Docker Compose. Nhìn chung, các mục tiêu đặt ra ở giai đoạn MVP đều đã được hoàn thành.
+
+\subsubsection{Báo cáo nghiên cứu}
+
+Báo cáo trình bày đầy đủ cơ sở lý thuyết về Feature Flag, bao gồm khái niệm, vai trò trong quy trình phát triển phần mềm, sự khác biệt giữa deploy và release, các loại Feature Flag phổ biến, kiến trúc hệ thống, mô hình dữ liệu, Rule Evaluation Engine, thiết kế API, Dashboard quản trị, Demo Application và các phương pháp kiểm thử.
+
+Ngoài việc mô tả quá trình thiết kế và triển khai, báo cáo còn phân tích các vấn đề như rollout theo phần trăm, kill switch, audit log, caching, bảo mật và khả năng mở rộng của hệ thống dựa trên các tài liệu tham khảo uy tín như Martin Fowler, Unleash, LaunchDarkly, OpenFeature và Microsoft \cite{fowler_feature_toggles,unleash_feature_flag_best_practices,launchdarkly_feature_flags,microsoft_devops}.
+
+\subsubsection{Backend API}
+
+Backend API đáp ứng đầy đủ các chức năng quản lý project, environment, Feature Flag, rule, group, sample user, audit log và Evaluation API theo yêu cầu của đề tài. Rule Evaluation Engine hỗ trợ các chiến lược bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout và group kill switch với thứ tự ưu tiên rõ ràng.
+
+Bên cạnh các chức năng nghiệp vụ, hệ thống còn triển khai validation dữ liệu đầu vào, xử lý lỗi thống nhất, request ID, audit log, cache, thống kê evaluation và cơ chế phân quyền quản trị. Kiến trúc Backend được tổ chức theo hướng module hóa, giúp thuận lợi cho việc bảo trì và mở rộng trong tương lai.
+
+\subsubsection{Frontend Dashboard}
+
+Dashboard cung cấp đầy đủ các màn hình phục vụ quản trị Feature Flag, bao gồm quản lý project, environment, Feature Flag, rule, group, sample user, audit log và thống kê evaluation. Giao diện thể hiện rõ trạng thái lifecycle, runtime, serving mode, quyền của người dùng và các thao tác quản trị tương ứng.
+
+Việc tích hợp trực tiếp với Backend API giúp Dashboard phản ánh ngay các thay đổi cấu hình, đồng thời hỗ trợ theo dõi lịch sử thay đổi và thống kê số lần evaluation thông qua các biểu đồ trực quan.
+
+\subsubsection{Demo Application}
+
+Demo Application tích hợp trực tiếp với Evaluation API thông qua JavaScript SDK và minh họa rõ cơ chế hoạt động của Feature Flag trong ứng dụng thực tế. Hệ thống hỗ trợ các kịch bản bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout, group kill switch và các tình huống fallback khi evaluation không thành công.
+
+Các kịch bản trình diễn cho thấy việc thay đổi cấu hình Feature Flag trên Dashboard được phản ánh ngay trong ứng dụng mà không cần triển khai lại phiên bản mới, phù hợp với mục tiêu tách biệt giữa quá trình deploy và release của Feature Flag \cite{fowler_feature_toggles,microsoft_devops}.
+
+\subsubsection{Yêu cầu kỹ thuật tối thiểu}
+
+Hệ thống đáp ứng đầy đủ các yêu cầu kỹ thuật tối thiểu của đề tài. Dữ liệu được lưu trữ trong PostgreSQL thông qua Prisma ORM; toàn bộ API đều có validation và xử lý lỗi thống nhất; dữ liệu mẫu được khởi tạo bằng migration và seed; tài liệu thiết kế, README và API specification được xây dựng đầy đủ.
+
+Ngoài các yêu cầu bắt buộc, hệ thống còn triển khai nhiều chức năng mở rộng như caching, JavaScript SDK, unit test cho Rule Evaluation Engine, phân quyền người dùng, thống kê evaluation, group kill switch và Docker Compose. Các chức năng này góp phần nâng cao tính hoàn thiện của nền tảng và tiệm cận hơn với mô hình Feature Flag được áp dụng trong các hệ thống thực tế \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags}.
+
+\subsection{Mức độ đáp ứng yêu cầu khuyến khích}
+
+Bên cạnh việc hoàn thành toàn bộ các yêu cầu bắt buộc, hệ thống còn triển khai đầy đủ các chức năng thuộc mức khuyến khích của Mini Project. Các chức năng này góp phần nâng cao hiệu năng, khả năng mở rộng, tính bảo trì và trải nghiệm quản trị của nền tảng Feature Flag. Kết quả thực hiện cho thấy hệ thống không chỉ đáp ứng yêu cầu của đề tài mà còn tiệm cận nhiều đặc điểm của các nền tảng Feature Flag hiện đại.
+
+\subsubsection{Cache và SDK}
+
+Hệ thống triển khai cơ chế cache nhằm giảm số lần truy cập cơ sở dữ liệu trong quá trình evaluation. Dữ liệu cache được tự động invalidation sau các thao tác thay đổi Feature Flag hoặc Rule, bảo đảm Evaluation Engine luôn sử dụng cấu hình mới nhất. Đồng thời, hệ thống vẫn duy trì khả năng hoạt động khi cache không khả dụng bằng cách truy vấn trực tiếp cơ sở dữ liệu.
+
+Bên cạnh đó, một JavaScript SDK đơn giản được xây dựng để hỗ trợ Demo Application gọi Evaluation API và xử lý kết quả một cách thuận tiện. Việc bổ sung SDK giúp giảm sự phụ thuộc của ứng dụng khách vào chi tiết giao thức HTTP và phù hợp với cách các nền tảng Feature Flag thực tế cung cấp SDK cho nhiều môi trường phát triển khác nhau \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags,redis_client_side_caching}.
+
+\subsubsection{Unit test và versioning}
+
+Rule Evaluation Engine được kiểm thử bằng các bộ unit test bao phủ các kịch bản quan trọng như precedence, user targeting, role targeting, percentage rollout và fallback. Việc kiểm thử ở mức đơn vị giúp phát hiện sớm các lỗi logic và bảo đảm tính đúng đắn của thuật toán evaluation trước khi tích hợp với các thành phần khác.
+
+Ngoài ra, hệ thống còn triển khai cơ chế lưu vết thay đổi cấu hình thông qua audit log với before và after snapshot, actor, request ID và thời điểm thực hiện. Mặc dù không xây dựng cơ chế khôi phục theo từng phiên bản cấu hình, lịch sử thay đổi vẫn được lưu đầy đủ để phục vụ truy vết và kiểm tra các thay đổi trong quá trình vận hành.
+
+\subsubsection{Phân quyền và thống kê}
+
+Hệ thống triển khai mô hình phân quyền với ba vai trò gồm \texttt{admin}, \texttt{developer} và \texttt{viewer}. Quyền truy cập được kiểm soát đồng thời tại Backend API và Dashboard nhằm ngăn chặn các thao tác không hợp lệ cũng như bảo đảm mỗi người dùng chỉ thực hiện các chức năng phù hợp với vai trò của mình.
+
+Song song với đó, hệ thống ghi nhận các sự kiện evaluation và cung cấp các API thống kê phục vụ Dashboard. Người quản trị có thể theo dõi tổng số lần evaluation, thống kê theo Feature Flag, phân bố kết quả bật hoặc tắt và biểu đồ theo thời gian để đánh giá mức độ sử dụng của từng Feature Flag trong quá trình vận hành.
+
+\subsubsection{Group kill switch và Docker Compose}
+
+Một trong những chức năng mở rộng nổi bật của hệ thống là group kill switch, cho phép quản trị viên nhanh chóng vô hiệu hóa nhiều Feature Flag thuộc cùng một nhóm chỉ bằng một thao tác. Cơ chế này đặc biệt hữu ích khi cần giảm nhanh phạm vi ảnh hưởng của sự cố trên môi trường production và phù hợp với các khuyến nghị về vận hành Feature Flag trong thực tế \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+Ngoài ra, toàn bộ hệ thống được đóng gói và triển khai bằng Docker Compose, cho phép khởi tạo đồng thời PostgreSQL, Backend API, Dashboard và Demo Application trong một môi trường thống nhất. Việc sử dụng Docker Compose giúp đơn giản hóa quá trình cài đặt, giảm khác biệt giữa các môi trường phát triển và tạo thuận lợi cho việc trình diễn cũng như mở rộng hệ thống trong tương lai \cite{docker_compose}.
+
+\subsection{Đánh giá Rule Evaluation Engine}
+
+Rule Evaluation Engine là thành phần trung tâm của nền tảng Feature Flag, chịu trách nhiệm xác định trạng thái của từng Feature Flag dựa trên cấu hình và Evaluation Context. Kết quả triển khai cho thấy Engine đáp ứng các yêu cầu về tính đúng đắn, tính xác định, khả năng giải thích kết quả và khả năng mở rộng. Thiết kế theo hướng tách biệt giữa dữ liệu cấu hình và thuật toán đánh giá giúp hệ thống dễ bảo trì, đồng thời tạo nền tảng cho việc bổ sung các chiến lược rollout mới trong tương lai.
+
+\subsubsection{Tính đúng đắn}
+
+Rule Evaluation Engine được xây dựng với thứ tự ưu tiên rõ ràng giữa các trạng thái runtime, bao gồm lifecycle, trạng thái kích hoạt, group kill switch, Global On, các rule targeting và giá trị mặc định. Mỗi request evaluation đều được xử lý theo cùng một quy trình, bảo đảm kết quả phản ánh chính xác cấu hình hiện tại của Feature Flag.
+
+Kết quả kiểm thử cho thấy các chiến lược user targeting, role targeting và percentage rollout đều hoạt động đúng theo thiết kế. Các trường hợp Feature Flag không tồn tại, cấu hình không hợp lệ hoặc không có rule phù hợp đều được xử lý bằng cơ chế fallback an toàn, phù hợp với nguyên tắc triển khai Feature Flag trong các hệ thống thực tế \cite{fowler_feature_toggles,openfeature_flag_evaluation}.
+
+\subsubsection{Tính xác định}
+
+Một yêu cầu quan trọng của Rule Evaluation Engine là cùng một Evaluation Context phải luôn tạo ra cùng một kết quả khi cấu hình Feature Flag không thay đổi. Hệ thống đáp ứng yêu cầu này thông qua thuật toán stable hashing sử dụng \texttt{targetingKey} để xác định bucket trong các kịch bản percentage rollout.
+
+Nhờ cơ chế trên, cùng một người dùng luôn nhận được kết quả nhất quán giữa các lần evaluation, đồng thời việc tăng hoặc giảm tỷ lệ rollout chỉ mở rộng hoặc thu hẹp tập bucket mà không làm thay đổi ngẫu nhiên trạng thái của các bucket đã được xác định trước. Điều này bảo đảm tính ổn định của quá trình phát hành từng phần và phù hợp với các nền tảng Feature Flag hiện đại \cite{launchdarkly_percentage_rollouts}.
+
+\subsubsection{Khả năng giải thích kết quả}
+
+Ngoài việc trả về trạng thái bật hoặc tắt, Rule Evaluation Engine còn cung cấp các thông tin như \texttt{reason}, \texttt{variant} và rule được áp dụng trong quá trình evaluation. Các thông tin này giúp Dashboard, Demo Application và nhà phát triển xác định nhanh nguyên nhân dẫn đến kết quả evaluation.
+
+Khả năng giải thích kết quả đặc biệt hữu ích trong quá trình kiểm thử, vận hành và xử lý sự cố, khi người quản trị cần xác định Feature Flag được kích hoạt bởi Global On, targeting rule, percentage rollout hay cơ chế fallback. Thiết kế này phù hợp với mô hình Evaluation API của OpenFeature và nâng cao khả năng quan sát của toàn bộ hệ thống \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
+
+\subsubsection{Khả năng mở rộng}
+
+Rule Evaluation Engine được thiết kế theo hướng tách biệt giữa dữ liệu cấu hình, các loại rule và thuật toán đánh giá. Nhờ đó, việc bổ sung các chiến lược mới như targeting theo thuộc tính, organization, thời gian, vị trí hoặc hỗ trợ nhiều variant có thể được thực hiện mà không làm thay đổi đáng kể kiến trúc hiện có.
+
+Bên cạnh đó, việc kết hợp giữa audit log, cache, phân quyền và Evaluation API tạo nên một nền tảng thống nhất, thuận lợi cho việc mở rộng quy mô hệ thống cũng như tích hợp với nhiều ứng dụng khách trong tương lai. Cách tiếp cận này phù hợp với các khuyến nghị về thiết kế và phát triển hệ thống Feature Flag có khả năng mở rộng \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags}.
+
+\subsection{Đánh giá Backend API}
+
+Backend API là thành phần trung tâm kết nối Dashboard, Rule Evaluation Engine và Demo Application. Kết quả triển khai cho thấy hệ thống được tổ chức theo kiến trúc module rõ ràng, cung cấp các endpoint phục vụ quản trị và evaluation với giao diện thống nhất. Bên cạnh việc đáp ứng các yêu cầu chức năng, Backend API còn chú trọng đến validation, xử lý lỗi, tài liệu hóa và khả năng mở rộng nhằm hỗ trợ quá trình phát triển và bảo trì lâu dài.
+
+\subsubsection{Cấu trúc API}
+
+Các endpoint được tổ chức theo từng nhóm chức năng như project, environment, Feature Flag, rule, group, sample user, evaluation, audit log và statistics. Cách phân chia này giúp tách biệt rõ trách nhiệm của từng module, đồng thời thuận lợi cho việc mở rộng khi bổ sung các chức năng mới.
+
+Định dạng request và response được chuẩn hóa trên toàn bộ hệ thống, giúp Dashboard và Demo Application dễ dàng tích hợp với Backend API. Việc tách riêng Evaluation API khỏi các API quản trị cũng phù hợp với mô hình triển khai Feature Flag trong thực tế, nơi việc đánh giá Feature Flag và quản lý cấu hình thường được thực hiện bởi các thành phần độc lập \cite{launchdarkly_feature_flags,openfeature_flag_evaluation}.
+
+\subsubsection{Validation và xử lý lỗi}
+
+Backend API áp dụng cơ chế validation cho toàn bộ dữ liệu đầu vào nhằm kiểm tra định dạng key, giá trị enum, tham số của rule và Evaluation Context trước khi xử lý nghiệp vụ. Điều này giúp phát hiện sớm các lỗi và ngăn chặn dữ liệu không hợp lệ được lưu vào cơ sở dữ liệu.
+
+Đối với các trường hợp lỗi, hệ thống sử dụng cơ chế xử lý ngoại lệ tập trung để trả về phản hồi thống nhất, bao gồm mã lỗi, thông báo, chi tiết lỗi và request ID phục vụ truy vết. Cách tiếp cận này giúp giảm sự phụ thuộc giữa các module, đồng thời phù hợp với các khuyến nghị về thiết kế REST API và xử lý lỗi an toàn \cite{owasp_rest_security}.
+
+\subsubsection{Tài liệu hóa}
+
+Backend API được tài liệu hóa thông qua OpenAPI và Swagger, cho phép mô tả đầy đủ các endpoint, tham số đầu vào, cấu trúc dữ liệu, phản hồi thành công và các trường hợp lỗi.
+
+Việc cung cấp tài liệu API giúp giảm thời gian tích hợp giữa Backend với Dashboard và Demo Application, đồng thời hỗ trợ quá trình kiểm thử và phát triển các ứng dụng khách trong tương lai. Đây cũng là nền tảng thuận lợi để mở rộng hệ thống hoặc tích hợp với các dịch vụ bên ngoài mà không cần phụ thuộc vào việc đọc trực tiếp mã nguồn.
+
+\subsubsection{Khả năng bảo trì}
+
+Backend API được xây dựng theo kiến trúc module hóa với sự tách biệt giữa controller, service, repository, DTO và Rule Evaluation Engine. Mỗi thành phần đảm nhận một trách nhiệm riêng, giúp giảm mức độ phụ thuộc giữa các module và nâng cao khả năng bảo trì.
+
+Bên cạnh đó, việc kết hợp validation, audit log, cache, phân quyền và unit test giúp hệ thống dễ dàng kiểm soát thay đổi trong quá trình phát triển. Kiến trúc hiện tại cũng tạo điều kiện thuận lợi cho việc bổ sung các loại rule mới, mở rộng Evaluation API hoặc thay thế các thành phần hạ tầng mà không ảnh hưởng đáng kể đến các module còn lại.
+
+\subsection{Đánh giá Dashboard}
+
+Dashboard là giao diện quản trị trực tiếp của nền tảng Feature Flag, hỗ trợ người dùng quản lý toàn bộ vòng đời của Feature Flag từ cấu hình đến theo dõi trạng thái và lịch sử thay đổi. Kết quả triển khai cho thấy Dashboard đáp ứng tốt các yêu cầu về khả năng sử dụng, khả năng quan sát trạng thái, cấu hình rule và hỗ trợ người dùng hạn chế các thao tác không mong muốn. Giao diện được thiết kế theo hướng trực quan, giúp đơn giản hóa quá trình quản trị ngay cả khi số lượng Feature Flag tăng lên.
+
+\subsubsection{Khả năng sử dụng}
+
+Dashboard tổ chức các chức năng theo từng nhóm như project, environment, Feature Flag, rule, group, sample user, audit log và statistics. Cách bố trí này giúp người quản trị dễ dàng tìm kiếm và thực hiện các thao tác cần thiết mà không phải chuyển đổi qua nhiều giao diện khác nhau.
+
+Các thao tác như tạo mới, chỉnh sửa, archive, khôi phục, bật hoặc tắt Feature Flag và cấu hình rule đều được thực hiện trực tiếp trên giao diện với quy trình thống nhất. Việc tích hợp chặt chẽ với Backend API giúp các thay đổi được cập nhật ngay sau khi thao tác hoàn tất.
+
+\subsubsection{Khả năng nhận biết trạng thái}
+
+Dashboard hiển thị đồng thời nhiều trạng thái quan trọng của Feature Flag như lifecycle, runtime status, serving mode, group kill switch và quyền của người dùng hiện tại. Các trạng thái này được thể hiện trực quan thông qua nhãn và các thành phần giao diện, giúp người quản trị nhanh chóng xác định tình trạng hoạt động của từng Feature Flag.
+
+Ngoài ra, Dashboard còn cung cấp audit log và thống kê evaluation, hỗ trợ người dùng theo dõi lịch sử thay đổi cũng như mức độ sử dụng của từng Feature Flag trong quá trình vận hành. Khả năng quan sát này phù hợp với các nguyên tắc quản lý Feature Flag được đề xuất trong các nền tảng hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\subsubsection{Khả năng cấu hình rule}
+
+Dashboard hỗ trợ cấu hình các chiến lược bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout và group kill switch thông qua các biểu mẫu trực quan. Người quản trị có thể thêm, sửa hoặc xóa rule mà không cần thao tác trực tiếp với cơ sở dữ liệu hoặc API.
+
+Các tham số cấu hình được kiểm tra ngay trên giao diện trước khi gửi tới Backend API, đồng thời phản hồi lỗi được hiển thị rõ ràng khi dữ liệu không hợp lệ. Cách tiếp cận này giúp giảm số lượng thao tác sai và nâng cao hiệu quả quản trị Feature Flag.
+
+\subsubsection{Khả năng hạn chế thao tác sai}
+
+Dashboard kết hợp nhiều cơ chế nhằm giảm thiểu các thao tác không mong muốn trong quá trình quản trị. Các chức năng chỉ hiển thị khi người dùng có quyền phù hợp, các nút thao tác được vô hiệu hóa đối với những vai trò không được phép và các thao tác quan trọng như archive hoặc kích hoạt group kill switch đều yêu cầu xác nhận trước khi thực hiện.
+
+Bên cạnh đó, toàn bộ thay đổi cấu hình đều được ghi nhận trong audit log và các thay đổi liên quan đến Feature Flag hoặc Rule sẽ kích hoạt cơ chế cache invalidation để bảo đảm dữ liệu hiển thị luôn phản ánh đúng trạng thái hiện tại của hệ thống. Những cơ chế này góp phần nâng cao tính an toàn và giảm nguy cơ phát sinh lỗi trong quá trình vận hành.
+
+\subsection{Đánh giá Demo Application}
+
+Demo Application được xây dựng nhằm minh họa trực quan cách một ứng dụng khách tích hợp với nền tảng Feature Flag thông qua JavaScript SDK và Evaluation API. Thay vì chỉ trình diễn các chức năng của Dashboard, ứng dụng cho phép quan sát trực tiếp sự thay đổi của giao diện khi cấu hình Feature Flag được cập nhật. Kết quả thực hiện cho thấy Demo Application đáp ứng tốt mục tiêu chứng minh giá trị của Feature Flag trong quá trình phát triển và phát hành phần mềm.
+
+\subsubsection{Khả năng chứng minh deploy tách khỏi release}
+
+Một trong những mục tiêu quan trọng nhất của Demo Application là chứng minh việc triển khai (deploy) và phát hành tính năng (release) có thể được tách biệt. Sau khi ứng dụng được triển khai, người quản trị có thể thay đổi trạng thái của Feature Flag trên Dashboard mà không cần build hoặc triển khai lại ứng dụng.
+
+Kết quả trình diễn cho thấy các thay đổi được phản ánh ngay trong Demo Application thông qua Evaluation API. Điều này minh họa rõ lợi ích của Feature Flag trong việc giảm rủi ro phát hành và phù hợp với cách tiếp cận được khuyến nghị trong các quy trình DevOps hiện đại \cite{fowler_feature_toggles,microsoft_devops}.
+
+\subsubsection{Khả năng minh họa targeting}
+
+Demo Application hỗ trợ các kịch bản user targeting và role targeting bằng cách xây dựng Evaluation Context từ thông tin người dùng hiện tại trước khi gửi request tới Evaluation API.
+
+Kết quả trình diễn cho thấy các người dùng khác nhau có thể nhận được trạng thái Feature Flag khác nhau mặc dù sử dụng cùng một phiên bản ứng dụng. Điều này giúp minh họa rõ cơ chế phát hành theo từng nhóm người dùng và khả năng kiểm soát phạm vi ảnh hưởng của Feature Flag, phù hợp với mô hình targeting được áp dụng trong các nền tảng Feature Flag hiện đại \cite{launchdarkly_targeting_rules,openfeature_evaluation_context}.
+
+\subsubsection{Khả năng minh họa rollout}
+
+Đối với chiến lược percentage rollout, Demo Application cho phép quan sát trực tiếp sự khác biệt giữa các người dùng dựa trên \texttt{targetingKey}. Khi thay đổi tỷ lệ rollout trên Dashboard, chỉ một phần người dùng được kích hoạt tính năng mới, trong khi các người dùng còn lại vẫn giữ nguyên hành vi của ứng dụng.
+
+Kết quả trình diễn đồng thời cho thấy cùng một người dùng luôn nhận được kết quả nhất quán giữa các lần truy cập nhờ cơ chế stable hashing. Điều này giúp minh họa trực quan quá trình phát hành từng phần và phù hợp với nguyên tắc stable rollout được sử dụng trong các hệ thống Feature Flag thực tế \cite{launchdarkly_percentage_rollouts}.
+
+\subsubsection{Khả năng minh họa rollback nhanh}
+
+Demo Application cũng chứng minh khả năng rollback nhanh của Feature Flag thông qua các thao tác tắt Feature Flag, kích hoạt group kill switch hoặc thay đổi cấu hình rule trên Dashboard.
+
+Kết quả trình diễn cho thấy sau khi cấu hình được cập nhật, tính năng mới lập tức bị vô hiệu hóa đối với các người dùng thuộc phạm vi ảnh hưởng mà không cần triển khai lại ứng dụng hoặc khởi động lại hệ thống. Khả năng phản ứng nhanh này là một trong những ưu điểm quan trọng của Feature Flag trong việc giảm thiểu tác động của sự cố trên môi trường production và phù hợp với các khuyến nghị của Martin Fowler và Unleash \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+
+\subsection{So sánh với các nền tảng hiện có}
+
+Các nền tảng Feature Flag phổ biến như LaunchDarkly và Unleash cung cấp hệ sinh thái hoàn chỉnh phục vụ quản lý và phát hành tính năng trong các hệ thống quy mô lớn. Trong khi đó, đề tài tập trung xây dựng một nền tảng Feature Flag ở quy mô mini project nhằm làm rõ các thành phần cốt lõi của hệ thống, đồng thời vẫn giữ được khả năng minh họa các kịch bản triển khai và phát hành tính năng trong thực tế. Kết quả đánh giá cho thấy hệ thống đã kế thừa nhiều đặc điểm quan trọng của các nền tảng hiện có, đồng thời chủ động đơn giản hóa một số chức năng để phù hợp với phạm vi nghiên cứu.
+
+\subsubsection{Những khả năng tương đồng}
+
+Hệ thống triển khai đầy đủ các thành phần cốt lõi của một nền tảng Feature Flag, bao gồm Dashboard quản trị, Backend API, Rule Evaluation Engine, Evaluation API, Demo Application và cơ chế audit log. Các chiến lược bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout và group kill switch đều được hỗ trợ theo nguyên tắc tương tự các nền tảng Feature Flag hiện đại.
+
+Ngoài ra, hệ thống còn áp dụng nhiều thực hành phổ biến như tách biệt deploy khỏi release, sử dụng Evaluation Context, stable hashing cho percentage rollout, ghi nhận lịch sử thay đổi, cache dữ liệu phục vụ evaluation và phân quyền người dùng quản trị. Những đặc điểm này phù hợp với các mô hình được đề xuất bởi Martin Fowler, Unleash, LaunchDarkly và OpenFeature \cite{fowler_feature_toggles,unleash_feature_flag_best_practices,launchdarkly_feature_flags,openfeature_flag_evaluation}.
+
+\subsubsection{Những chức năng đã được đơn giản hóa}
+
+Để phù hợp với phạm vi của mini project, một số chức năng được triển khai ở mức đơn giản hơn so với các sản phẩm thương mại. Hệ thống chỉ hỗ trợ một tập chiến lược targeting cơ bản, sử dụng JavaScript SDK cho Demo Application và triển khai cache theo quy mô nhỏ thay vì hạ tầng phân tán.
+
+Bên cạnh đó, cơ chế versioning được thực hiện thông qua audit log và before/after snapshot thay vì quản lý nhiều phiên bản cấu hình hoặc hỗ trợ khôi phục tự động. Dashboard cũng tập trung vào các chức năng quản trị cốt lõi thay vì cung cấp các tính năng cộng tác hoặc quản lý tổ chức ở quy mô doanh nghiệp.
+
+\subsubsection{Những chức năng chưa hỗ trợ}
+
+So với các nền tảng Feature Flag thương mại, hệ thống chưa hỗ trợ một số chức năng nâng cao như multi-variant experimentation, A/B testing hoàn chỉnh, prerequisite flag, phân đoạn người dùng động, streaming configuration, SDK cho nhiều ngôn ngữ lập trình, đồng bộ cấu hình theo thời gian thực hoặc triển khai trên nhiều khu vực địa lý.
+
+Ngoài ra, hệ thống cũng chưa tích hợp với các nền tảng giám sát, hệ thống phân tích dữ liệu, dịch vụ nhận dạng người dùng hoặc các công cụ CI/CD để tự động hóa toàn bộ quy trình phát hành tính năng. Đây đều là các hướng mở rộng phù hợp nếu tiếp tục phát triển đề tài ở quy mô lớn hơn.
+
+\subsubsection{Mức độ phù hợp với phạm vi mini project}
+
+Xét theo mục tiêu của Mini Project, hệ thống đã đáp ứng đầy đủ các yêu cầu về nghiên cứu, thiết kế, triển khai và trình diễn nền tảng Feature Flag. Các chức năng cốt lõi đều được hiện thực hóa, đồng thời nhiều yêu cầu khuyến khích như cache, JavaScript SDK, unit test, phân quyền, thống kê evaluation, group kill switch và Docker Compose cũng đã được triển khai.
+
+Mặc dù chưa hướng tới quy mô của các nền tảng thương mại, hệ thống vẫn thể hiện đầy đủ các nguyên lý quan trọng của Feature Flag, giúp minh họa rõ quy trình quản lý và phát hành tính năng trong các hệ thống hiện đại. Vì vậy, phạm vi triển khai được đánh giá là phù hợp với mục tiêu nghiên cứu, yêu cầu của mini project và tiêu chí đánh giá đã đặt ra.
+
+\subsection{Giá trị và tính mới của sản phẩm}
+
+Đề tài không chỉ hiện thực hóa các chức năng cốt lõi của một nền tảng Feature Flag mà còn xây dựng một hệ thống hoàn chỉnh gồm Backend API, Dashboard, Rule Evaluation Engine, Demo Application và cơ chế kiểm thử. Sản phẩm đồng thời đáp ứng mục tiêu nghiên cứu, hỗ trợ học tập và minh họa trực quan quy trình phát hành phần mềm hiện đại dựa trên Feature Flag. Bên cạnh việc kế thừa các nguyên lý từ các nền tảng hiện có, hệ thống cũng có những điểm mở rộng phù hợp với phạm vi của mini project.
+
+\subsubsection{Giá trị về mặt học thuật}
+
+Đề tài hệ thống hóa tương đối đầy đủ các kiến thức liên quan đến Feature Flag, bao gồm sự khác biệt giữa deploy và release, các loại Feature Flag, Rule Evaluation Engine, Evaluation Context, percentage rollout, kill switch, audit log, caching, phân quyền và quy trình quản lý vòng đời của Feature Flag.
+
+Ngoài việc trình bày cơ sở lý thuyết, đề tài còn chuyển hóa các khái niệm này thành một hệ thống có thể triển khai và kiểm thử thực tế. Điều này giúp thu hẹp khoảng cách giữa lý thuyết và ứng dụng, đồng thời tạo nguồn tài liệu tham khảo cho việc nghiên cứu các hệ thống quản lý Feature Flag trong tương lai \cite{fowler_feature_toggles,unleash_feature_flag_best_practices,openfeature_flag_evaluation}.
+
+\subsubsection{Giá trị về mặt kỹ thuật}
+
+Về mặt kỹ thuật, hệ thống được xây dựng theo kiến trúc phân tách rõ ràng giữa Backend API, Rule Evaluation Engine, Dashboard và Demo Application. Các thành phần được kết nối thông qua các API thống nhất, kết hợp với validation, audit log, cache, phân quyền, thống kê evaluation và triển khai bằng Docker Compose.
+
+Đề tài đồng thời áp dụng nhiều kỹ thuật thường gặp trong các hệ thống hiện đại như stable hashing cho percentage rollout, Evaluation Context, request ID, before và after snapshot, JavaScript SDK và cơ chế cache invalidation. Những thành phần này giúp sản phẩm có tính hoàn chỉnh cao hơn so với một ứng dụng minh họa thông thường.
+
+\subsubsection{Giá trị trong release management}
+
+Sản phẩm minh họa rõ vai trò của Feature Flag trong quy trình release management thông qua khả năng bật hoặc tắt tính năng tại thời điểm chạy mà không cần triển khai lại ứng dụng. Các chiến lược như user targeting, role targeting, percentage rollout và group kill switch giúp kiểm soát phạm vi phát hành, giảm rủi ro khi đưa tính năng mới vào môi trường production và hỗ trợ rollback nhanh khi phát sinh sự cố.
+
+Nhờ đó, hệ thống thể hiện được giá trị thực tiễn của Feature Flag trong các quy trình phát triển phần mềm hiện đại, phù hợp với cách tiếp cận DevOps và Continuous Delivery được nhiều tổ chức áp dụng \cite{microsoft_devops,fowler_feature_toggles}.
+
+\subsubsection{Khả năng tái sử dụng và mở rộng}
+
+Kiến trúc hiện tại được xây dựng theo hướng module hóa, giúp các thành phần như Rule Evaluation Engine, Evaluation API, Dashboard và JavaScript SDK có thể được tái sử dụng trong các dự án khác hoặc tiếp tục phát triển thành một nền tảng Feature Flag hoàn chỉnh hơn.
+
+Trong tương lai, hệ thống có thể mở rộng để hỗ trợ nhiều variant, nhiều loại SDK, targeting theo thuộc tính hoặc phân đoạn người dùng, prerequisite flag, realtime configuration, nhiều môi trường triển khai và tích hợp với các nền tảng CI/CD hoặc hệ thống giám sát. Những hướng mở rộng này có thể được thực hiện mà không làm thay đổi đáng kể kiến trúc tổng thể, cho thấy sản phẩm có khả năng phát triển lâu dài và phù hợp làm nền tảng cho các nghiên cứu tiếp theo.
+
+\subsection{Hạn chế của hệ thống}
+
+Mặc dù đã đáp ứng đầy đủ các yêu cầu của mini project và hiện thực hóa các chức năng cốt lõi của một nền tảng Feature Flag, hệ thống vẫn còn một số hạn chế về quy mô triển khai, phạm vi hỗ trợ rule, khả năng tích hợp với ứng dụng khách và các chức năng phục vụ vận hành trong môi trường production. Những hạn chế này xuất phát từ phạm vi nghiên cứu cũng như mục tiêu xây dựng một nền tảng minh họa thay vì một sản phẩm thương mại hoàn chỉnh.
+
+\subsubsection{Hạn chế về quy mô triển khai}
+
+Hệ thống được thiết kế và triển khai cho mục đích nghiên cứu và trình diễn nên chưa hướng tới việc phục vụ số lượng lớn người dùng hoặc nhiều ứng dụng khách cùng lúc. Cơ sở dữ liệu, Backend API và Dashboard đều được triển khai theo mô hình đơn giản, phù hợp với môi trường phát triển và kiểm thử.
+
+Ngoài ra, hệ thống chưa hỗ trợ các cơ chế như cân bằng tải, triển khai nhiều phiên bản dịch vụ, sao lưu dữ liệu, phục hồi sau sự cố hoặc vận hành trên hạ tầng phân tán. Do đó, khả năng mở rộng theo chiều ngang vẫn còn là một hướng phát triển trong tương lai.
+
+\subsubsection{Hạn chế về rule targeting}
+
+Rule Evaluation Engine hiện hỗ trợ các chiến lược targeting cơ bản gồm bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout và group kill switch. Các chức năng này đáp ứng đầy đủ yêu cầu của đề tài nhưng vẫn chưa bao phủ toàn bộ các chiến lược được sử dụng trong các nền tảng Feature Flag thương mại.
+
+Hệ thống hiện chưa hỗ trợ các rule phức tạp như targeting theo nhiều thuộc tính kết hợp, phân đoạn người dùng động, prerequisite flag, thời gian hiệu lực, vị trí địa lý hoặc các chiến lược nhiều biến thể (multi-variant). Vì vậy, khả năng biểu diễn các kịch bản phát hành phức tạp vẫn còn hạn chế so với các nền tảng hiện đại \cite{launchdarkly_targeting_rules,launchdarkly_feature_flags}.
+
+\subsubsection{Hạn chế về SDK và realtime update}
+
+Đề tài hiện chỉ xây dựng JavaScript SDK phục vụ Demo Application. Hệ thống chưa hỗ trợ SDK cho các nền tảng và ngôn ngữ lập trình khác như Java, .NET, Go, Python hoặc Mobile, đồng thời chưa cung cấp các cơ chế đồng bộ cấu hình theo thời gian thực.
+
+Việc cập nhật trạng thái Feature Flag hiện vẫn dựa trên các request Evaluation API hoặc làm mới dữ liệu từ phía ứng dụng khách. Các kỹ thuật như streaming configuration, Server-Sent Events hoặc WebSocket để đồng bộ thay đổi theo thời gian thực chưa được triển khai.
+
+\subsubsection{Hạn chế về bảo mật và vận hành}
+
+Hệ thống đã triển khai xác thực, phân quyền, validation, audit log và request ID, tuy nhiên vẫn còn thiếu một số chức năng thường xuất hiện trong môi trường production. Chẳng hạn, hệ thống chưa hỗ trợ rate limiting, API key dành cho Evaluation API, quản lý secret, mã hóa dữ liệu nhạy cảm, giám sát tập trung, cảnh báo tự động hoặc tích hợp với các nền tảng quan sát và phân tích log.
+
+Bên cạnh đó, việc triển khai hiện mới dừng ở Docker Compose và chưa hỗ trợ các giải pháp orchestration như Kubernetes hoặc các quy trình CI/CD hoàn chỉnh. Đây là những hướng phát triển phù hợp nếu hệ thống được mở rộng để phục vụ các môi trường triển khai thực tế với quy mô lớn hơn \cite{owasp_rest_security,owasp_logging,docker_compose}.

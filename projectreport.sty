@@ -1,0 +1,249 @@
+% ------------------------------------------------------------------------------
+% Mathematics Project Report Template style file
+% by Jon Shiach 2019
+% Manchester Metropolitan University
+% ------------------------------------------------------------------------------
+
+\ProvidesPackage{projectreport}
+\NeedsTeXFormat{LaTeX2e}
+
+% ------------------------------------------------------------------------------
+% Packages
+% ------------------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{blindtext}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[english,vietnamese]{babel}
+
+% ------------------------------------------------------------------------------
+% Page setup
+% ------------------------------------------------------------------------------
+\usepackage{geometry} 
+\geometry{a4paper, margin=1in, twoside}
+\usepackage{setspace}
+\doublespacing
+
+% ------------------------------------------------------------------------------
+% Referencing
+% ------------------------------------------------------------------------------
+\usepackage{csquotes}
+\usepackage[
+    backend=biber,
+    citestyle=numeric,
+    bibstyle=numeric,
+    sorting=none,
+    maxbibnames=99
+]{biblatex}
+\addbibresource{references.bib}
+\DeclareNameAlias{sortname}{family-given}
+\setlength\bibitemsep{1em}
+
+% ------------------------------------------------------------------------------
+% Code listings
+% ------------------------------------------------------------------------------
+\usepackage{listings}
+\usepackage{xcolor}
+\lstdefinestyle{matlabcode}{
+	backgroundcolor=\color{gray!10},   
+	commentstyle=\color{green!50!black},
+	keywordstyle=\color{blue},
+	stringstyle=\color{magenta},
+	basicstyle=\linespread{1}\footnotesize\ttfamily,
+	numberstyle=\tiny,
+	breakatwhitespace=false,         
+	breaklines=true,                 
+	captionpos=t,   
+	frame=single,
+	keepspaces=true,         
+	language=matlab,        
+	numbers=none,             
+	numbersep=5pt,                  
+	showspaces=false,                
+	showstringspaces=false,
+	showtabs=false,                  
+	tabsize=2,
+	aboveskip=1em,
+	belowskip=1em,
+	belowcaptionskip=12pt
+}
+
+% ------------------------------------------------------------------------------
+% Headers and footers
+% ------------------------------------------------------------------------------	
+\usepackage{fancyhdr}
+\pagestyle{fancy}   
+\setlength{\headheight}{14.5pt}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\chaptername}{Chương}
+\renewcommand{\chaptermark}[1]{\markboth{\chaptername\ \thechapter.\ #1}{}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection.\ #1}}   
+\fancyhead[LE,RO]{\rightmark}
+\fancyhead[LO,RE]{\leftmark}
+
+% ------------------------------------------------------------------------------
+% Title page
+% ------------------------------------------------------------------------------
+% \renewcommand{\maketitle}{
+%     \thispagestyle{empty}
+%     \begin{center}
+%     	\vspace*{2cm}
+%     	\includegraphics[width = 7cm]{Images/Viettel-logo.png} \par
+%     	\vspace{2cm}
+%     	\textbf{\Large{TẬP ĐOÀN CÔNG NGHIỆP - VIỄN THÔNG QUÂN ĐỘI}} \par
+%     	\vspace{1cm}
+%     	\textbf{\LARGE{\name}} \par
+%     	\vspace{1cm}
+%     	\textbf{\Large \course} \par
+%     	\vspace{1cm}
+%     	\textbf{\Huge \projecttitle} \par
+%     	\vspace{1cm}
+%     	\textbf{\Large \submissiondate} \par
+%     	\vfill 
+%     	\textbf{\Large Mentor: Vũ Tuấn Đạt - Viettel Networks}
+%     	\vspace{1cm}
+%     \end{center}
+    
+%     \pagenumbering{roman}
+%     \setcounter{page}{0}
+% }
+
+\renewcommand{\maketitle}{%
+    \begin{titlepage}
+        \thispagestyle{empty}
+
+        \begin{center}
+
+            % Đẩy logo lên gần đầu trang hơn
+            \vspace*{-0.7cm}
+
+            % Logo Viettel
+            \includegraphics[width=9cm]{Images/Viettel-logo.png}
+            \par
+
+            \vspace{1cm}
+
+            % Tên tập đoàn
+            {\fontsize{15}{19}\selectfont
+            \bfseries
+            TẬP ĐOÀN CÔNG NGHIỆP - VIỄN THÔNG QUÂN ĐỘI
+            \par}
+
+            % Khoảng cách giữa phần tên tập đoàn và tiêu đề báo cáo
+            \vspace{4cm}
+
+            % Loại báo cáo
+            {\fontsize{22}{27}\selectfont
+            \bfseries
+            BÁO CÁO MINI-PROJECT
+            \par}
+
+            \vspace{0.8cm}
+
+            % Tên đề tài
+            {\fontsize{19}{24}\selectfont
+            \bfseries\itshape
+            \projecttitle
+            \par}
+
+            \vspace{1.8cm}
+
+            % Sinh viên thực hiện
+            {\large
+            \bfseries\itshape
+            \name
+            \par}
+
+            \vspace{0.45cm}
+
+            % Email sinh viên
+            {\large
+            \bfseries\itshape
+            dinhbao.itech@gmail.com - 0975 742 607
+            \par}
+
+            \vspace{0.7cm}
+
+            % Tên chương trình
+            {\large
+            \bfseries
+            \course
+            \par}
+
+            \vspace{0.4cm}
+
+            % Lĩnh vực
+            {\large
+            \bfseries
+            Lĩnh vực: Software Engineer
+            \par}
+
+        \end{center}
+
+        % Đẩy thông tin mentor xuống cuối trang
+        \vfill
+
+        \begin{center}
+            \begin{tabular*}{0.65\textwidth}
+                {@{\extracolsep{\fill}}ll}
+                
+                {\large\bfseries Mentor:}
+                &
+                {\large Vũ Tuấn Đạt}
+                \\[0.35cm]
+
+                {\large\bfseries Đơn vị:}
+                &
+                {\large Viettel Networks}
+
+            \end{tabular*}
+        \end{center}
+
+        \vspace*{0.3cm}
+
+    \end{titlepage}
+
+    % Trang sau bắt đầu đánh số La Mã từ i
+    \pagenumbering{roman}
+    \setcounter{page}{1}
+}
+
+% ------------------------------------------------------------------------------
+% Theorem enivornments
+% ------------------------------------------------------------------------------
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
+
+\newtheoremstyle{break}%
+    {}{}%
+    {}{}%
+    {\bfseries}{}% % Note that final punctuation is omitted.
+    {\newline}{}
+\theoremstyle{break}
+\newtheorem{example}{Example}[chapter]
+
+
+\usepackage{listings}
+
+\renewcommand{\lstlistingname}{Đoạn mã}
+\renewcommand{\lstlistlistingname}{Danh sách đoạn mã}
+
+\lstset{
+    basicstyle=\ttfamily,
+    captionpos=t
+}
+
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}

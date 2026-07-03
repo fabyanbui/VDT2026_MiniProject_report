@@ -1,0 +1,109 @@
+% ------------------------------------------------------------------------------
+% Mathematics Project Report Template
+% by Jon Shiach 2019
+% Manchester Metropolitan University
+% ------------------------------------------------------------------------------
+\documentclass[11pt]{report} 
+
+\usepackage{projectreport}
+
+% ------------------------------------------------------------------------------
+% Enter your details here
+% ------------------------------------------------------------------------------
+\newcommand{\name}{Bùi Đình Bảo}
+\newcommand{\course}{Chương trình Viettel Digital Talent 2026}
+% \newcommand{\course}{BSc. (Hons) Financial Mathematics}
+% \newcommand{\course}{MMath. (Hons) Mathematics}
+% \newcommand{\course}{BSc. (Hons) Secondary Mathematics Education with QTS}
+\newcommand{\projecttitle}{Nghiên cứu Feature Flag và xây dựng hệ thống quản lý phát hành tính năng an toàn}
+\newcommand{\submissiondate}{Tháng 7/2026}
+
+
+% ------------------------------------------------------------------------------
+% Document
+% ------------------------------------------------------------------------------
+\begin{document}
+
+\maketitle
+
+% ------------------------------------------------------------------------------
+% Top matter
+% ------------------------------------------------------------------------------
+
+\chapter*{Lời cảm ơn}
+
+Trước hết, em xin gửi lời cảm ơn chân thành đến Ban Tổ chức chương trình Viettel Digital Talent 2026 đã tạo điều kiện để em được tham gia học tập, rèn luyện và phát triển trong một môi trường chuyên nghiệp.
+
+Em xin cảm ơn các anh mentor đã trực tiếp giảng dạy và chia sẻ kiến thức trong các buổi training của chương trình. Mỗi buổi đào tạo với một chủ đề và góc nhìn khác nhau đã mang lại cho em nhiều kiến thức, kinh nghiệm thực tế và những định hướng có giá trị trong quá trình học tập và hoàn thiện bản thân.
+
+Em cũng xin cảm ơn mentor phụ trách Mini Project cùng Ban Tổ chức đã cung cấp định hướng, yêu cầu và những góp ý cần thiết trong quá trình thực hiện. Sự hỗ trợ của các anh đã giúp em xác định rõ mục tiêu, chủ động hơn trong quá trình nghiên cứu và hoàn thành sản phẩm.
+
+Bên cạnh đó, em xin cảm ơn các bạn học viên trong chương trình đã cùng trao đổi, chia sẻ và hỗ trợ nhau trong suốt quá trình tham gia Viettel Digital Talent 2026.
+
+Mặc dù đã dành nhiều thời gian và nỗ lực để hoàn thành báo cáo và sản phẩm, do kinh nghiệm còn hạn chế, nội dung thực hiện khó tránh khỏi những thiếu sót. Em rất mong nhận được những ý kiến đóng góp từ Ban Tổ chức và các anh/chị mentor để có thể tiếp tục cải thiện và hoàn thiện bản thân.
+
+Em xin chân thành cảm ơn!
+
+\hfill
+
+\hfill TP. Hồ Chí Minh, tháng 7 năm 2026
+
+\hfill Học viên thực hiện
+
+\hfill Bùi Đình Bảo
+
+\chapter*{Lời mở đầu}
+
+Trong giai đoạn đầu của ngành công nghiệp phần mềm, các hệ thống thường được phát triển và phát hành theo những phiên bản lớn, với chu kỳ kéo dài từ vài tuần đến vài tháng. Mỗi lần phát hành thường bao gồm nhiều thay đổi được đóng gói và triển khai cùng nhau. Trong mô hình này, việc đưa mã nguồn lên môi trường production và việc cung cấp tính năng cho người dùng gần như là một hoạt động thống nhất: khi phiên bản mới được triển khai, các tính năng bên trong phiên bản đó cũng đồng thời được phát hành.
+
+Cách tiếp cận trên tương đối phù hợp với những hệ thống có tốc độ thay đổi thấp. Tuy nhiên, khi quy mô phần mềm, số lượng người dùng và tần suất cập nhật ngày càng tăng, việc phát hành nhiều thay đổi cùng lúc làm gia tăng đáng kể rủi ro vận hành. Một lỗi trong tính năng mới có thể ảnh hưởng đến toàn bộ người dùng, trong khi quá trình khắc phục thường yêu cầu rollback phiên bản hoặc thực hiện một lần triển khai mới. Bên cạnh đó, việc duy trì các nhánh phát triển tồn tại trong thời gian dài còn làm phát sinh xung đột mã nguồn, tăng chi phí tích hợp và khiến các thay đổi khó được kiểm chứng sớm.
+
+Sự phát triển của các phương pháp Agile, Continuous Integration, Continuous Delivery và trunk-based development đã thúc đẩy các nhóm phát triển tích hợp những thay đổi nhỏ thường xuyên hơn, đồng thời duy trì mã nguồn ở trạng thái có thể triển khai. Tuy nhiên, không phải mọi phần mã đã được tích hợp đều sẵn sàng để cung cấp ngay cho người dùng. Từ đó hình thành nhu cầu đưa mã nguồn của tính năng mới vào cùng phiên bản với hệ thống hiện tại nhưng vẫn có khả năng che giấu, vô hiệu hóa hoặc chỉ kích hoạt tính năng trong những điều kiện nhất định.
+
+Ở dạng sơ khai, nhu cầu này có thể được giải quyết bằng các biến điều kiện, tham số dòng lệnh, biến môi trường hoặc tệp cấu hình. Những cơ chế bật, tắt hành vi phần mềm như vậy đã tồn tại từ trước khi thuật ngữ Feature Flag được sử dụng phổ biến. Khi hệ thống phát triển lớn hơn, các cấu hình đơn giản dần được tổ chức thành một cơ chế có cấu trúc, cho phép lựa chọn giữa những luồng xử lý khác nhau tại thời điểm chạy. Cơ chế đó được gọi bằng nhiều tên như Feature Toggle, Feature Flag, Feature Switch hoặc Feature Gate. Pete Hodgson mô tả Feature Toggle là tập hợp các kỹ thuật giúp đội ngũ cung cấp chức năng mới nhanh chóng nhưng vẫn kiểm soát được mức độ an toàn; kỹ thuật này cho phép thay đổi hành vi hệ thống mà không cần sửa đổi và triển khai lại mã nguồn. \cite{fowler_feature_toggles}
+
+Sự phổ biến của Feature Flag gắn liền với một thay đổi quan trọng trong tư duy phát triển phần mềm: deploy không đồng nghĩa với release. Deploy là quá trình đưa một phiên bản mã nguồn vào môi trường vận hành, trong khi release là quyết định cho phép người dùng thực sự tiếp cận một tính năng. Khi hai hoạt động này được tách biệt, đội phát triển có thể triển khai mã nguồn sớm nhưng giữ tính năng ở trạng thái tắt, kiểm thử tính năng trên production với một nhóm nội bộ, phát hành cho một tỷ lệ nhỏ người dùng và chỉ mở rộng phạm vi khi đã có đủ độ tin cậy.
+
+Từ một công tắc bật hoặc tắt đơn giản, Feature Flag dần được sử dụng cho nhiều mục đích khác nhau. Release Flag hỗ trợ tích hợp mã chưa sẵn sàng mà không làm ảnh hưởng đến người dùng; Experiment Flag phục vụ A/B testing và đánh giá tác động của các phương án sản phẩm; Permission Flag giới hạn tính năng theo nhóm người dùng hoặc quyền truy cập; Ops Flag và Kill Switch giúp đội vận hành nhanh chóng vô hiệu hóa một chức năng khi phát hiện lỗi, suy giảm hiệu năng hoặc áp lực tải bất thường. Việc phân loại này cho thấy Feature Flag không chỉ là một câu lệnh điều kiện trong mã nguồn mà còn là một công cụ hỗ trợ quản lý phát hành, thử nghiệm sản phẩm và vận hành hệ thống. \cite{fowler_feature_toggles}
+
+Tuy nhiên, khi số lượng flag, môi trường và điều kiện đánh giá tăng lên, việc quản lý bằng biến môi trường hoặc tệp cấu hình riêng lẻ trở nên khó kiểm soát. Trạng thái flag có thể không nhất quán giữa các máy chủ; người quản trị khó xác định ai đã thay đổi cấu hình; các ứng dụng phải tự cài đặt logic đánh giá; và những flag đã hết mục đích có thể tiếp tục tồn tại, tạo ra technical debt. Nghiên cứu thực nghiệm về việc sử dụng Feature Toggle trong doanh nghiệp cũng ghi nhận vai trò của các công cụ quản lý chuyên dụng, giá trị mặc định, metadata và nhật ký thay đổi đối với quá trình vận hành flag an toàn.
+
+Những hạn chế trên tạo ra nhu cầu xây dựng một nền tảng Feature Flag tập trung. Thay vì để từng ứng dụng tự lưu trữ cấu hình và tự quyết định cách đánh giá flag, nền tảng cung cấp một nguồn cấu hình thống nhất, giao diện quản trị, cơ chế đánh giá có quy tắc, API tích hợp và lịch sử thay đổi. Mô hình này giúp quá trình phát hành trở nên có kiểm soát, có khả năng truy vết và dễ mở rộng hơn khi số lượng ứng dụng hoặc đội phát triển tăng lên.
+
+Xuất phát từ bối cảnh đó, đề tài tập trung nghiên cứu và xây dựng một nền tảng quản lý Feature Flag dành cho ứng dụng web. Hệ thống bao gồm dashboard quản trị để tạo và cấu hình flag; rule engine để đánh giá theo người dùng, vai trò và tỷ lệ rollout; evaluation API để các ứng dụng xác định trạng thái tính năng; audit log để ghi nhận thay đổi; cùng demo app nhằm minh họa quá trình tích hợp và sử dụng Feature Flag trong thực tế.
+
+Việc thực hiện đề tài không chỉ nhằm xây dựng một chức năng bật hoặc tắt tính năng. Mục tiêu quan trọng hơn là nghiên cứu cách thiết kế một hệ thống có thể đưa ra quyết định nhất quán, xác định rõ thứ tự ưu tiên giữa các quy tắc, xử lý an toàn khi thiếu dữ liệu hoặc xảy ra lỗi, đồng thời cân bằng giữa tính linh hoạt, hiệu năng, khả năng kiểm soát và mức độ phức tạp của kiến trúc. Thông qua quá trình phân tích, thiết kế, triển khai và kiểm thử, đề tài hướng đến việc làm rõ giá trị của Feature Flag trong vòng đời phát triển phần mềm hiện đại, đồng thời thể hiện khả năng giải quyết vấn đề, tư duy thiết kế và khả năng giải thích các quyết định công nghệ được sử dụng trong hệ thống.
+
+\chapter*{Tóm tắt nội dung và đóng góp}
+\blindtext[1]
+
+\tableofcontents
+\listoffigures
+\listoftables
+\lstlistoflistings		% comment out if not needed
+
+% ------------------------------------------------------------------------------
+% Main matter
+% Chapters are added to the document using the \include{chapterx} command
+% ------------------------------------------------------------------------------
+\newpage
+\setcounter{page}{0}
+\pagenumbering{arabic}
+\include{chapter1}
+\include{chapter2} 
+\include{chapter3}
+\include{chapter4}
+
+% ------------------------------------------------------------------------------
+% Reference list
+% ------------------------------------------------------------------------------
+\addcontentsline{toc}{chapter}{Tài liệu tham khảo}
+\renewcommand{\bibname}{Tài liệu tham khảo}
+\printbibliography
+
+% ------------------------------------------------------------------------------
+% Appendices
+% ------------------------------------------------------------------------------
+% \include{appendix}
+
+\end{document}
