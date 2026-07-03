@@ -75,7 +75,27 @@ Xuất phát từ bối cảnh đó, đề tài tập trung nghiên cứu và x�
 Việc thực hiện đề tài không chỉ nhằm xây dựng một chức năng bật hoặc tắt tính năng. Mục tiêu quan trọng hơn là nghiên cứu cách thiết kế một hệ thống có thể đưa ra quyết định nhất quán, xác định rõ thứ tự ưu tiên giữa các quy tắc, xử lý an toàn khi thiếu dữ liệu hoặc xảy ra lỗi, đồng thời cân bằng giữa tính linh hoạt, hiệu năng, khả năng kiểm soát và mức độ phức tạp của kiến trúc. Thông qua quá trình phân tích, thiết kế, triển khai và kiểm thử, đề tài hướng đến việc làm rõ giá trị của Feature Flag trong vòng đời phát triển phần mềm hiện đại, đồng thời thể hiện khả năng giải quyết vấn đề, tư duy thiết kế và khả năng giải thích các quyết định công nghệ được sử dụng trong hệ thống.
 
 \chapter*{Tóm tắt nội dung và đóng góp}
-\blindtext[1]
+
+Báo cáo trình bày quá trình nghiên cứu Feature Flag và xây dựng một nền tảng quản lý phát hành tính năng an toàn cho ứng dụng web. Xuất phát từ vấn đề rủi ro khi triển khai tính năng mới trực tiếp cho toàn bộ người dùng, báo cáo làm rõ vai trò của Feature Flag trong việc tách biệt quá trình \textit{deploy} mã nguồn khỏi quyết định \textit{release} tính năng. Nội dung nghiên cứu bao gồm khái niệm Feature Flag, các loại flag phổ biến, các chiến lược phát hành như bật hoặc tắt toàn cục, targeting theo người dùng, targeting theo vai trò, rollout theo phần trăm người dùng, cùng những vấn đề vận hành như consistency, caching, auditability, bảo mật và quản lý vòng đời flag.
+
+Trên cơ sở nghiên cứu đó, đề tài thiết kế và triển khai một hệ thống gồm Backend API, Rule Evaluation Engine, Admin Dashboard, Demo Application, JavaScript SDK và cơ sở dữ liệu PostgreSQL. Backend API cung cấp các chức năng quản lý project, environment, feature flag, rule, flag group, audit log, thống kê evaluation và endpoint đánh giá flag cho ứng dụng tích hợp. Rule Evaluation Engine được thiết kế với thứ tự ưu tiên rõ ràng, bao gồm trạng thái archived, cấu hình disabled, group kill switch, flag kill switch, global on, các rule targeting và default off. Kết quả evaluation luôn trả về trạng thái bật hoặc tắt kèm reason code, giúp quyết định của hệ thống có thể giải thích và kiểm thử được.
+
+Admin Dashboard cho phép người quản trị tạo project, cấu hình Feature Flag, sắp xếp rule, theo dõi lịch sử thay đổi và quan sát thống kê evaluation. Demo Application mô phỏng một ứng dụng khách sử dụng Evaluation API thông qua JavaScript SDK để bật hoặc ẩn tính năng tại thời điểm chạy. Các kịch bản demo thể hiện khả năng phát hành từng phần, targeting theo user hoặc role, rollout ổn định bằng stable hashing, rollback nhanh bằng kill switch và thay đổi cấu hình mà không cần triển khai lại ứng dụng.
+
+Các đóng góp chính của đề tài bao gồm:
+
+\begin{itemize}
+    \item Hệ thống hóa kiến thức về Feature Flag, làm rõ sự khác biệt giữa deploy và release, đồng thời phân tích lợi ích, rủi ro và phạm vi ứng dụng của Feature Flag trong quy trình phát triển phần mềm hiện đại.
+    \item Khảo sát và so sánh các nền tảng hiện có như LaunchDarkly và Unleash để rút ra các thành phần cốt lõi cần có trong một nền tảng Feature Flag, từ đó xác định phạm vi phù hợp cho mini project.
+    \item Thiết kế kiến trúc tách biệt giữa control plane và data plane, giúp phân định rõ phần quản trị cấu hình với phần đánh giá flag phục vụ ứng dụng tích hợp.
+    \item Xây dựng Rule Evaluation Engine có tính xác định, hỗ trợ user targeting, role targeting, percentage rollout, kill switch và fail-closed fallback khi thiếu dữ liệu hoặc xảy ra lỗi.
+    \item Thiết kế mô hình dữ liệu cho project, environment, Feature Flag, cấu hình theo môi trường, rule, flag group, user context mẫu, audit log và thống kê evaluation.
+    \item Triển khai audit log dạng append-only với snapshot trước và sau thay đổi, hỗ trợ truy vết actor, action, target và lịch sử cấu hình.
+    \item Hoàn thiện dashboard quản trị và demo application nhằm chứng minh giá trị thực tế của Feature Flag trong việc kiểm soát phạm vi phát hành, giảm rủi ro vận hành và hỗ trợ rollback nhanh.
+    \item Bổ sung các chức năng nâng cao như cache evaluation snapshot, JavaScript SDK, phân quyền quản trị, thống kê lượt evaluation, group kill switch và Docker Compose để tăng tính hoàn chỉnh của sản phẩm.
+\end{itemize}
+
+Kết quả thực hiện cho thấy hệ thống đáp ứng được các yêu cầu cốt lõi của mini project: có báo cáo nghiên cứu, backend API, frontend dashboard, demo application, dữ liệu lưu trữ bền vững, validation, xử lý lỗi, dữ liệu mẫu, tài liệu thiết kế và các kịch bản trình diễn. Mặc dù chưa hướng tới quy mô của một nền tảng thương mại hoàn chỉnh, sản phẩm đã thể hiện đầy đủ các nguyên lý quan trọng của Feature Flag và cung cấp nền tảng có thể mở rộng trong tương lai theo các hướng như multi-variant testing, targeting theo thuộc tính, realtime configuration, SDK cho nhiều ngôn ngữ, monitoring và triển khai phân tán.
 
 \tableofcontents
 \listoffigures
