@@ -1,6 +1,7 @@
 \section{Khảo sát các nền tảng Feature Flag hiện có}
 
 \subsection{Nền tảng LaunchDarkly}
+\label{subsec:launchdarkly}
 
 LaunchDarkly là một nền tảng quản lý Feature Flag dưới dạng dịch vụ, cung cấp các công cụ để kiểm soát việc phát hành tính năng, phân phối biến thể và quản trị cấu hình theo từng môi trường. Thay vì gắn quá trình phát hành tính năng trực tiếp với một lần triển khai mã nguồn, ứng dụng tích hợp LaunchDarkly có thể đánh giá trạng thái flag tại thời điểm chạy và lựa chọn hành vi tương ứng \cite{launchdarkly_feature_flags}.
 
@@ -62,6 +63,7 @@ Do được cung cấp dưới dạng dịch vụ quản lý bên ngoài, hệ t
 Nhìn chung, LaunchDarkly phù hợp với các tổ chức cần một nền tảng Feature Flag hoàn chỉnh, có khả năng mở rộng và quản trị chặt chẽ. Đối với MiniProject, nền tảng này cung cấp mô hình tham khảo quan trọng cho cách tổ chức project, environment, flag, ordered targeting rule, percentage rollout, evaluation SDK và audit log. Tuy nhiên, phạm vi triển khai của MiniProject chỉ lựa chọn các thành phần cốt lõi nhằm bảo đảm hệ thống dễ hiểu, dễ demo và phù hợp với mục tiêu nghiên cứu.
 
 \subsection{Nền tảng Unleash}
+\label{subsec:unleash}
 
 Unleash là một nền tảng Feature Flag mã nguồn mở, cho phép tổ chức tự triển khai trên hạ tầng riêng hoặc sử dụng dịch vụ được quản lý. Nền tảng tập trung vào việc tách cấu hình phát hành khỏi mã nguồn ứng dụng, đồng thời cung cấp các activation strategy để quyết định tính năng được bật cho đối tượng nào trong từng môi trường \cite{unleash_feature_flags}.
 
@@ -138,6 +140,7 @@ Ngoài ra, tính linh hoạt của activation strategy có thể làm cấu hìn
 Đối với MiniProject, Unleash là mô hình tham khảo phù hợp cho kiến trúc tách biệt giữa control plane và SDK, evaluation context, activation strategy, rollout ổn định, audit log và quản lý theo environment. Tuy nhiên, MiniProject triển khai rule engine đơn giản hơn với thứ tự đánh giá tường minh nhằm bảo đảm kết quả dễ giải thích, dễ kiểm thử và phù hợp với phạm vi trình diễn.
 
 \subsection{So sánh các giải pháp hiện có}
+\label{subsec:so-sanh-giai-phap-hien-co}
 
 LaunchDarkly và Unleash đều cung cấp các thành phần cốt lõi của một nền tảng Feature Flag, bao gồm quản lý flag theo môi trường, targeting dựa trên context, rollout theo tỷ lệ, SDK tích hợp với ứng dụng và lịch sử thay đổi cấu hình. Tuy nhiên, hai nền tảng khác nhau về mô hình triển khai, cách biểu diễn luật đánh giá, mức độ hoàn thiện của công cụ quản trị và trách nhiệm vận hành hệ thống.
 
@@ -438,6 +441,7 @@ MiniProject tiếp thu mô hình project, environment và feature flag từ cả
 MiniProject cũng triển khai audit log, phân quyền, cache, SDK JavaScript và group kill switch để mô phỏng các khả năng quản trị và mở rộng của một nền tảng thực tế. Tuy nhiên, kiến trúc được đơn giản hóa để tập trung vào các nguyên lý cốt lõi của Feature Flag thay vì tái tạo toàn bộ chức năng của một sản phẩm thương mại.
 
 \subsection{Định hướng của hệ thống đề xuất}
+\label{subsec:dinh-huong-he-thong-de-xuat}
 
 Từ kết quả khảo sát LaunchDarkly và Unleash, hệ thống đề xuất lựa chọn các thành phần cốt lõi cần thiết để minh họa đầy đủ quá trình quản lý và đánh giá Feature Flag. Mục tiêu của MiniProject không phải là tái tạo toàn bộ một nền tảng thương mại, mà là xây dựng một hệ thống có kiến trúc rõ ràng, logic đánh giá dễ giải thích và có thể chứng minh trực tiếp giá trị của Feature Flag thông qua ứng dụng demo.
 

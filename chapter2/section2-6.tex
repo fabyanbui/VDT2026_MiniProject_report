@@ -1,6 +1,7 @@
 \section{Thiết kế Rule Evaluation Engine}
 
 \subsection{Evaluation request và context}
+\label{subsec:evaluation-request-context}
 
 Evaluation request là dữ liệu đầu vào được ứng dụng khách gửi đến Evaluation API để yêu cầu xác định trạng thái của một feature flag trong một ngữ cảnh cụ thể. Request phải cung cấp đủ thông tin để hệ thống định danh project, môi trường, feature flag và đối tượng đang được đánh giá. Phần thông tin mô tả đối tượng đánh giá được gọi là \textit{evaluation context}.
 
@@ -24,6 +25,7 @@ Trong hệ thống đề xuất, evaluation request có cấu trúc khái quát 
 \end{lstlisting}
 
 \subsubsection{Project key, environment key và flag key}
+\label{subsubsec:evaluation-identification-keys}
 
 Ba trường \texttt{projectKey}, \texttt{environmentKey} và \texttt{flagKey} được sử dụng để xác định chính xác cấu hình cần đánh giá.
 
@@ -47,6 +49,7 @@ Bộ ba khóa được tra cứu theo thứ tự:
 Nếu project, environment hoặc feature flag không tồn tại, Evaluation API trả về kết quả fail-closed với \texttt{enabled = false} và mã lý do phù hợp, thay vì tự động bật tính năng.
 
 \subsubsection{Targeting key}
+\label{subsubsec:targeting-key}
 
 \texttt{targetingKey} là định danh ổn định đại diện cho đối tượng đang được đánh giá. Đối tượng này thường là người dùng, nhưng cũng có thể là thiết bị, phiên làm việc, tài khoản doanh nghiệp hoặc tổ chức tùy theo mô hình của ứng dụng khách.
 
@@ -70,6 +73,7 @@ Targeting key phải ổn định trong phạm vi ứng dụng khách. Các giá
 Nếu request không cung cấp targeting key, các rule phụ thuộc vào định danh đối tượng hoặc percentage rollout không thể được đánh giá. Khi đó, engine bỏ qua các rule này và tiếp tục với rule tiếp theo hoặc trả về trạng thái mặc định.
 
 \subsubsection{User ID, role và organization ID}
+\label{subsubsec:user-role-organization-context}
 
 Bên cạnh targeting key tổng quát, evaluation context có thể chứa các trường nghiệp vụ cụ thể gồm \texttt{userId}, \texttt{roles} và \texttt{organizationId}.
 
@@ -84,6 +88,7 @@ Các định danh này thuộc miền dữ liệu của ứng dụng khách. N�
 Trong phiên bản hiện tại, \texttt{targetingKey} là trường định danh tổng quát dùng cho stable rollout, trong khi \texttt{userId}, \texttt{roles} và \texttt{organizationId} cung cấp thông tin rõ nghĩa cho từng loại targeting. Khi phù hợp, ứng dụng khách có thể sử dụng cùng một giá trị cho \texttt{targetingKey} và \texttt{userId}.
 
 \subsubsection{Thuộc tính mở rộng}
+\label{subsubsec:extended-attributes}
 
 Trường \texttt{attributes} chứa tập các thuộc tính tùy chỉnh dưới dạng các cặp khóa--giá trị. Các thuộc tính này cho phép evaluation context biểu diễn thêm thông tin nghiệp vụ mà không phải thay đổi contract của Evaluation API mỗi khi xuất hiện một yêu cầu targeting mới.
 
@@ -104,6 +109,7 @@ Trong phạm vi mini project, thuộc tính mở rộng được lưu dưới d�
 Tuy nhiên, context không nên chứa mật khẩu, access token, thông tin thanh toán hoặc dữ liệu cá nhân không cần thiết. Chỉ những thuộc tính thực sự phục vụ quyết định feature flag mới nên được gửi đến Evaluation API. Việc giới hạn dữ liệu context giúp giảm rủi ro rò rỉ thông tin và tránh làm Evaluation API phụ thuộc quá mức vào dữ liệu nghiệp vụ của ứng dụng khách.
 
 \subsubsection{Validation evaluation request}
+\label{subsubsec:evaluation-request-validation}
 
 Validation được thực hiện trước khi tải cấu hình và gọi Rule Evaluation Engine. Mục tiêu của bước này là từ chối sớm các request không hợp lệ, bảo đảm engine chỉ xử lý dữ liệu có cấu trúc xác định và tránh các truy vấn không cần thiết đến cơ sở dữ liệu.
 
@@ -132,12 +138,14 @@ Evaluation API không sử dụng giá trị mặc định tùy ý để sửa m
 Sau khi request vượt qua validation, hệ thống chuẩn hóa dữ liệu bằng cách loại bỏ khoảng trắng không cần thiết, chuẩn hóa danh sách role và tạo evaluation context nội bộ. Context đã chuẩn hóa sau đó được truyền đến Rule Evaluation Engine cùng snapshot cấu hình của feature flag. Evaluation API cần trả về kết quả có cấu trúc ổn định, bao gồm trạng thái flag, variant, mã lý do và rule đã khớp nếu có \cite{openfeature_flag_evaluation}.
 
 \subsection{Evaluation snapshot}
+\label{subsec:evaluation-snapshot}
 
 Evaluation snapshot là tập dữ liệu cấu hình đầy đủ và nhất quán được Rule Evaluation Engine sử dụng để đánh giá một feature flag tại một thời điểm xác định. Snapshot được xây dựng sau khi evaluation request đã vượt qua bước validation và trước khi engine thực hiện các kiểm tra về trạng thái flag, kill switch, serving mode và targeting rule.
 
 Việc tạo snapshot giúp tách quá trình truy xuất dữ liệu khỏi quá trình đánh giá. Repository chịu trách nhiệm đọc và chuẩn hóa cấu hình từ cơ sở dữ liệu, trong khi Rule Evaluation Engine chỉ xử lý một cấu trúc dữ liệu đầu vào đã hoàn chỉnh. Cách tổ chức này làm giảm sự phụ thuộc của engine vào tầng lưu trữ, hỗ trợ kiểm thử đơn vị và giúp kết quả evaluation có tính xác định.
 
 \subsubsection{Khái niệm evaluation snapshot}
+\label{subsubsec:evaluation-snapshot-concept}
 
 Một evaluation snapshot có thể được xem là ảnh chụp logic của trạng thái cấu hình liên quan đến một lần đánh giá. Snapshot không phải là bản sao vật lý của toàn bộ cơ sở dữ liệu mà chỉ bao gồm những dữ liệu cần thiết cho feature flag được yêu cầu trong project và environment tương ứng.
 
@@ -158,6 +166,7 @@ Cấu trúc khái quát của evaluation snapshot trong hệ thống được bi
 Snapshot là cấu trúc chỉ đọc trong phạm vi một lần evaluation. Rule Evaluation Engine không được phép thay đổi dữ liệu trong snapshot hoặc ghi ngược thay đổi vào cơ sở dữ liệu. Các side effect như ghi thống kê số lần evaluation được xử lý ở bước riêng, sau khi engine đã tạo kết quả.
 
 \subsubsection{Dữ liệu cấu hình cần truy xuất}
+\label{subsubsec:evaluation-snapshot-data}
 
 Để xây dựng evaluation snapshot, hệ thống cần truy xuất các nhóm dữ liệu sau:
 
@@ -192,6 +201,7 @@ Repository phải kiểm tra tính đầy đủ của các quan hệ khi xây d�
 Những dữ liệu không ảnh hưởng đến quyết định evaluation, chẳng hạn như mô tả dài, thông tin giao diện hoặc toàn bộ audit log, không cần được đưa vào snapshot. Việc giới hạn dữ liệu giúp giảm chi phí truy xuất, giảm kích thước cache và đơn giản hóa Rule Evaluation Engine.
 
 \subsubsection{Sắp xếp rule trước khi evaluation}
+\label{subsubsec:rule-order-before-evaluation}
 
 Các rule phải được sắp xếp trước khi truyền vào Rule Evaluation Engine. Trong hệ thống đề xuất, thứ tự được xác định chủ yếu bởi trường \texttt{priority}. Rule có giá trị priority nhỏ hơn được đánh giá trước.
 
@@ -216,6 +226,7 @@ Việc sắp xếp rule trong repository thay vì bên trong từng hàm đánh 
 Thứ tự giữa các trạng thái hệ thống và rule targeting không được quyết định bằng trường priority. Các điều kiện như archived, disabled, group kill switch, flag kill switch và global on thuộc precedence toàn cục của engine và luôn được kiểm tra trước danh sách rule.
 
 \subsubsection{Tính nhất quán của snapshot}
+\label{subsubsec:evaluation-snapshot-consistency}
 
 Tính nhất quán của snapshot yêu cầu toàn bộ dữ liệu được sử dụng trong một lần evaluation phải đại diện cho một trạng thái cấu hình hợp lệ và không bị trộn lẫn giữa các phiên bản khác nhau.
 
@@ -247,6 +258,7 @@ Khi cấu hình hoặc rule thay đổi, version phải được tăng hoặc ca
 Trong trường hợp không thể tạo snapshot đầy đủ hoặc phát hiện dữ liệu cấu hình không nhất quán, hệ thống áp dụng nguyên tắc fail-closed. Evaluation API trả về \texttt{enabled = false} với mã lý do \texttt{ERROR} hoặc mã lỗi cấu hình tương ứng, thay vì tiếp tục đánh giá trên dữ liệu không đáng tin cậy.
 
 \subsection{Thứ tự ưu tiên khi đánh giá}
+\label{subsec:evaluation-precedence}
 
 Rule Evaluation Engine đánh giá feature flag theo một thứ tự ưu tiên cố định nhằm bảo đảm kết quả có tính xác định. Các điều kiện kiểm soát an toàn và trạng thái hệ thống được xử lý trước các rule targeting. Khi một điều kiện ở mức ưu tiên cao hơn đã quyết định kết quả, engine dừng ngay quá trình đánh giá và không tiếp tục kiểm tra các điều kiện phía sau.
 
@@ -286,6 +298,7 @@ return off("DEFAULT_OFF");
 \end{lstlisting}
 
 \subsubsection{Flag đã được archive}
+\label{subsubsec:precedence-flag-archived}
 
 Trạng thái archive có mức ưu tiên cao nhất trong quá trình evaluation. Một feature flag đã được archive được xem là không còn tham gia vào hoạt động phát hành thông thường và không được phép trả về trạng thái bật.
 
@@ -298,6 +311,7 @@ Engine không tiếp tục kiểm tra trạng thái disabled, kill switch, servi
 Archive được ưu tiên thay cho xóa vật lý để bảo toàn lịch sử cấu hình, audit log và các quan hệ tham chiếu. Nếu cần sử dụng lại flag, người quản trị phải thực hiện thao tác restore rõ ràng trước khi flag có thể tiếp tục được đánh giá.
 
 \subsubsection{Flag bị disabled}
+\label{subsubsec:precedence-flag-disabled}
 
 Sau khi xác nhận flag chưa được archive, engine kiểm tra trạng thái cấu hình của flag trong environment hiện tại. Nếu \texttt{status} bằng \texttt{DISABLED}, feature flag bị tắt hoàn toàn trong environment đó.
 
@@ -310,6 +324,7 @@ Trạng thái disabled có hiệu lực cao hơn group kill switch, flag kill sw
 Việc tách biệt \texttt{DISABLED} và kill switch giúp phản ánh đúng nguyên nhân vận hành. Disabled thường thể hiện quyết định cấu hình thông thường, trong khi kill switch được sử dụng để phản ứng nhanh khi xảy ra sự cố.
 
 \subsubsection{Group kill switch}
+\label{subsubsec:precedence-group-kill-switch}
 
 Group kill switch cho phép tắt đồng thời toàn bộ feature flag thuộc cùng một nhóm. Cơ chế này hữu ích khi nhiều flag cùng phục vụ một chức năng lớn hoặc cùng phụ thuộc vào một thành phần đang gặp lỗi.
 
@@ -322,6 +337,7 @@ Group kill switch được đánh giá trước flag kill switch và các rule r
 Nếu flag không thuộc group hoặc group không kích hoạt kill switch, engine tiếp tục đánh giá flag kill switch. Group kill switch không làm thay đổi dữ liệu rule, serving mode hoặc trạng thái cấu hình; nó chỉ ghi đè kết quả evaluation tại thời điểm chạy.
 
 \subsubsection{Flag kill switch}
+\label{subsubsec:precedence-flag-kill-switch}
 
 Flag kill switch là cơ chế ngắt khẩn cấp ở cấp một feature flag cụ thể. Khi \texttt{killSwitch = true}, engine phải trả về trạng thái tắt bất kể flag đang ở chế độ global on hay có rule targeting nào khớp.
 
@@ -334,6 +350,7 @@ Kill switch được thiết kế để hỗ trợ rollback vận hành nhanh m�
 Kill switch không thay thế trạng thái disabled. Disabled phù hợp với việc tắt tính năng theo cấu hình thông thường, trong khi kill switch biểu diễn một biện pháp ưu tiên cao, thường được sử dụng trong tình huống khẩn cấp.
 
 \subsubsection{Global on}
+\label{subsubsec:precedence-global-on}
 
 Nếu flag đang active, config đang enabled và không có kill switch nào được kích hoạt, engine kiểm tra serving mode. Khi \texttt{servingMode = GLOBAL\_ON}, feature flag được bật cho mọi evaluation request trong environment hiện tại.
 
@@ -346,6 +363,7 @@ Kết quả trả về là.
 Việc đặt global on trước các targeting rule giúp tránh tình trạng một rule cũ vô tình làm thay đổi kết quả khi người quản trị đã chủ động phát hành tính năng cho toàn bộ người dùng.
 
 \subsubsection{User allowlist}
+\label{subsubsec:precedence-user-allowlist}
 
 Nếu flag sử dụng chế độ targeted, engine bắt đầu đánh giá danh sách rule. User allowlist được kiểm tra trước role targeting và percentage rollout vì đây là chiến lược chỉ định đối tượng cụ thể nhất.
 
@@ -360,6 +378,7 @@ Khi rule khớp, engine trả về.
 User allowlist phù hợp cho tài khoản kiểm thử nội bộ, người dùng beta hoặc một tập khách hàng được lựa chọn trước. Nếu request không cung cấp định danh cần thiết, rule được xem là không khớp và engine tiếp tục với rule tiếp theo.
 
 \subsubsection{Role targeting}
+\label{subsubsec:precedence-role-targeting}
 
 Role targeting được đánh giá sau user allowlist. Rule này cho phép bật tính năng cho một nhóm người dùng có cùng vai trò nghiệp vụ mà không cần liệt kê từng định danh riêng lẻ.
 
@@ -376,6 +395,7 @@ Ví dụ, nếu context chứa role \texttt{beta-customer} và rule cho phép ro
 Các targeting rule thường được đánh giá theo thứ tự và dừng tại rule đầu tiên khớp \cite{launchdarkly_targeting_rules}. Trong hệ thống đề xuất, nếu không có role nào khớp, engine tiếp tục kiểm tra percentage rollout.
 
 \subsubsection{Percentage rollout}
+\label{subsubsec:precedence-percentage-rollout}
 
 Percentage rollout được đánh giá sau các rule targeting trực tiếp. Cách sắp xếp này bảo đảm người dùng được chỉ định rõ bằng user allowlist hoặc role targeting không bị phụ thuộc vào bucket phần trăm.
 
@@ -396,6 +416,7 @@ Khi percentage rollout khớp, kết quả có dạng.
 Nếu request thiếu targeting key, percentage rule không thể được đánh giá và được xem là không khớp. Engine không sử dụng giá trị ngẫu nhiên thay thế vì điều đó sẽ làm mất tính ổn định của kết quả.
 
 \subsubsection{Default off}
+\label{subsubsec:precedence-default-off}
 
 Default off là kết quả cuối cùng khi không có điều kiện nào trước đó bật feature flag. Trạng thái này được áp dụng khi flag đang active và enabled, không có kill switch, không ở chế độ global on và không có targeting rule nào khớp.
 
@@ -408,6 +429,7 @@ Default off thể hiện nguyên tắc fail-closed của hệ thống. Feature f
 Mã lý do \texttt{DEFAULT\_OFF} khác với \texttt{FLAG\_DISABLED}, \texttt{FLAG\_ARCHIVED} và \texttt{KILL\_SWITCH}. Nó cho biết flag vẫn hợp lệ và có thể được đánh giá, nhưng evaluation context hiện tại không thỏa mãn điều kiện bật nào.
 
 \subsection{Đánh giá trạng thái toàn cục}
+\label{subsec:global-state-evaluation}
 
 Trước khi đánh giá các rule targeting, Rule Evaluation Engine phải xác định trạng thái toàn cục của feature flag trong environment hiện tại. Bước này dựa trên hai nhóm thông tin chính gồm trạng thái cấu hình và serving mode.
 
@@ -420,6 +442,7 @@ Trong hệ thống đề xuất, cấu hình của một feature flag có thể 
 Quá trình đánh giá trạng thái toàn cục được thực hiện sau khi kiểm tra trạng thái archive và các kill switch có mức ưu tiên cao hơn. Nếu trạng thái toàn cục đã xác định được kết quả, engine không tiếp tục đánh giá các rule phía sau.
 
 \subsubsection{Trạng thái disabled}
+\label{subsubsec:global-state-disabled}
 
 Trạng thái \texttt{DISABLED} biểu thị rằng cấu hình feature flag đã bị vô hiệu hóa trong một environment cụ thể. Khi trạng thái này được thiết lập, feature flag phải trả về kết quả tắt bất kể serving mode hoặc các rule targeting đang được cấu hình như thế nào.
 
@@ -448,6 +471,7 @@ Trạng thái disabled thường được sử dụng trong các trường hợp
 Disabled không làm mất các rule đã cấu hình. Khi flag được chuyển lại sang trạng thái \texttt{ENABLED}, các rule và serving mode trước đó có thể tiếp tục được sử dụng. Việc này khác với archive, vốn thể hiện thay đổi ở cấp vòng đời của feature flag.
 
 \subsubsection{Serving mode global on}
+\label{subsubsec:serving-mode-global-on}
 
 Serving mode \texttt{GLOBAL\_ON} biểu thị rằng feature flag được bật cho mọi đối tượng trong environment hiện tại. Chế độ này chỉ có hiệu lực khi config đang ở trạng thái \texttt{ENABLED} và không có kill switch nào được kích hoạt.
 
@@ -478,6 +502,7 @@ Global on phù hợp với các trường hợp:
 Việc hỗ trợ trạng thái bật toàn cục là một trong những khả năng cơ bản của hệ thống feature flag, cho phép thay đổi hành vi runtime mà không cần triển khai lại mã nguồn \cite{fowler_feature_toggles}.
 
 \subsubsection{Serving mode targeted}
+\label{subsubsec:serving-mode-targeted}
 
 Serving mode \texttt{TARGETED} biểu thị rằng feature flag không được bật mặc định cho toàn bộ người dùng. Thay vào đó, kết quả phụ thuộc vào evaluation context và các rule đã được cấu hình.
 
@@ -509,6 +534,7 @@ Cách tiếp cận targeting theo context cho phép hệ thống kiểm soát ph
 Trong chế độ targeted, việc thiếu context không được xem là lỗi trong mọi trường hợp. Engine chỉ coi các rule phụ thuộc vào trường bị thiếu là không khớp. Nếu không có rule nào có thể quyết định trạng thái bật, kết quả cuối cùng là \texttt{DEFAULT\_OFF}.
 
 \subsubsection{Tương tác giữa trạng thái và serving mode}
+\label{subsubsec:status-serving-mode-interaction}
 
 Trạng thái và serving mode có vai trò khác nhau trong quá trình evaluation. Trạng thái xác định cấu hình có đang hoạt động hay không, trong khi serving mode xác định cách tính năng được cung cấp khi cấu hình đang hoạt động.
 
@@ -573,12 +599,14 @@ Ngoài status và serving mode, các kill switch vẫn có mức ưu tiên cao h
 Việc mô hình hóa riêng status và serving mode giúp giao diện quản trị thể hiện rõ ý nghĩa của từng thao tác. Người quản trị có thể vô hiệu hóa tạm thời toàn bộ cấu hình bằng status hoặc giữ config ở trạng thái enabled và chuyển đổi giữa global on với targeted tùy theo giai đoạn phát hành.
 
 \subsection{Targeting theo người dùng}
+\label{subsec:user-targeting}
 
 Targeting theo người dùng cho phép feature flag được bật cho một tập đối tượng cụ thể thay vì áp dụng cho toàn bộ người dùng. Trong hệ thống đề xuất, cơ chế này được triển khai thông qua rule \texttt{USER\_ALLOWLIST}. Rule chứa danh sách các định danh được cho phép và được đánh giá dựa trên \texttt{targetingKey} hoặc \texttt{userId} trong evaluation context.
 
 User targeting được áp dụng sau khi engine đã kiểm tra trạng thái archive, disabled, group kill switch, flag kill switch và global on. Nếu flag sử dụng serving mode \texttt{TARGETED}, engine duyệt các rule theo thứ tự ưu tiên và trả về trạng thái bật ngay khi tìm thấy user allowlist rule khớp.
 
 \subsubsection{User allowlist}
+\label{subsubsec:user-allowlist}
 
 User allowlist là danh sách các định danh người dùng được phép truy cập tính năng. Cơ chế này phù hợp với các trường hợp cần phát hành cho một nhóm nhỏ đã biết trước, chẳng hạn như tài khoản kiểm thử nội bộ, người dùng beta, khách hàng ưu tiên hoặc các tài khoản đang tham gia chương trình thử nghiệm.
 
@@ -608,6 +636,7 @@ User allowlist có mức ưu tiên cao hơn role targeting và percentage rollou
 Các hệ thống feature flag thường hỗ trợ targeting trực tiếp theo định danh người dùng để phát hành có chọn lọc và kiểm soát chính xác phạm vi ảnh hưởng \cite{launchdarkly_targeting_rules}.
 
 \subsubsection{So khớp targeting key}
+\label{subsubsec:targeting-key-matching}
 
 \texttt{targetingKey} là định danh tổng quát và ổn định của đối tượng đang được đánh giá. Trong nhiều trường hợp, đối tượng này là người dùng, nhưng cũng có thể là thiết bị, tài khoản, phiên thuê bao hoặc một thực thể nghiệp vụ khác.
 
@@ -642,6 +671,7 @@ Targeting key cũng được sử dụng trong percentage rollout. Tuy nhiên, h
 Theo mô hình evaluation context, targeting key nên định danh duy nhất đối tượng được đánh giá và phải ổn định trong phạm vi hệ thống tích hợp \cite{openfeature_evaluation_context}.
 
 \subsubsection{So khớp user ID}
+\label{subsubsec:user-id-matching}
 
 \texttt{userId} là định danh người dùng trong miền dữ liệu của ứng dụng khách. Trường này cung cấp ý nghĩa nghiệp vụ rõ ràng hơn targeting key khi rule được thiết kế riêng cho người dùng.
 
@@ -675,6 +705,7 @@ Ví dụ, targeting key \texttt{12345} có thể đại diện cho một organiz
 Vì vậy, cấu trúc rule nên lưu rõ loại định danh hoặc sử dụng các trường riêng biệt. Điều này cũng giúp giao diện quản trị mô tả chính xác đối tượng đang được thêm vào allowlist.
 
 \subsubsection{Xử lý khi thiếu định danh người dùng}
+\label{subsubsec:missing-user-identifier}
 
 Evaluation context có thể không chứa \texttt{targetingKey}, \texttt{userId} hoặc cả hai. Trường hợp này không nhất thiết làm toàn bộ evaluation request trở thành không hợp lệ vì một số trạng thái như global on, disabled hoặc kill switch không cần thông tin người dùng.
 
@@ -703,12 +734,14 @@ Thiếu định danh chỉ nên được trả về dưới dạng validation er
 Cách xử lý này phù hợp với nguyên tắc evaluation context chỉ cung cấp dữ liệu đầu vào cho từng rule. Mỗi rule chịu trách nhiệm xác định liệu context hiện tại có đủ thông tin để đánh giá hay không \cite{openfeature_flag_evaluation}.
 
 \subsection{Targeting theo vai trò}
+\label{subsec:role-targeting}
 
 Targeting theo vai trò cho phép hệ thống bật feature flag cho một hoặc nhiều nhóm người dùng có cùng vai trò nghiệp vụ. Thay vì phải liệt kê từng user ID trong allowlist, người quản trị có thể cấu hình một tập role như \texttt{admin}, \texttt{beta-customer} hoặc \texttt{regular-customer}. Rule Evaluation Engine sẽ đối chiếu tập role trong evaluation context với tập role được cấu hình trong rule để xác định kết quả.
 
 Role targeting chỉ được đánh giá khi feature flag đang ở trạng thái hoạt động, config đang enabled, không có kill switch, serving mode là \texttt{TARGETED} và không có user allowlist rule có mức ưu tiên cao hơn đã khớp. Cơ chế này phù hợp với các trường hợp phát hành tính năng theo nhóm quyền, nhóm khách hàng hoặc phân khúc người dùng \cite{launchdarkly_targeting_rules}.
 
 \subsubsection{Cấu trúc role trong evaluation context}
+\label{subsubsec:role-context-structure}
 
 Trong evaluation context, role được biểu diễn dưới dạng một mảng chuỗi thay vì một giá trị đơn. Cách biểu diễn này cho phép một người dùng đồng thời mang nhiều vai trò trong ứng dụng khách.
 
@@ -726,6 +759,7 @@ Tập role trong rule biểu diễn các vai trò được phép truy cập tín
 Role trong evaluation context thuộc miền nghiệp vụ của ứng dụng tích hợp, không phải role quản trị của nền tảng feature flag. Ví dụ, role \texttt{beta-customer} trong demo app dùng để phân nhóm khách hàng, trong khi role \texttt{admin} của dashboard dùng để kiểm soát quyền thay đổi cấu hình. Hai hệ role này cần được tách biệt về ngữ nghĩa và phạm vi sử dụng.
 
 \subsubsection{So khớp một hoặc nhiều role}
+\label{subsubsec:single-multiple-role-matching}
 
 Trong hệ thống đề xuất, role targeting sử dụng phép so khớp theo nguyên tắc OR. Rule được xem là khớp nếu tồn tại ít nhất một role xuất hiện đồng thời trong evaluation context và trong tập role của rule.
 
@@ -770,6 +804,7 @@ Nguyên tắc OR phù hợp với mục tiêu bật tính năng cho bất kỳ n
 Phép so sánh role phải là phép so sánh chính xác. Engine không nên coi \texttt{admin} là khớp với \texttt{super-admin} hoặc \texttt{administrator}. Việc sử dụng tìm kiếm chuỗi con có thể dẫn đến bật tính năng sai đối tượng.
 
 \subsubsection{Quan hệ giữa role targeting và user targeting}
+\label{subsubsec:role-user-targeting-relation}
 
 User targeting và role targeting đều thuộc nhóm rule dựa trên evaluation context, nhưng có mức độ cụ thể khác nhau. User targeting chỉ định trực tiếp một đối tượng cụ thể, trong khi role targeting áp dụng cho một nhóm người dùng có cùng vai trò.
 
@@ -792,6 +827,7 @@ Trong trường hợp nhiều rule cùng loại tồn tại, thứ tự giữa c
 User targeting và role targeting đều chỉ có chức năng bật flag trong mô hình hiện tại. Nếu không có rule nào khớp, engine tiếp tục đánh giá percentage rollout hoặc trả về default off. Hệ thống không sử dụng rule phủ định để tắt riêng một người dùng đã được bật bởi rule có mức ưu tiên cao hơn.
 
 \subsubsection{Xử lý khi context không chứa role}
+\label{subsubsec:missing-role-context}
 
 Evaluation context có thể không chứa trường \texttt{roles}, hoặc trường này có thể là một mảng rỗng. Trường hợp đó không làm toàn bộ evaluation request thất bại vì các trạng thái và rule khác có thể không cần dữ liệu role.
 
@@ -825,12 +861,14 @@ Trong trường hợp này, user allowlist và percentage rollout vẫn có th�
 Nếu trường \texttt{roles} được cung cấp nhưng không phải mảng chuỗi hợp lệ, request phải bị từ chối ở bước validation thay vì được coi là không có role. Cần phân biệt rõ giữa dữ liệu hợp lệ nhưng bị thiếu và dữ liệu được cung cấp sai cấu trúc. Evaluation context có thể chứa tập thuộc tính linh hoạt, nhưng mỗi thuộc tính đã xuất hiện phải tuân thủ đúng kiểu dữ liệu được định nghĩa trong API contract \cite{openfeature_evaluation_context,openfeature_flag_evaluation}.
 
 \subsection{Rollout theo phần trăm người dùng}
+\label{subsec:percentage-rollout}
 
 Percentage rollout là chiến lược phát hành cho phép bật feature flag đối với một tỷ lệ xác định trong tập người dùng thay vì phát hành đồng thời cho toàn bộ đối tượng. Cơ chế này hỗ trợ mở rộng phạm vi sử dụng theo từng giai đoạn, theo dõi ảnh hưởng của tính năng và giảm phạm vi sự cố nếu phiên bản mới phát sinh lỗi.
 
 Trong hệ thống đề xuất, percentage rollout chỉ được đánh giá khi feature flag đang ở trạng thái hoạt động, config đang enabled, không có kill switch, serving mode là \texttt{TARGETED} và không có user allowlist hoặc role targeting rule có mức ưu tiên cao hơn đã khớp. Engine sử dụng stable hashing để ánh xạ mỗi targeting key vào một bucket ổn định, sau đó so sánh bucket với tỷ lệ rollout được cấu hình.
 
 \subsubsection{Mục tiêu của percentage rollout}
+\label{subsubsec:percentage-rollout-objective}
 
 Mục tiêu chính của percentage rollout là kiểm soát phạm vi phát hành theo tỷ lệ mà vẫn duy trì kết quả ổn định đối với từng người dùng. Ví dụ, khi một feature flag được cấu hình rollout ở mức $20\%$, hệ thống cần bật tính năng cho xấp xỉ $20\%$ tập targeting key hợp lệ và tắt đối với phần còn lại.
 
@@ -853,6 +891,7 @@ Một percentage rollout rule có cấu trúc khái quát như sau.
 Giá trị \texttt{percentage} phải nằm trong khoảng từ $0$ đến $100$. Với $0\%$, rule không khớp với bất kỳ targeting key nào. Với $100\%$, mọi targeting key hợp lệ đều khớp.
 
 \subsubsection{Stable hashing}
+\label{subsubsec:stable-hashing}
 
 Stable hashing là cơ chế sử dụng một hàm băm xác định để ánh xạ cùng một dữ liệu đầu vào thành cùng một kết quả đầu ra. Nếu chuỗi đầu vào không thay đổi, giá trị băm và bucket tương ứng cũng không thay đổi.
 
@@ -889,6 +928,7 @@ function stableHash(input) {
 Engine không được sử dụng các hàm băm phụ thuộc vào tiến trình hoặc runtime nếu kết quả của chúng có thể thay đổi giữa các lần khởi động. Hàm băm phải tạo cùng một kết quả trên mọi instance backend để bảo đảm tính nhất quán khi hệ thống được triển khai theo mô hình nhiều replica.
 
 \subsubsection{Thành phần đầu vào của hàm băm}
+\label{subsubsec:hash-input-components}
 
 Đầu vào của hàm băm không chỉ bao gồm targeting key mà còn bao gồm các khóa xác định phạm vi của feature flag. Trong hệ thống đề xuất, chuỗi đầu vào được tạo theo cấu trúc:
 
@@ -923,6 +963,7 @@ Nếu chỉ băm targeting key, cùng một người dùng sẽ luôn rơi vào 
 Cấu trúc chuỗi đầu vào phải được định nghĩa rõ và không thay đổi tùy tiện. Việc thay đổi thứ tự thành phần, ký tự phân cách hoặc quy tắc chuẩn hóa sẽ làm thay đổi bucket của toàn bộ người dùng.
 
 \subsubsection{Chuyển đổi kết quả băm thành bucket}
+\label{subsubsec:hash-to-bucket}
 
 Sau khi tạo digest SHA-256, engine chuyển một phần kết quả băm thành số nguyên không âm. Trong hệ thống đề xuất, $64$ bit đầu tiên của digest được sử dụng để tạo giá trị số:
 
@@ -969,6 +1010,7 @@ Ví dụ, nếu bucket bằng $18.42$ và percentage bằng $25$, người dùng
 Sử dụng phép so sánh nhỏ hơn thay vì nhỏ hơn hoặc bằng giúp $0\%$ không khớp với bucket nào và $100\%$ khớp với toàn bộ bucket trong khoảng $[0,100)$.
 
 \subsubsection{Persistent assignment}
+\label{subsubsec:persistent-assignment}
 
 Persistent assignment là tính chất một targeting key tiếp tục nhận cùng kết quả giữa nhiều lần evaluation, miễn là đầu vào hàm băm và ngưỡng rollout không thay đổi.
 
@@ -999,6 +1041,7 @@ Ngược lại, khi giảm rollout, những người dùng có bucket nằm ngo�
 Persistent assignment trong thiết kế này không yêu cầu lưu bucket của từng người dùng vào cơ sở dữ liệu. Assignment được tính lại một cách xác định từ cùng chuỗi đầu vào. Cách tiếp cận này giảm chi phí lưu trữ và tránh phải đồng bộ bảng phân nhóm người dùng \cite{launchdarkly_percentage_rollouts}.
 
 \subsubsection{Ảnh hưởng khi thay đổi targeting key}
+\label{subsubsec:targeting-key-change-impact}
 
 Targeting key là một thành phần trực tiếp của chuỗi đầu vào hàm băm. Vì vậy, khi targeting key thay đổi, digest và bucket cũng có thể thay đổi hoàn toàn:
 
@@ -1041,12 +1084,14 @@ Khi người dùng chưa đăng nhập, ứng dụng có thể sử dụng một
 Nếu evaluation request không chứa targeting key, percentage rollout rule không thể được đánh giá. Engine phải coi rule là không khớp và tiếp tục đến rule tiếp theo hoặc trả về \texttt{DEFAULT\_OFF}. Hệ thống không tự sinh targeting key ngẫu nhiên vì điều đó sẽ phá vỡ persistent assignment.
 
 \subsection{Thực thi rule theo độ ưu tiên}
+\label{subsec:rule-execution-by-priority}
 
 Sau khi evaluation snapshot được xây dựng và các trạng thái toàn cục đã được kiểm tra, Rule Evaluation Engine thực thi danh sách rule theo thứ tự ưu tiên. Mục tiêu của bước này là bảo đảm kết quả có tính xác định khi nhiều rule cùng tồn tại và có khả năng khớp với một evaluation context.
 
 Trong hệ thống đề xuất, mỗi rule có trường \texttt{priority}. Giá trị priority nhỏ hơn biểu thị mức ưu tiên cao hơn. Engine duyệt danh sách rule đã được sắp xếp và dừng ngay tại rule đầu tiên khớp theo nguyên tắc \textit{first match wins} \cite{launchdarkly_targeting_rules}.
 
 \subsubsection{Sắp xếp rule}
+\label{subsubsec:rule-sorting}
 
 Trước khi thực thi, các rule phải được sắp xếp tăng dần theo trường \texttt{priority}. Với tập rule:
 
@@ -1079,6 +1124,7 @@ Việc sử dụng bản sao giúp tránh thay đổi trực tiếp evaluation s
 Priority giữa các rule không thay thế precedence toàn cục của engine. Các điều kiện như archived, disabled, group kill switch, flag kill switch và global on luôn được xử lý trước toàn bộ danh sách rule, bất kể priority được cấu hình như thế nào.
 
 \subsubsection{Dừng tại rule đầu tiên khớp}
+\label{subsubsec:first-matching-rule}
 
 Sau khi danh sách rule được sắp xếp, engine duyệt tuần tự từ rule có priority cao nhất đến thấp nhất. Khi một rule khớp với evaluation context, engine tạo kết quả và kết thúc ngay quá trình đánh giá.
 
@@ -1100,6 +1146,7 @@ Khi engine đã tìm thấy rule khớp, các rule còn lại không được th
 Trong mô hình hiện tại, các rule targeting chỉ tạo kết quả bật. Nếu không rule nào khớp, engine trả về \texttt{DEFAULT\_OFF}. Nếu hệ thống được mở rộng để hỗ trợ cả kết quả bật và tắt theo rule, nguyên tắc dừng tại rule đầu tiên khớp vẫn có thể được giữ nguyên, nhưng mỗi rule phải chứa outcome hoặc variant rõ ràng.
 
 \subsubsection{Xử lý các rule cùng độ ưu tiên}
+\label{subsubsec:rules-with-equal-priority}
 
 Hai hoặc nhiều rule có cùng priority có thể làm thứ tự thực thi trở nên không rõ ràng nếu hệ thống không có tiêu chí phân xử bổ sung. Thứ tự bản ghi trong cơ sở dữ liệu không được bảo đảm khi truy vấn chỉ sắp xếp theo một cột có giá trị trùng nhau.
 
@@ -1131,6 +1178,7 @@ Thứ tự truy vấn có thể được định nghĩa như sau.
 Tiêu chí phụ chỉ có vai trò tạo kết quả xác định, không nên được xem là một cơ chế priority ngầm. Giao diện quản trị cần cảnh báo hoặc ngăn người dùng cấu hình nhiều rule cùng độ ưu tiên để tránh khó hiểu trong quá trình vận hành.
 
 \subsubsection{Rule không hợp lệ hoặc không đủ context}
+\label{subsubsec:invalid-rule-or-insufficient-context}
 
 Trong quá trình thực thi, engine có thể gặp rule không hợp lệ hoặc rule không có đủ dữ liệu context để đánh giá. Hai trường hợp này cần được xử lý khác nhau.
 
@@ -1178,12 +1226,14 @@ Trong hệ thống đề xuất, engine áp dụng cách xử lý fail-closed. N
 Việc phân biệt rule không hợp lệ với rule không đủ context giúp engine phản ánh đúng bản chất của lỗi. Thiếu context là tình huống runtime hợp lệ, còn rule không hợp lệ là vấn đề cấu hình cần được theo dõi và khắc phục. Evaluation API nên trả về kết quả ổn định và fail-closed khi không thể xác định trạng thái bật một cách đáng tin cậy \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
 
 \subsection{Variant và kết quả đánh giá}
+\label{subsec:variant-evaluation-result}
 
 Sau khi hoàn tất quá trình kiểm tra trạng thái toàn cục và thực thi các rule theo độ ưu tiên, Rule Evaluation Engine tạo một đối tượng kết quả thống nhất để trả về cho Evaluation API. Kết quả không chỉ cho biết feature flag đang bật hay tắt mà còn cung cấp variant, mã lý do và metadata phục vụ truy vết quyết định.
 
 Trong phạm vi hệ thống đề xuất, feature flag sử dụng hai variant cơ bản là \texttt{on} và \texttt{off}. Thiết kế này phù hợp với mô hình boolean feature flag, trong đó ứng dụng khách lựa chọn giữa nhánh tính năng mới và nhánh mặc định. Cấu trúc kết quả vẫn được thiết kế theo hướng có thể mở rộng để hỗ trợ nhiều variant trong tương lai.
 
 \subsubsection{Variant bật và variant tắt}
+\label{subsubsec:on-off-variants}
 
 Variant là giá trị biểu diễn nhánh cấu hình mà ứng dụng khách nên sử dụng sau quá trình evaluation. Đối với boolean feature flag, hệ thống định nghĩa hai variant:
 
@@ -1215,6 +1265,7 @@ Việc trả về đồng thời \texttt{enabled} và \texttt{variant} giúp ứ
 Các nền tảng feature flag thường sử dụng variant để phân biệt nhiều giá trị hoặc nhiều trải nghiệm có thể được trả về từ cùng một flag \cite{launchdarkly_feature_flags}.
 
 \subsubsection{Variant mặc định}
+\label{subsubsec:default-variant}
 
 Variant mặc định là giá trị được trả về khi engine không tìm thấy điều kiện hợp lệ để bật feature flag hoặc không thể hoàn tất quá trình evaluation một cách đáng tin cậy. Trong hệ thống đề xuất, variant mặc định là \texttt{off}.
 
@@ -1247,6 +1298,7 @@ Khi xảy ra lỗi nội bộ, service cũng trả về variant mặc định th
 Variant mặc định không được hiểu là kết quả của một rule targeting. Đây là giá trị an toàn được sử dụng khi không có bằng chứng rõ ràng để bật tính năng. Evaluation API cần cung cấp default value và kết quả có cấu trúc ổn định để ứng dụng khách có thể xử lý lỗi mà không làm gián đoạn luồng chính \cite{openfeature_flag_evaluation}.
 
 \subsubsection{Cấu trúc EvaluationResult}
+\label{subsubsec:evaluation-result-structure}
 
 \texttt{EvaluationResult} là cấu trúc dữ liệu chuẩn được Rule Evaluation Engine trả về sau mỗi lần đánh giá. Trong hệ thống đề xuất, kết quả bao gồm các trường chính sau:
 
@@ -1307,6 +1359,7 @@ Engine nên trả về một đối tượng mới thay vì sửa đổi snapsho
 Với cùng snapshot và context, engine phải tạo cùng một \texttt{EvaluationResult}. Tính chất này giúp quá trình đánh giá dễ kiểm thử, dễ cache và dễ tái hiện khi điều tra sự cố.
 
 \subsubsection{Matched rule và metadata}
+\label{subsubsec:matched-rule-metadata}
 
 Trường \texttt{matchedRuleId} xác định rule đã trực tiếp quyết định trạng thái bật của feature flag. Trường này chỉ xuất hiện khi kết quả được tạo từ một targeting rule cụ thể.
 
@@ -1390,6 +1443,7 @@ Metadata không được chứa dữ liệu nhạy cảm từ evaluation context
 Việc cung cấp reason và matched rule giúp Evaluation API không chỉ trả về quyết định mà còn giải thích được nguồn gốc của quyết định đó. Đây là yếu tố quan trọng đối với khả năng kiểm thử, vận hành và điều tra khi kết quả feature flag không đúng với kỳ vọng.
 
 \subsection{Reason code}
+\label{subsec:reason-code}
 
 Reason code là mã định danh ngắn gọn mô tả nguyên nhân trực tiếp dẫn đến kết quả evaluation. Thay vì chỉ trả về giá trị \texttt{enabled}, Evaluation API cung cấp thêm trường \texttt{reason} để cho biết feature flag được bật hoặc tắt bởi trạng thái hệ thống, rule targeting, kết quả mặc định hay cơ chế fallback.
 
@@ -1410,6 +1464,7 @@ type EvaluationReason =
 \end{lstlisting}
 
 \subsubsection{Reason code cho trạng thái hệ thống}
+\label{subsubsec:system-state-reason-codes}
 
 Reason code cho trạng thái hệ thống phản ánh các quyết định được tạo ra trước khi engine thực thi targeting rule. Các mã này cho biết feature flag bị vô hiệu hóa bởi trạng thái vòng đời, trạng thái cấu hình, kill switch hoặc được bật trực tiếp bởi serving mode.
 
@@ -1465,6 +1520,7 @@ Các mã trạng thái phải tuân theo đúng thứ tự ưu tiên của engin
 Mỗi lần evaluation chỉ trả về reason code của điều kiện đầu tiên quyết định kết quả. Engine không trả về đồng thời nhiều reason code vì điều đó có thể làm mất tính rõ ràng của precedence.
 
 \subsubsection{Reason code cho targeting}
+\label{subsubsec:targeting-reason-codes}
 
 Reason code cho targeting phản ánh trường hợp feature flag được bật bởi một rule cụ thể trong serving mode \texttt{TARGETED}. Nhóm này gồm:
 
@@ -1497,6 +1553,7 @@ Reason code phải tương ứng với rule đầu tiên khớp theo thứ tự 
 Cách tổ chức này phù hợp với mô hình targeting rule có thứ tự, trong đó quá trình evaluation dừng tại điều kiện đầu tiên khớp \cite{launchdarkly_targeting_rules}.
 
 \subsubsection{Reason code cho default và fallback}
+\label{subsubsec:default-fallback-reason-codes}
 
 Nhóm reason code cho default và fallback được sử dụng khi feature flag không được bật bởi trạng thái hệ thống hoặc targeting rule. Các mã chính gồm:
 
@@ -1540,6 +1597,7 @@ Cần phân biệt rõ \texttt{DEFAULT\_OFF}, \texttt{NOT\_FOUND} và \texttt{ER
 Evaluation API nên sử dụng default value an toàn khi không thể tạo ra kết quả đáng tin cậy, đồng thời cung cấp reason code để client hoặc hệ thống giám sát phân biệt fallback với kết quả nghiệp vụ thông thường \cite{openfeature_flag_evaluation}.
 
 \subsubsection{Vai trò của reason code trong debug}
+\label{subsubsec:reason-code-debugging-role}
 
 Reason code giúp giải thích vì sao hai evaluation request cho cùng một flag có thể nhận kết quả khác nhau. Thay vì chỉ quan sát \texttt{enabled = false}, người vận hành có thể xác định flag bị tắt do disabled, kill switch, không khớp rule, không tìm thấy cấu hình hay lỗi hệ thống.
 
@@ -1569,6 +1627,7 @@ Khi ghi log, reason code nên được lưu cùng request ID, project key, envir
 Reason code phải được xem là một phần ổn định của API contract. Việc đổi tên hoặc thay đổi ý nghĩa của một mã có thể ảnh hưởng đến SDK, frontend, test và hệ thống giám sát. Khi cần bổ sung mã mới, hệ thống nên duy trì khả năng tương thích và cập nhật tài liệu API tương ứng.
 
 \subsection{Default value và error fallback}
+\label{subsec:default-value-error-fallback}
 
 Default value và error fallback xác định hành vi của Evaluation API khi hệ thống không thể bật feature flag dựa trên một điều kiện hợp lệ. Trong hệ thống đề xuất, giá trị mặc định là trạng thái tắt với variant \texttt{off}. Cách tiếp cận này giúp ứng dụng khách duy trì hành vi cũ hoặc hành vi ổn định khi cấu hình không tồn tại, context không đầy đủ hoặc quá trình evaluation phát sinh lỗi.
 
@@ -1588,6 +1647,7 @@ Kết quả fallback cơ bản có dạng:
 Default value không thay thế reason code. Trạng thái và variant có thể giống nhau trong nhiều trường hợp, nhưng trường \texttt{reason} phải phản ánh đúng nguyên nhân để hỗ trợ debug và giám sát.
 
 \subsubsection{Nguyên tắc fail-safe và fail-closed}
+\label{subsubsec:fail-safe-fail-closed}
 
 Fail-safe là nguyên tắc đưa hệ thống về trạng thái ít rủi ro hơn khi xảy ra lỗi. Trong ngữ cảnh feature flag, trạng thái an toàn thường là giữ nguyên hành vi cũ thay vì bật một tính năng mới chưa được xác nhận.
 
@@ -1613,6 +1673,7 @@ Cách tiếp cận này đặc biệt phù hợp với release flag và experime
 Tuy nhiên, fail-closed không đồng nghĩa với việc mọi loại flag đều luôn nên trả về \texttt{false}. Trong một hệ thống tổng quát, default value có thể phụ thuộc vào loại flag và yêu cầu nghiệp vụ. Ví dụ, một ops flag dùng để vô hiệu hóa cơ chế bảo vệ có thể cần chiến lược an toàn khác. Trong phạm vi mini project, tất cả boolean flag sử dụng mặc định \texttt{off} để giữ thiết kế nhất quán và dễ kiểm thử.
 
 \subsubsection{Flag không tồn tại}
+\label{subsubsec:flag-not-found-fallback}
 
 Flag không tồn tại là trường hợp repository không tìm thấy project, environment, feature flag hoặc flag config tương ứng với evaluation request. Hệ thống không tự động tạo cấu hình hoặc giả định flag đang bật.
 
@@ -1635,6 +1696,7 @@ Kết quả trả về là.
 API quản trị và Evaluation API có thể xử lý not found khác nhau. API quản trị nên trả về HTTP \texttt{404}, trong khi Evaluation API có thể trả về một \texttt{EvaluationResult} fail-closed để client tiếp tục sử dụng hành vi mặc định.
 
 \subsubsection{Context không đầy đủ}
+\label{subsubsec:incomplete-context-fallback}
 
 Context không đầy đủ là trường hợp request hợp lệ về cấu trúc nhưng thiếu một hoặc nhiều thuộc tính cần thiết cho một rule cụ thể. Ví dụ:
 
@@ -1660,6 +1722,7 @@ Cần phân biệt context không đầy đủ với context không hợp lệ. 
 Cách xử lý này cho phép Evaluation API linh hoạt với nhiều loại flag và context khác nhau, đồng thời vẫn giữ nguyên tắc chỉ bật khi có điều kiện hợp lệ \cite{openfeature_evaluation_context}.
 
 \subsubsection{Lỗi database hoặc cache}
+\label{subsubsec:database-cache-fallback}
 
 Evaluation snapshot có thể được truy xuất từ cache hoặc database. Khi một trong hai thành phần gặp lỗi, service cần áp dụng chiến lược fallback rõ ràng để cân bằng giữa tính sẵn sàng và tính nhất quán.
 
@@ -1688,6 +1751,7 @@ Nếu database lỗi và không có cache hợp lệ, service trả về.
 Lỗi hạ tầng cần được ghi log với request ID, project key, environment key và flag key. Không nên trả chi tiết lỗi database hoặc cache trực tiếp cho ứng dụng khách vì có thể làm lộ thông tin triển khai nội bộ.
 
 \subsubsection{Lỗi nội bộ của Evaluation Engine}
+\label{subsubsec:evaluation-engine-internal-error}
 
 Lỗi nội bộ của Evaluation Engine là exception phát sinh sau khi snapshot đã được tải nhưng engine không thể hoàn tất quá trình đánh giá. Một số nguyên nhân có thể gồm:
 
@@ -1725,12 +1789,14 @@ Lỗi nội bộ khác với rule không đủ context. Thiếu context là trư
 Thông tin lỗi chi tiết chỉ nên được ghi trong log nội bộ. Evaluation response không được chứa stack trace, câu lệnh SQL hoặc dữ liệu nhạy cảm. Việc xử lý lỗi REST cần giới hạn thông tin trả về và duy trì response contract ổn định \cite{owasp_rest_security,owasp_logging}.
 
 \subsection{Khả năng mở rộng Rule Evaluation Engine}
+\label{subsec:rule-engine-extensibility}
 
 Rule Evaluation Engine trong hệ thống đề xuất được thiết kế theo hướng tách biệt giữa dữ liệu cấu hình, evaluation context và logic thực thi từng loại rule. Cách tổ chức này cho phép bổ sung chiến lược targeting mới mà không phải thay đổi toàn bộ luồng evaluation hoặc phá vỡ API contract hiện có.
 
 Các hướng mở rộng chính gồm rule dựa trên thuộc tính, targeting theo organization, rule theo thời gian và vị trí, hỗ trợ nhiều variant và tách logic đánh giá theo Strategy Pattern. Những mở rộng này phù hợp với mô hình evaluation context linh hoạt, trong đó context có thể chứa targeting key và các thuộc tính tùy chỉnh phục vụ quyết định runtime \cite{openfeature_evaluation_context}.
 
 \subsubsection{Rule dựa trên thuộc tính}
+\label{subsubsec:attribute-based-rule}
 
 Rule dựa trên thuộc tính cho phép engine đánh giá feature flag dựa trên các giá trị trong trường \texttt{attributes} của evaluation context. Các thuộc tính có thể mô tả quốc gia, loại thiết bị, phiên bản ứng dụng, gói dịch vụ, ngôn ngữ hoặc các thông tin nghiệp vụ khác.
 
@@ -1763,6 +1829,7 @@ Rule dựa trên thuộc tính làm tăng đáng kể khả năng biểu đạt 
 Các nền tảng feature flag thường sử dụng targeting rule dựa trên thuộc tính để kiểm soát tính năng theo nhiều đặc điểm của đối tượng đánh giá \cite{launchdarkly_targeting_rules}.
 
 \subsubsection{Rule theo organization}
+\label{subsubsec:organization-rule}
 
 Rule theo organization cho phép bật feature flag cho toàn bộ người dùng thuộc một tổ chức, doanh nghiệp hoặc tenant cụ thể. Cơ chế này đặc biệt phù hợp với ứng dụng B2B hoặc hệ thống đa tenant, trong đó một tính năng thường được phát hành theo khách hàng doanh nghiệp thay vì theo từng người dùng.
 
@@ -1805,6 +1872,7 @@ Thứ tự này phản ánh mức độ cụ thể giảm dần từ một ngư�
 Organization ID phải được lấy từ nguồn đáng tin cậy của ứng dụng khách. Nếu giá trị được gửi trực tiếp từ trình duyệt mà không được xác minh, người dùng có thể giả mạo organization để nhận tính năng không được phép. Vì vậy, các quyết định có ảnh hưởng đến quyền hoặc hợp đồng nên được thực hiện ở backend của ứng dụng tích hợp.
 
 \subsubsection{Rule theo thời gian và vị trí}
+\label{subsubsec:time-location-rule}
 
 Rule theo thời gian cho phép feature flag chỉ hoạt động trong một khoảng thời gian xác định. Ví dụ, hệ thống có thể bật tính năng từ thời điểm bắt đầu chiến dịch và tự động ngừng sau thời điểm kết thúc.
 
@@ -1839,6 +1907,7 @@ Rule theo vị trí cho phép bật tính năng dựa trên quốc gia, khu vự
 Vị trí không nên được suy diễn trực tiếp trong Rule Evaluation Engine từ địa chỉ IP. Việc xác định vị trí nên được thực hiện bởi tầng ứng dụng hoặc một dịch vụ chuyên biệt, sau đó truyền giá trị đã chuẩn hóa vào evaluation context. Điều này giữ engine độc lập với network I/O và giúp kết quả dễ kiểm thử hơn.
 
 \subsubsection{Hỗ trợ nhiều variant}
+\label{subsubsec:multivariate-support}
 
 Hệ thống hiện tại sử dụng hai variant \texttt{on} và \texttt{off}. Trong tương lai, engine có thể được mở rộng để hỗ trợ nhiều variant nhằm phục vụ A/B testing, thử nghiệm giao diện hoặc phân phối nhiều cấu hình khác nhau.
 
@@ -1879,6 +1948,7 @@ EvaluationResult có thể được mở rộng như sau.
 Hỗ trợ nhiều variant giúp cùng một feature flag trả về nhiều cấu hình khác nhau thay vì chỉ quyết định bật hoặc tắt. Tuy nhiên, hệ thống cần bổ sung validation tổng trọng số, stable assignment theo variant và metadata phục vụ phân tích thử nghiệm \cite{launchdarkly_feature_flags,launchdarkly_percentage_rollouts}.
 
 \subsubsection{Tách rule evaluator theo Strategy Pattern}
+\label{subsubsec:strategy-pattern-rule-evaluator}
 
 Khi số lượng loại rule tăng lên, việc xử lý tất cả rule trong một hàm lớn với nhiều câu lệnh \texttt{if} hoặc \texttt{switch} sẽ làm engine khó bảo trì và khó kiểm thử. Strategy Pattern cho phép tách logic của từng loại rule thành một evaluator độc lập có cùng interface.
 

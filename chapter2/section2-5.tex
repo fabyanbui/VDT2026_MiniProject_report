@@ -1,12 +1,14 @@
 \section{Thiết kế dữ liệu}
 
 \subsection{Mô hình dữ liệu tổng thể}
+\label{subsec:mo-hinh-du-lieu-tong-the}
 
 Mô hình dữ liệu của hệ thống được xây dựng nhằm hỗ trợ hai nhóm nghiệp vụ chính: quản lý cấu hình Feature Flag và đánh giá trạng thái flag tại thời điểm chạy. Dữ liệu được tổ chức theo cấu trúc phân cấp từ project, environment, feature flag đến cấu hình runtime và các rule targeting. Bên cạnh đó, hệ thống duy trì dữ liệu người dùng mẫu phục vụ kiểm thử và audit log để truy vết các thay đổi cấu hình.
 
 Thiết kế này bảo đảm mỗi Feature Flag có một định danh ổn định trong phạm vi project, đồng thời có thể mang cấu hình khác nhau giữa các environment. Cách tổ chức này phù hợp với mô hình quản lý Feature Flag phổ biến, trong đó định nghĩa flag được dùng chung nhưng trạng thái và chiến lược phát hành có thể được cấu hình độc lập cho từng môi trường \cite{launchdarkly_feature_flags}.
 
 \subsubsection{Các thực thể chính}
+\label{subsubsec:cac-thuc-the-chinh}
 
 Mô hình dữ liệu gồm các thực thể chính sau:
 
@@ -29,6 +31,7 @@ Mô hình dữ liệu gồm các thực thể chính sau:
 Các thực thể \texttt{FlagRule}, \texttt{SampleUser} và \texttt{AuditLogEntry} sử dụng dữ liệu có cấu trúc linh hoạt như tham số rule, thuộc tính người dùng hoặc snapshot thay đổi. Những trường dữ liệu này được lưu bằng kiểu \texttt{JSONB} của PostgreSQL để vừa duy trì khả năng mở rộng, vừa hỗ trợ truy vấn và lập chỉ mục khi cần thiết \cite{postgresql_json_types}.
 
 \subsubsection{Quan hệ giữa các thực thể}
+\label{subsubsec:quan-he-giua-cac-thuc-the}
 
 Các thực thể trong hệ thống có quan hệ như sau:
 
@@ -102,6 +105,7 @@ Bảng \ref{tab:quan-he-thuc-the} tóm tắt các quan hệ chính trong mô hì
 Các khóa ngoại được sử dụng để bảo đảm tính toàn vẹn tham chiếu. Đồng thời, các ràng buộc duy nhất được thiết lập cho những cặp thuộc tính như \texttt{projectId--environmentKey}, \texttt{projectId--flagKey} và \texttt{featureFlagId--environmentId}. Các ràng buộc này ngăn việc tạo trùng environment, flag hoặc cấu hình runtime trong cùng một phạm vi quản lý.
 
 \subsubsection{Phân tách định nghĩa flag và cấu hình runtime}
+\label{subsubsec:phan-tach-flag-va-runtime-config}
 
 Một quyết định quan trọng trong thiết kế dữ liệu là tách thực thể \texttt{FeatureFlag} khỏi \texttt{FlagConfig}. Trong đó, \texttt{FeatureFlag} mô tả danh tính và vòng đời của flag, còn \texttt{FlagConfig} mô tả cách flag được phục vụ tại thời điểm chạy trong từng environment.
 
@@ -150,6 +154,7 @@ Ví dụ, flag có khóa \texttt{new-checkout} chỉ được định nghĩa m�
 Nếu trạng thái bật, tắt và các rule được lưu trực tiếp trong bảng \texttt{FeatureFlag}, hệ thống sẽ khó biểu diễn các cấu hình khác nhau giữa các environment. Vì vậy, \texttt{FlagConfig} đóng vai trò là thực thể liên kết giữa định nghĩa flag và môi trường triển khai.
 
 \subsubsection{Sơ đồ thực thể liên kết}
+\label{subsubsec:so-do-thuc-the-lien-ket}
 
 Sơ đồ thực thể liên kết của hệ thống được trình bày trong
 Hình~\ref{fig:feature-flag-er-diagram}. Sơ đồ thể hiện cấu trúc phân cấp
@@ -238,10 +243,12 @@ mà chủ yếu phục vụ demo, kiểm thử và mô phỏng các evaluation c
 khác nhau.
 
 \subsection{Project và environment}
+\label{subsec:project-va-environment}
 
 Project và environment tạo thành hai cấp quản lý nền tảng của hệ thống. Project xác định phạm vi logic của một ứng dụng hoặc sản phẩm, trong khi environment biểu diễn các môi trường triển khai độc lập bên trong project. Cách phân tách này cho phép cùng một Feature Flag được cấu hình khác nhau giữa development, staging và production mà không cần tạo các flag riêng biệt.
 
 \subsubsection{Thực thể Project}
+\label{subsubsec:thuc-the-project}
 
 Thực thể \texttt{Project} đại diện cho một ứng dụng, sản phẩm hoặc miền nghiệp vụ sử dụng nền tảng Feature Flag. Đây là thực thể gốc trong mô hình dữ liệu và cung cấp phạm vi định danh cho environment, Feature Flag, người dùng mẫu và audit log.
 
@@ -309,6 +316,7 @@ Project có các quan hệ một--nhiều với những thực thể sau:
 Việc đặt Feature Flag và environment trong phạm vi project giúp tránh xung đột khóa giữa các ứng dụng khác nhau. Hai project có thể cùng sử dụng khóa flag \texttt{new-checkout}, nhưng mỗi flag vẫn là một tài nguyên độc lập với cấu hình và lịch sử thay đổi riêng.
 
 \subsubsection{Thực thể Environment}
+\label{subsubsec:thuc-the-environment}
 
 Thực thể \texttt{Environment} đại diện cho một môi trường triển khai cụ thể của project. Các environment phổ biến gồm development, staging và production. Mỗi environment duy trì tập cấu hình runtime độc lập cho các Feature Flag thuộc cùng project.
 
@@ -385,6 +393,7 @@ Ví dụ, cùng một flag \texttt{new-checkout} có thể có ba cấu hình đ
 Cơ chế này hỗ trợ quá trình phát hành theo từng giai đoạn và giảm nguy cơ một thay đổi thử nghiệm ảnh hưởng trực tiếp đến môi trường production.
 
 \subsubsection{Environment mặc định}
+\label{subsubsec:environment-mac-dinh}
 
 Mỗi project có thể xác định một environment mặc định thông qua thuộc tính \texttt{isDefault}. Environment mặc định được sử dụng khi request evaluation không truyền rõ \texttt{environmentKey}.
 
@@ -414,6 +423,7 @@ WHERE is_default = TRUE;
 Khi người quản trị chọn một environment mới làm mặc định, hệ thống phải cập nhật environment mặc định cũ về \texttt{false} và environment mới về \texttt{true} trong cùng một transaction. Cách xử lý này tránh trạng thái trung gian trong đó project có hai environment mặc định hoặc không có environment mặc định ngoài ý muốn.
 
 \subsubsection{Ràng buộc environment trong project}
+\label{subsubsec:rang-buoc-environment-trong-project}
 
 Để bảo đảm tính nhất quán của dữ liệu, environment phải tuân theo các ràng buộc sau:
 
@@ -445,10 +455,12 @@ Về mặt mô hình quan hệ, \texttt{FlagConfig} chứa hai khóa ngoại ri�
 Khi xóa một project, các environment thuộc project không còn ý nghĩa độc lập. Vì vậy, quan hệ từ \texttt{Project} đến \texttt{Environment} có thể sử dụng cơ chế cascade delete. Tuy nhiên, thao tác xóa project cần được giới hạn bởi phân quyền, xác nhận rõ ràng và ghi audit log trước khi dữ liệu liên quan bị loại bỏ.
 
 \subsection{Feature Flag và cấu hình theo environment}
+\label{subsec:feature-flag-va-cau-hinh-theo-environment}
 
 Trong mô hình dữ liệu của hệ thống, định nghĩa Feature Flag được tách khỏi cấu hình runtime theo từng environment. Thực thể \texttt{FeatureFlag} lưu thông tin định danh và trạng thái vòng đời của flag, trong khi \texttt{FlagConfig} lưu cách flag được phục vụ trong một environment cụ thể. Thiết kế này cho phép cùng một flag có trạng thái và chiến lược rollout khác nhau giữa development, staging và production.
 
 \subsubsection{Thực thể FeatureFlag}
+\label{subsubsec:thuc-the-feature-flag}
 
 Thực thể \texttt{FeatureFlag} đại diện cho định nghĩa logic của một flag trong phạm vi project. Đây là thông tin tương đối ổn định, được sử dụng để nhận diện flag trong dashboard quản trị, Evaluation API, audit log và ứng dụng tích hợp.
 
@@ -519,6 +531,7 @@ Ràng buộc duy nhất được áp dụng trên cặp \texttt{projectId} và \
 Khóa flag cần ổn định trong suốt vòng đời tích hợp vì được lưu trực tiếp trong mã nguồn hoặc cấu hình của ứng dụng khách. Việc thay đổi khóa có thể khiến request evaluation không tìm thấy flag và trả về kết quả fallback. Vì vậy, hệ thống chỉ nên cho phép sửa tên và mô tả, trong khi việc đổi khóa phải được hạn chế hoặc không được hỗ trợ sau khi flag đã được sử dụng.
 
 \subsubsection{Trạng thái vòng đời của flag}
+\label{subsubsec:trang-thai-vong-doi-cua-flag}
 
 Trạng thái vòng đời mô tả việc flag còn được sử dụng hay đã được loại khỏi hoạt động quản trị thông thường. Trong phạm vi hệ thống, \texttt{FeatureFlag} sử dụng hai trạng thái:
 
@@ -567,6 +580,7 @@ Khi evaluation một flag đã archive, hệ thống trả về kết quả an t
 Việc chuyển trạng thái giữa \texttt{ACTIVE} và \texttt{ARCHIVED} phải được ghi audit log, bao gồm actor, thời điểm, trạng thái trước và trạng thái sau. Hệ thống cũng cần giới hạn thao tác này cho người dùng có quyền quản trị phù hợp.
 
 \subsubsection{Thực thể FlagConfig}
+\label{subsubsec:thuc-the-flag-config}
 
 Thực thể \texttt{FlagConfig} lưu cấu hình runtime của một Feature Flag trong một environment cụ thể. Đây là thực thể liên kết giữa \texttt{FeatureFlag} và \texttt{Environment}, đồng thời là nguồn dữ liệu trung tâm của Evaluation Engine.
 
@@ -642,6 +656,7 @@ Khi một Feature Flag mới được tạo, hệ thống có thể tự động
 Tương tự, khi một environment mới được tạo, hệ thống có thể tạo cấu hình mặc định cho tất cả Feature Flag đang hoạt động trong project. Thao tác này nên được thực hiện trong transaction để tránh trạng thái environment chỉ có cấu hình cho một phần các flag.
 
 \subsubsection{Trạng thái cấu hình và serving mode}
+\label{subsubsec:trang-thai-cau-hinh-va-serving-mode}
 
 Thuộc tính \texttt{status} và \texttt{servingMode} biểu diễn hai khía cạnh khác nhau của cấu hình runtime.
 
@@ -702,6 +717,7 @@ Kill switch có mức ưu tiên cao hơn serving mode. Khi \texttt{killSwitch = 
 Việc phân tách \texttt{status} và \texttt{servingMode} giúp tránh sử dụng một trường duy nhất để biểu diễn quá nhiều trạng thái. Người quản trị có thể tạm thời disable flag nhưng vẫn giữ nguyên các rule và serving mode để khôi phục sau đó mà không cần cấu hình lại.
 
 \subsubsection{Cấu hình flag theo từng environment}
+\label{subsubsec:cau-hinh-flag-theo-tung-environment}
 
 Mỗi Feature Flag có thể có một cấu hình riêng trong từng environment. Cơ chế này cho phép đội phát triển kiểm soát quá trình phát hành theo từng giai đoạn và giới hạn phạm vi ảnh hưởng của thay đổi.
 
@@ -766,10 +782,12 @@ Việc lưu cấu hình theo environment mang lại các lợi ích chính sau:
 Mỗi thao tác thay đổi \texttt{status}, \texttt{servingMode}, \texttt{killSwitch} hoặc rule liên quan phải tăng phiên bản cấu hình và ghi một audit log. Phiên bản mới được sử dụng để làm mất hiệu lực cache cũ, trong khi audit log cho phép xác định ai đã thay đổi cấu hình, vào thời điểm nào và nội dung trước, sau thay đổi.
 
 \subsection{Rule và tham số rule}
+\label{subsec:rule-va-tham-so-rule}
 
 Rule là thành phần mô tả điều kiện để một Feature Flag được bật trong chế độ \texttt{TARGETED}. Mỗi rule thuộc về một \texttt{FlagConfig}, có loại xác định, mức ưu tiên và tập tham số tương ứng. Khi evaluation, các rule được xét theo thứ tự ưu tiên cho đến khi tìm thấy rule đầu tiên khớp với evaluation context.
 
 \subsubsection{Thực thể FlagRule}
+\label{subsubsec:thuc-the-flag-rule}
 
 Thực thể \texttt{FlagRule} biểu diễn một điều kiện targeting cụ thể của Feature Flag trong một environment. Rule không gắn trực tiếp với \texttt{FeatureFlag} mà gắn với \texttt{FlagConfig}, vì cùng một flag có thể sử dụng tập rule khác nhau giữa các environment.
 
@@ -829,6 +847,7 @@ Các thuộc tính chính của \texttt{FlagRule} được trình bày trong B�
 Mỗi \texttt{FlagRule} chỉ thuộc một \texttt{FlagConfig}. Khi cấu hình bị xóa, các rule liên quan không còn ý nghĩa độc lập và có thể được xóa theo cơ chế cascade. Mọi thao tác tạo, sửa hoặc xóa rule phải được ghi audit log để truy vết thay đổi cấu hình.
 
 \subsubsection{Kiểu rule}
+\label{subsubsec:kieu-rule}
 
 Trong phạm vi hệ thống, ba loại rule được hỗ trợ:
 
@@ -870,6 +889,7 @@ Bảng~\ref{tab:flag-rule-types} mô tả ý nghĩa của từng loại rule.
 Các loại rule được mô hình hóa bằng enum thay vì chuỗi tự do nhằm tránh sai chính tả, đơn giản hóa validation và giúp Evaluation Engine xử lý rõ ràng từng trường hợp.
 
 \subsubsection{Thứ tự ưu tiên của rule}
+\label{subsubsec:thu-tu-uu-tien-cua-rule}
 
 Thuộc tính \texttt{priority} xác định thứ tự đánh giá các rule trong cùng một \texttt{FlagConfig}. Rule có giá trị priority nhỏ hơn được đánh giá trước. Evaluation Engine dừng tại rule đầu tiên khớp và trả về kết quả tương ứng.
 
@@ -892,6 +912,7 @@ Khi truy xuất dữ liệu phục vụ evaluation, các rule phải được s�
 Nếu không có rule nào khớp, hệ thống trả về \texttt{enabled = false} với reason code \texttt{DEFAULT\_OFF}. Cơ chế này bảo đảm hành vi fail-closed trong chế độ targeted.
 
 \subsubsection{Lưu trữ tham số bằng JSON}
+\label{subsubsec:luu-tru-tham-so-bang-json}
 
 Các loại rule có cấu trúc tham số khác nhau. Vì vậy, thuộc tính \texttt{parameters} được lưu bằng kiểu \texttt{JSONB} của PostgreSQL thay vì tạo nhiều cột chỉ áp dụng cho từng loại rule \cite{postgresql_json_types}.
 
@@ -948,6 +969,7 @@ Việc sử dụng \texttt{JSONB} mang lại các lợi ích sau:
 Tuy nhiên, \texttt{JSONB} không tự bảo đảm tính đúng đắn của cấu trúc nghiệp vụ. Vì vậy, validation tham số phải được thực hiện ở tầng API và tầng dịch vụ trước khi dữ liệu được lưu.
 
 \subsubsection{Validation tham số theo loại rule}
+\label{subsubsec:validation-tham-so-theo-loai-rule}
 
 Hệ thống thực hiện validation dựa trên giá trị của \texttt{type}. Mỗi loại rule có một schema tham số riêng và không được phép chứa cấu trúc không phù hợp.
 
@@ -1016,12 +1038,14 @@ Ngoài validation khi tạo và cập nhật rule, Evaluation Engine vẫn phả
 Sau mỗi thao tác thay đổi rule, hệ thống phải tăng phiên bản của \texttt{FlagConfig}, làm mất hiệu lực cache liên quan và ghi audit log chứa snapshot trước và sau thay đổi.
 
 \subsection{User context mẫu}
+\label{subsec:user-context-mau}
 
 Hệ thống lưu một tập dữ liệu user context mẫu nhằm phục vụ demo, kiểm thử Evaluation API và minh họa các chiến lược targeting. Dữ liệu này không thay thế cơ sở dữ liệu người dùng của ứng dụng khách và không được xem là nguồn danh tính chính thức trong môi trường thực tế. Khi tích hợp, ứng dụng khách tự xây dựng evaluation context từ dữ liệu nghiệp vụ của mình và gửi đến nền tảng Feature Flag.
 
 Evaluation context có thể bao gồm targeting key, user ID, organization ID, danh sách role và các thuộc tính mở rộng. Trong đó, targeting key là định danh chính được sử dụng để đánh giá allowlist và percentage rollout, còn các trường còn lại cung cấp thêm thông tin cho các rule targeting hiện tại hoặc khả năng mở rộng trong tương lai \cite{openfeature_evaluation_context}.
 
 \subsubsection{Targeting key}
+\label{subsubsec:targeting-key}
 
 \texttt{targetingKey} là định danh ổn định đại diện cho đối tượng được evaluation. Đối tượng này thường là một người dùng, nhưng cũng có thể là một organization, thiết bị, tenant hoặc thực thể nghiệp vụ khác tùy theo cách ứng dụng khách xây dựng context.
 
@@ -1106,6 +1130,7 @@ Ràng buộc duy nhất trên cặp \texttt{projectId} và \texttt{targetingKey}
 Targeting key phải ổn định trong suốt thời gian đối tượng tham gia rollout. Nếu giá trị này thay đổi, kết quả băm phần trăm có thể thay đổi và người dùng có thể bị chuyển sang cohort khác.
 
 \subsubsection{User ID và organization ID}
+\label{subsubsec:user-id-va-organization-id}
 
 \texttt{userId} là định danh người dùng trong hệ thống của ứng dụng khách. Giá trị này có thể trùng với targeting key, nhưng không bắt buộc. Việc tách hai trường cho phép ứng dụng lựa chọn một định danh phù hợp hơn cho evaluation mà không làm thay đổi khóa nghiệp vụ gốc.
 
@@ -1127,6 +1152,7 @@ Trong phiên bản hiện tại, \texttt{userId} và \texttt{organizationId} ch�
 Nền tảng Feature Flag không tự suy luận hoặc truy vấn thông tin organization từ user ID. Ứng dụng khách chịu trách nhiệm lấy dữ liệu từ cơ sở dữ liệu nghiệp vụ và truyền context phù hợp trong mỗi request evaluation.
 
 \subsubsection{Role của người dùng}
+\label{subsubsec:role-cua-nguoi-dung}
 
 Thuộc tính \texttt{roles} lưu danh sách vai trò nghiệp vụ của người dùng trong ứng dụng khách. Đây không phải role quản trị của nền tảng Feature Flag mà là role dùng để quyết định việc phát hành tính năng trong demo app.
 
@@ -1166,6 +1192,7 @@ Danh sách role của dữ liệu mẫu phải thỏa mãn các điều kiện:
 \end{itemize}
 
 \subsubsection{Thuộc tính mở rộng}
+\label{subsubsec:thuoc-tinh-mo-rong}
 
 Thuộc tính \texttt{attributes} lưu các thông tin bổ sung của người dùng dưới dạng \texttt{JSONB}. Cấu trúc linh hoạt này cho phép dữ liệu mẫu biểu diễn nhiều loại context mà không cần thay đổi schema mỗi khi bổ sung một thuộc tính mới \cite{postgresql_json_types}.
 
@@ -1187,6 +1214,7 @@ Mặc dù sử dụng \texttt{JSONB}, hệ thống vẫn cần validation cơ b�
 Dữ liệu nhạy cảm như mật khẩu, token xác thực, số giấy tờ, thông tin thanh toán hoặc dữ liệu cá nhân không cần thiết không được lưu trong attributes. Evaluation context chỉ nên chứa những thuộc tính tối thiểu cần thiết cho việc targeting, qua đó giảm rủi ro lộ dữ liệu và hạn chế việc ghi thông tin nhạy cảm vào log \cite{unleash_feature_flag_best_practices,owasp_logging}.
 
 \subsubsection{Phạm vi sử dụng dữ liệu mẫu}
+\label{subsubsec:pham-vi-su-dung-du-lieu-mau}
 
 Thực thể \texttt{SampleUser} được sử dụng trong các phạm vi sau:
 
@@ -1216,10 +1244,12 @@ Trong môi trường thực tế, dữ liệu người dùng được quản lý
 Việc giới hạn phạm vi này giúp tránh biến nền tảng Feature Flag thành một hệ thống quản lý người dùng, đồng thời duy trì ranh giới trách nhiệm rõ ràng giữa ứng dụng khách và dịch vụ evaluation.
 
 \subsection{Flag group và group kill switch}
+\label{subsec:flag-group-va-group-kill-switch}
 
 Flag group được sử dụng để tập hợp nhiều Feature Flag có liên quan về mặt nghiệp vụ hoặc vận hành. Mỗi group thuộc một project và có thể chứa nhiều flag. Bên cạnh mục đích tổ chức dữ liệu trên dashboard, group còn cung cấp cơ chế kill switch ở cấp nhóm, cho phép tắt nhanh toàn bộ các flag thành viên khi xảy ra sự cố.
 
 \subsubsection{Thực thể FlagGroup}
+\label{subsubsec:thuc-the-flag-group}
 
 Thực thể \texttt{FlagGroup} đại diện cho một nhóm Feature Flag trong phạm vi project. Một group có thể tương ứng với một miền chức năng, một luồng nghiệp vụ, một đợt phát hành hoặc một tập tính năng cần được kiểm soát chung.
 
@@ -1297,6 +1327,7 @@ Ví dụ, project thương mại điện tử có thể định nghĩa các grou
 \end{itemize}
 
 \subsubsection{Quan hệ giữa group và flag}
+\label{subsubsec:quan-he-giua-group-va-flag}
 
 Trong phạm vi mini project, một \texttt{FeatureFlag} có thể thuộc tối đa một \texttt{FlagGroup}, trong khi một \texttt{FlagGroup} có thể chứa nhiều Feature Flag. Quan hệ này được mô hình hóa theo dạng một--nhiều:
 
@@ -1341,6 +1372,7 @@ Do khóa ngoại \texttt{groupId} chỉ xác nhận group tồn tại mà không
 Khi một group bị xóa, hệ thống không nên xóa cascade các Feature Flag thành viên. Thay vào đó, trường \texttt{groupId} của các flag được đặt về \texttt{NULL}. Cách xử lý này bảo toàn định nghĩa flag và cấu hình runtime, vì group chỉ là lớp tổ chức bổ sung.
 
 \subsubsection{Trạng thái group kill switch}
+\label{subsubsec:trang-thai-group-kill-switch}
 
 Thuộc tính \texttt{killSwitch} trong \texttt{FlagGroup} biểu diễn trạng thái tắt khẩn cấp của toàn bộ group. Trạng thái này gồm hai giá trị:
 
@@ -1385,6 +1417,7 @@ Mỗi thao tác bật hoặc tắt group kill switch phải được ghi audit l
 \end{itemize}
 
 \subsubsection{Phạm vi ảnh hưởng của group kill switch}
+\label{subsubsec:pham-vi-anh-huong-cua-group-kill-switch}
 
 Trong thiết kế hiện tại, group thuộc project nhưng không gắn trực tiếp với environment. Do đó, group kill switch có phạm vi toàn project và ảnh hưởng đến tất cả cấu hình environment của các flag thành viên.
 
@@ -1427,12 +1460,14 @@ Trong đó, \texttt{flagEvaluationResult} là kết quả evaluation thông thư
 Sau khi trạng thái group kill switch thay đổi, hệ thống phải làm mất hiệu lực các cache evaluation liên quan đến toàn bộ flag thành viên. Nếu cache được tổ chức theo từng flag và environment, quá trình invalidation cần xác định tất cả cặp \texttt{flagId--environmentId} thuộc group để xóa hoặc tăng phiên bản tương ứng.
 
 \subsection{Audit log và lịch sử cấu hình}
+\label{subsec:audit-log-va-lich-su-cau-hinh}
 
 Audit log được sử dụng để ghi nhận các thao tác làm thay đổi trạng thái hoặc cấu hình của hệ thống Feature Flag. Mỗi bản ghi audit mô tả ai đã thực hiện thay đổi, thay đổi được thực hiện trong request nào, đối tượng nào bị tác động và dữ liệu trước, sau khi cập nhật. Cơ chế này hỗ trợ truy vết sự cố, kiểm tra trách nhiệm và khôi phục lại diễn biến của quá trình thay đổi cấu hình \cite{owasp_logging}.
 
 Bên cạnh audit log, hệ thống sử dụng số phiên bản cấu hình để xác định mỗi lần thay đổi trạng thái runtime hoặc rule của flag. Hai cơ chế có vai trò bổ sung cho nhau: audit log lưu thông tin chi tiết phục vụ truy vết, trong khi versioning cung cấp định danh gọn cho trạng thái cấu hình tại một thời điểm.
 
 \subsubsection{Cấu trúc AuditLogEntry}
+\label{subsubsec:cau-truc-audit-log-entry}
 
 Thực thể \texttt{AuditLogEntry} biểu diễn một sự kiện thay đổi dữ liệu trong hệ thống quản trị. Mỗi bản ghi tương ứng với một thao tác đã hoàn tất, chẳng hạn như tạo Feature Flag, cập nhật cấu hình, thêm rule, archive flag hoặc bật group kill switch.
 
@@ -1539,6 +1574,7 @@ Thuộc tính \texttt{action} mô tả cụ thể thao tác đã xảy ra. Một
 Việc sử dụng enum cho \texttt{targetType} và \texttt{action} giúp thống nhất dữ liệu audit, tránh sai chính tả và hỗ trợ lọc lịch sử theo loại tài nguyên hoặc loại thao tác.
 
 \subsubsection{Thông tin actor và request}
+\label{subsubsec:thong-tin-actor-va-request}
 
 Thuộc tính \texttt{actor} xác định tác nhân đã thực hiện thao tác thay đổi. Tác nhân có thể là tài khoản quản trị, developer, tiến trình seed dữ liệu hoặc một dịch vụ nội bộ.
 
@@ -1584,6 +1620,7 @@ Ví dụ một bản ghi audit có thể chứa:
 Actor và request ID phải được ghi nhận từ phía server. Client không được tự quyết định toàn bộ nội dung audit log vì có thể dẫn đến việc giả mạo thông tin truy vết.
 
 \subsubsection{Snapshot trước và sau thay đổi}
+\label{subsubsec:snapshot-truoc-va-sau-thay-doi}
 
 Hai thuộc tính \texttt{before} và \texttt{after} lưu trạng thái của đối tượng trước và sau thao tác dưới dạng \texttt{JSONB}. Cách lưu này cho phép audit log biểu diễn nhiều loại tài nguyên có cấu trúc khác nhau trong cùng một bảng \cite{postgresql_json_types}.
 
@@ -1629,6 +1666,7 @@ Audit snapshot không nên chứa thông tin nhạy cảm như mật khẩu, tok
 Các snapshot là bản mô tả lịch sử, không được sử dụng trực tiếp làm nguồn cấu hình runtime. Evaluation Engine luôn đọc dữ liệu hiện tại từ các bảng cấu hình hoặc từ cache tương ứng.
 
 \subsubsection{Tính chất append-only}
+\label{subsubsec:tinh-chat-append-only}
 
 Audit log có tính chất append-only, nghĩa là hệ thống chỉ được thêm bản ghi mới và không cho phép cập nhật hoặc xóa các bản ghi đã tồn tại. Tính chất này giúp duy trì tính toàn vẹn của lịch sử thay đổi và hạn chế việc chỉnh sửa dấu vết sau khi thao tác đã xảy ra.
 
@@ -1673,6 +1711,7 @@ Cách tổ chức này tránh hai trạng thái không nhất quán:
 Tính chất append-only không đồng nghĩa với việc dữ liệu audit phải được lưu vô thời hạn. Trong hệ thống thực tế có thể áp dụng chính sách lưu trữ hoặc chuyển dữ liệu cũ sang kho lưu trữ riêng. Tuy nhiên, việc này nằm ngoài phạm vi của mini project.
 
 \subsubsection{Versioning cấu hình}
+\label{subsubsec:versioning-cau-hinh}
 
 Versioning được sử dụng để xác định phiên bản hiện tại của một \texttt{FlagConfig}. Thuộc tính \texttt{version} là số nguyên dương và được tăng sau mỗi thay đổi có thể ảnh hưởng đến kết quả evaluation.
 
@@ -1761,10 +1800,12 @@ Quan hệ giữa hai cơ chế được trình bày trong Bảng~\ref{tab:audit-
 Trong phạm vi mini project, hệ thống lưu phiên bản hiện tại trên \texttt{FlagConfig} và sử dụng \texttt{AuditLogEntry} làm lịch sử chi tiết. Thiết kế này tránh phải sao chép toàn bộ cấu hình thành một bảng phiên bản riêng, đồng thời vẫn đáp ứng yêu cầu truy vết và quản lý thay đổi.
 
 \subsection{Ràng buộc toàn vẹn dữ liệu}
+\label{subsec:rang-buoc-toan-ven-du-lieu}
 
 Các ràng buộc toàn vẹn dữ liệu được áp dụng nhằm bảo đảm cấu hình Feature Flag luôn hợp lệ, nhất quán và có thể được Evaluation Engine xử lý theo cách xác định. Hệ thống kết hợp ràng buộc tại cơ sở dữ liệu với validation ở tầng ứng dụng. Cơ sở dữ liệu chịu trách nhiệm bảo vệ các quy tắc cấu trúc như khóa chính, khóa ngoại và tính duy nhất, trong khi tầng ứng dụng kiểm tra các điều kiện nghiệp vụ phụ thuộc vào loại rule hoặc quan hệ giữa nhiều thực thể.
 
 \subsubsection{Ràng buộc khóa và tính duy nhất}
+\label{subsubsec:rang-buoc-khoa-va-tinh-duy-nhat}
 
 Mỗi thực thể sử dụng trường \texttt{id} làm khóa chính. Khóa chính được sinh dưới dạng UUID nhằm cung cấp định danh duy nhất, không phụ thuộc vào thứ tự tạo bản ghi và phù hợp với việc trao đổi dữ liệu giữa các thành phần của hệ thống.
 
@@ -1824,6 +1865,7 @@ Các khóa nghiệp vụ như project key, environment key và flag key phải t
 Việc giới hạn định dạng giúp các khóa có thể được sử dụng ổn định trong URL, cache key, log và request evaluation.
 
 \subsubsection{Ràng buộc quan hệ tham chiếu}
+\label{subsubsec:rang-buoc-quan-he-tham-chieu}
 
 Khóa ngoại được sử dụng để bảo đảm các thực thể con luôn tham chiếu đến thực thể cha hợp lệ. Các quan hệ tham chiếu chính gồm:
 
@@ -1871,6 +1913,7 @@ Chính sách xử lý khi thực thể cha bị xóa phụ thuộc vào ý nghĩ
 
 
 \subsubsection{Ràng buộc giá trị phần trăm rollout}
+\label{subsubsec:rang-buoc-gia-tri-phan-tram-rollout}
 
 Đối với rule \texttt{PERCENTAGE\_ROLLOUT}, tham số \texttt{percentage} phải là một giá trị số nằm trong khoảng từ 0 đến 100:
 
@@ -1914,6 +1957,7 @@ Ngoài validation tại tầng ứng dụng, PostgreSQL có thể sử dụng \t
 Ràng buộc cơ sở dữ liệu đóng vai trò bảo vệ cuối cùng. Tầng API vẫn phải validation trước để trả về thông báo lỗi rõ ràng thay vì phụ thuộc hoàn toàn vào lỗi constraint của PostgreSQL.
 
 \subsubsection{Ràng buộc không sửa hoặc xóa audit log}
+\label{subsubsec:rang-buoc-khong-sua-hoac-xoa-audit-log}
 
 Bảng \texttt{AuditLogEntry} có tính chất append-only. Sau khi bản ghi được tạo, hệ thống không cho phép sửa hoặc xóa thông qua API quản trị.
 
@@ -1949,6 +1993,7 @@ Quy tắc này có thể biểu diễn như sau:
 Nếu không thể ghi audit log, toàn bộ transaction phải rollback để tránh tồn tại thay đổi cấu hình không có dấu vết truy vết.
 
 \subsubsection{Chiến lược archive thay cho xóa vật lý}
+\label{subsubsec:chien-luoc-archive-thay-cho-xoa-vat-ly}
 
 Đối với Feature Flag, hệ thống ưu tiên archive thay cho xóa vật lý. Khi không còn sử dụng, trạng thái \texttt{lifecycleStatus} của flag được chuyển từ \texttt{ACTIVE} sang \texttt{ARCHIVED}.
 
