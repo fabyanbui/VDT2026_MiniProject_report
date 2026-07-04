@@ -144,18 +144,9 @@ Quy trình tách deploy khỏi release có thể được mô tả qua các bư�
     \item Khi tính năng đã ổn định và được phát hành hoàn toàn, flag cùng nhánh mã cũ có thể được loại bỏ.
 \end{enumerate}
 
-Ví dụ, mã nguồn của một giao diện thanh toán mới có thể được deploy lên production trong khi người dùng vẫn nhìn thấy giao diện hiện tại:
+Ví dụ, mã nguồn của một giao diện thanh toán mới có thể được deploy lên production trong khi người dùng vẫn nhìn thấy giao diện hiện tại.
 
-\begin{lstlisting}[
-    caption={Tách deploy khỏi release bằng Feature Flag},
-    label={lst:separate-deploy-release}
-]
-if (featureFlags.isEnabled("new-checkout", userContext)) {
-    return renderNewCheckout();
-}
 
-return renderCurrentCheckout();
-\end{lstlisting}
 
 Sau khi hoàn tất kiểm thử, đội phát triển có thể bật flag cho nhân viên nội bộ, tiếp tục mở rộng cho khách hàng thử nghiệm và sau đó tăng dần tỷ lệ rollout. Cách tiếp cận này cho phép kiểm soát phạm vi ảnh hưởng của thay đổi, thu thập phản hồi sớm và giảm rủi ro khi phát hành \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
 
@@ -201,18 +192,9 @@ Feature Flag giúp rút ngắn thời gian phản ứng khi một tính năng g�
 
 Đối với các tính năng có nguy cơ ảnh hưởng lớn đến hệ thống, flag có thể được sử dụng như một kill switch. Kill switch là cơ chế ưu tiên cao cho phép vô hiệu hóa nhanh một tính năng hoặc một nhóm tính năng khi xuất hiện sự cố về hiệu năng, bảo mật, dữ liệu hoặc phụ thuộc bên ngoài. Cơ chế này đặc biệt hữu ích khi thời gian phục hồi dịch vụ là yếu tố quan trọng.
 
-Ví dụ, nếu một dịch vụ gợi ý sản phẩm mới làm tăng thời gian phản hồi của hệ thống, đội vận hành có thể tắt flag tương ứng để ứng dụng bỏ qua dịch vụ này và sử dụng hành vi dự phòng:
+Ví dụ, nếu một dịch vụ gợi ý sản phẩm mới làm tăng thời gian phản hồi của hệ thống, đội vận hành có thể tắt flag tương ứng để ứng dụng bỏ qua dịch vụ này và sử dụng hành vi dự phòng.
 
-\begin{lstlisting}[
-    caption={Sử dụng Feature Flag để phản ứng nhanh khi xảy ra sự cố},
-    label={lst:feature-flag-incident-response}
-]
-if (featureFlags.isEnabled("product-recommendation")) {
-    return getRecommendedProducts(userContext);
-}
 
-return getPopularProducts();
-\end{lstlisting}
 
 Khả năng tắt nhanh giúp giảm thời gian gián đoạn và phạm vi ảnh hưởng, nhưng chỉ hiệu quả khi nhánh xử lý dự phòng vẫn hoạt động đúng. Vì vậy, hành vi khi flag tắt cần được thiết kế và kiểm thử như một phần chính thức của hệ thống, không nên được xem là nhánh mã tạm thời.
 
@@ -383,22 +365,9 @@ Chiến lược này hữu ích khi quyền sử dụng tính năng gắn với 
 
 Ví dụ, một tính năng quản trị mới có thể được bật cho vai trò \texttt{admin}, trong khi một giao diện thử nghiệm được bật cho vai trò \texttt{beta-customer}. Khi vai trò của người dùng thay đổi trong hệ thống nguồn, kết quả đánh giá flag cũng thay đổi tương ứng mà không cần cập nhật từng định danh người dùng trong cấu hình.
 
-Một quy tắc targeting theo vai trò có thể được mô tả như sau:
+Một quy tắc targeting theo vai trò có thể được mô tả như sau.
 
-\begin{lstlisting}[
-    caption={Ví dụ ngữ cảnh đánh giá theo vai trò},
-    label={lst:role-targeting-context}
-]
-const context = {
-    targetingKey: "user-024",
-    roles: ["beta-customer"]
-};
 
-const result = await featureFlagClient.evaluate(
-    "new-product-page",
-    context
-);
-\end{lstlisting}
 
 Cần phân biệt targeting theo vai trò với cơ chế phân quyền bảo mật. Vai trò trong Feature Flag được sử dụng để quyết định cách phát hành tính năng, nhưng backend vẫn phải kiểm tra quyền truy cập đối với các tài nguyên và thao tác nhạy cảm. Việc flag trả về trạng thái bật không tự động chứng minh rằng người dùng có quyền thực hiện mọi hành động liên quan.
 
@@ -487,18 +456,9 @@ Khi một tính năng gây lỗi trên production, Feature Flag cho phép vô hi
 
 Đối với các thành phần có rủi ro vận hành cao, flag có thể đóng vai trò như một kill switch. Khi kill switch được kích hoạt, tính năng bị tắt bất kể các quy tắc targeting khác có phù hợp hay không. Cơ chế này giúp đội vận hành giảm thời gian phản ứng và giới hạn tác động của sự cố.
 
-Ví dụ, nếu một dịch vụ bên ngoài làm tăng thời gian phản hồi, ứng dụng có thể bỏ qua dịch vụ đó khi flag bị tắt và chuyển sang hành vi dự phòng:
+Ví dụ, nếu một dịch vụ bên ngoài làm tăng thời gian phản hồi, ứng dụng có thể bỏ qua dịch vụ đó khi flag bị tắt và chuyển sang hành vi dự phòng.
 
-\begin{lstlisting}[
-    caption={Khôi phục hành vi dự phòng bằng Feature Flag},
-    label={lst:feature-flag-service-recovery}
-]
-if (featureFlags.isEnabled("external-recommendation-service")) {
-    return loadExternalRecommendations(userContext);
-}
 
-return loadDefaultRecommendations();
-\end{lstlisting}
 
 Khả năng tắt flag không hoàn toàn tương đương với rollback. Rollback đưa toàn bộ ứng dụng hoặc một thành phần về phiên bản trước, trong khi tắt flag chỉ thay đổi nhánh hành vi được lựa chọn trong phiên bản hiện tại. Nếu lỗi nằm trong quá trình khởi động, migration cơ sở dữ liệu, thư viện dùng chung hoặc đoạn mã được thực thi trước khi đánh giá flag, việc tắt flag có thể không khôi phục được dịch vụ.
 

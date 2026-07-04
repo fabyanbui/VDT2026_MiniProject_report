@@ -426,16 +426,9 @@ Khi người quản trị chọn một environment mới làm mặc định, h�
     \item Không được xóa environment nếu thao tác đó làm mất dữ liệu cấu hình runtime ngoài ý muốn.
 \end{itemize}
 
-Ràng buộc duy nhất trên \texttt{projectId} và \texttt{key} có thể được biểu diễn như sau:
+Ràng buộc duy nhất trên \texttt{projectId} và \texttt{key} có thể được biểu diễn như sau.
 
-\begin{lstlisting}[
-    caption={Ràng buộc khóa environment duy nhất trong project},
-    label={lst:unique-environment-key}
-]
-ALTER TABLE environments
-ADD CONSTRAINT unique_environment_key_per_project
-UNIQUE (project_id, key);
-\end{lstlisting}
+
 
 Ngoài các ràng buộc trực tiếp trong bảng \texttt{Environment}, hệ thống cần kiểm tra tính đồng nhất giữa project của environment và project của Feature Flag khi tạo \texttt{FlagConfig}. Một cấu hình không được phép liên kết flag thuộc project này với environment thuộc project khác.
 
@@ -521,14 +514,7 @@ Khóa flag chỉ cần duy nhất trong phạm vi project. Do đó, hai project 
 
 Ràng buộc duy nhất được áp dụng trên cặp \texttt{projectId} và \texttt{key}:
 
-\begin{lstlisting}[
-    caption={Ràng buộc khóa Feature Flag duy nhất trong project},
-    label={lst:unique-feature-flag-key}
-]
-ALTER TABLE feature_flags
-ADD CONSTRAINT unique_feature_flag_key_per_project
-UNIQUE (project_id, key);
-\end{lstlisting}
+
 
 Khóa flag cần ổn định trong suốt vòng đời tích hợp vì được lưu trực tiếp trong mã nguồn hoặc cấu hình của ứng dụng khách. Việc thay đổi khóa có thể khiến request evaluation không tìm thấy flag và trả về kết quả fallback. Vì vậy, hệ thống chỉ nên cho phép sửa tên và mô tả, trong khi việc đổi khóa phải được hạn chế hoặc không được hỗ trợ sau khi flag đã được sử dụng.
 
@@ -649,14 +635,7 @@ Các thuộc tính chính của \texttt{FlagConfig} được trình bày trong B
 
 Mỗi cặp \texttt{featureFlagId} và \texttt{environmentId} chỉ được phép có một bản ghi \texttt{FlagConfig}. Ràng buộc này bảo đảm Evaluation Engine luôn xác định được duy nhất một cấu hình runtime cho một flag trong một environment.
 
-\begin{lstlisting}[
-    caption={Ràng buộc một cấu hình cho mỗi flag trong một environment},
-    label={lst:unique-flag-config}
-]
-ALTER TABLE flag_configs
-ADD CONSTRAINT unique_flag_config_per_environment
-UNIQUE (feature_flag_id, environment_id);
-\end{lstlisting}
+
 
 Khi một Feature Flag mới được tạo, hệ thống có thể tự động khởi tạo một \texttt{FlagConfig} cho từng environment hiện có. Cấu hình mặc định nên sử dụng \texttt{DISABLED}, \texttt{TARGETED} và \texttt{killSwitch = false} để tránh vô tình phát hành tính năng khi chưa có cấu hình rõ ràng.
 
@@ -906,14 +885,7 @@ Cách sắp xếp này cho phép các đối tượng cụ thể được ưu ti
 
 Để tránh hai rule có cùng vị trí đánh giá trong một cấu hình, hệ thống áp dụng ràng buộc duy nhất trên cặp \texttt{flagConfigId} và \texttt{priority}:
 
-\begin{lstlisting}[
-    caption={Ràng buộc priority duy nhất trong một cấu hình flag},
-    label={lst:unique-rule-priority}
-]
-ALTER TABLE flag_rules
-ADD CONSTRAINT unique_rule_priority_per_config
-UNIQUE (flag_config_id, priority);
-\end{lstlisting}
+
 
 Khi truy xuất dữ liệu phục vụ evaluation, các rule phải được sắp xếp tăng dần theo \texttt{priority}. Không nên phụ thuộc vào thứ tự vật lý của bản ghi trong cơ sở dữ liệu.
 
@@ -1127,16 +1099,9 @@ Các thuộc tính chính của thực thể \texttt{SampleUser} được trình
     \end{tabular}
 \end{table}
 
-Ràng buộc duy nhất trên cặp \texttt{projectId} và \texttt{targetingKey} có thể được biểu diễn như sau:
+Ràng buộc duy nhất trên cặp \texttt{projectId} và \texttt{targetingKey} có thể được biểu diễn như sau.
 
-\begin{lstlisting}[
-    caption={Ràng buộc targeting key duy nhất trong project},
-    label={lst:unique-sample-user-targeting-key}
-]
-ALTER TABLE sample_users
-ADD CONSTRAINT unique_targeting_key_per_project
-UNIQUE (project_id, targeting_key);
-\end{lstlisting}
+
 
 Targeting key phải ổn định trong suốt thời gian đối tượng tham gia rollout. Nếu giá trị này thay đổi, kết quả băm phần trăm có thể thay đổi và người dùng có thể bị chuyển sang cohort khác.
 
@@ -1153,18 +1118,9 @@ Ví dụ, ứng dụng có thể sử dụng:
 
 \texttt{organizationId} đại diện cho organization, tenant, doanh nghiệp hoặc nhóm mà người dùng thuộc về. Trường này hỗ trợ các trường hợp cần bật tính năng cho toàn bộ thành viên của một organization thay vì cấu hình riêng từng người dùng.
 
-Ví dụ một evaluation context có thể được biểu diễn như sau:
+Ví dụ một evaluation context có thể được biểu diễn như sau.
 
-\begin{lstlisting}[
-    caption={Evaluation context chứa user ID và organization ID},
-    label={lst:user-organization-context}
-]
-{
-  "targetingKey": "customer-18452",
-  "userId": "18452",
-  "organizationId": "org-viettel-001"
-}
-\end{lstlisting}
+
 
 Trong phiên bản hiện tại, \texttt{userId} và \texttt{organizationId} chủ yếu được lưu để mô phỏng context và chuẩn bị cho khả năng mở rộng rule. Các rule bắt buộc của hệ thống chưa đánh giá trực tiếp hai trường này nếu chúng không được chọn làm targeting key.
 
@@ -1184,17 +1140,7 @@ Ví dụ, ứng dụng thương mại điện tử có thể sử dụng các ro
 
 Một người dùng có thể có một hoặc nhiều role:
 
-\begin{lstlisting}[
-    caption={Danh sách role trong user context mẫu},
-    label={lst:sample-user-roles}
-]
-{
-  "roles": [
-    "BETA_CUSTOMER",
-    "REGULAR_CUSTOMER"
-  ]
-}
-\end{lstlisting}
+
 
 Khi đánh giá rule \texttt{ROLE\_TARGETING}, hệ thống kiểm tra giao giữa danh sách role trong evaluation context và danh sách role được cấu hình trong rule. Rule được xem là khớp nếu tồn tại ít nhất một role chung.
 
@@ -1223,20 +1169,8 @@ Danh sách role của dữ liệu mẫu phải thỏa mãn các điều kiện:
 
 Thuộc tính \texttt{attributes} lưu các thông tin bổ sung của người dùng dưới dạng \texttt{JSONB}. Cấu trúc linh hoạt này cho phép dữ liệu mẫu biểu diễn nhiều loại context mà không cần thay đổi schema mỗi khi bổ sung một thuộc tính mới \cite{postgresql_json_types}.
 
-Ví dụ:
 
-\begin{lstlisting}[
-    caption={Thuộc tính mở rộng của user context mẫu},
-    label={lst:sample-user-attributes-json}
-]
-{
-  "country": "VN",
-  "city": "Ho Chi Minh City",
-  "deviceType": "mobile",
-  "subscriptionPlan": "premium",
-  "accountAgeDays": 420
-}
-\end{lstlisting}
+
 
 Các thuộc tính này có thể được sử dụng cho những loại rule mở rộng trong tương lai, chẳng hạn:
 
@@ -1347,16 +1281,9 @@ Các thuộc tính chính của \texttt{FlagGroup} được trình bày trong B�
     \end{tabular}
 \end{table}
 
-Khóa group chỉ cần duy nhất trong phạm vi project. Ràng buộc này có thể được biểu diễn như sau:
+Khóa group chỉ cần duy nhất trong phạm vi project. Ràng buộc này có thể được biểu diễn như sau.
 
-\begin{lstlisting}[
-    caption={Ràng buộc khóa group duy nhất trong project},
-    label={lst:unique-flag-group-key}
-]
-ALTER TABLE flag_groups
-ADD CONSTRAINT unique_flag_group_key_per_project
-UNIQUE (project_id, key);
-\end{lstlisting}
+
 
 Group không thay thế project hoặc environment. Project vẫn là phạm vi quản lý cấp cao nhất, còn environment vẫn xác định cấu hình runtime. Flag group chỉ bổ sung một lớp tổ chức và điều khiển vận hành đối với một tập flag có liên quan.
 
@@ -1730,22 +1657,9 @@ END;
 $$ LANGUAGE plpgsql;
 \end{lstlisting}
 
-Trigger bảo vệ bảng được định nghĩa như sau:
+Trigger bảo vệ bảng được định nghĩa như sau.
 
-\begin{lstlisting}[
-    caption={Trigger bảo đảm audit log có tính chất append-only},
-    label={lst:audit-log-append-only-trigger}
-]
-CREATE TRIGGER prevent_audit_log_update
-BEFORE UPDATE ON audit_log_entries
-FOR EACH ROW
-EXECUTE FUNCTION prevent_audit_log_mutation();
 
-CREATE TRIGGER prevent_audit_log_delete
-BEFORE DELETE ON audit_log_entries
-FOR EACH ROW
-EXECUTE FUNCTION prevent_audit_log_mutation();
-\end{lstlisting}
 
 Bản ghi audit nên được tạo trong cùng transaction với thay đổi dữ liệu nghiệp vụ. Nếu thao tác cập nhật cấu hình thất bại, bản ghi audit tương ứng cũng không được lưu. Ngược lại, nếu transaction thành công, thay đổi và dấu vết audit phải cùng tồn tại.
 
@@ -1794,18 +1708,9 @@ Nếu tiếp tục cập nhật percentage rollout, phiên bản mới là:
 
 Việc tăng phiên bản phải được thực hiện trong cùng transaction với thao tác cập nhật cấu hình hoặc rule. Điều này bảo đảm không tồn tại trường hợp dữ liệu đã thay đổi nhưng version vẫn giữ nguyên.
 
-Ví dụ câu lệnh cập nhật phiên bản:
+Ví dụ câu lệnh cập nhật phiên bản.
 
-\begin{lstlisting}[
-    caption={Tăng phiên bản cấu hình sau khi thay đổi},
-    label={lst:increment-flag-config-version}
-]
-UPDATE flag_configs
-SET
-    version = version + 1,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = :flag_config_id;
-\end{lstlisting}
+
 
 Version có thể được sử dụng cho các mục đích:
 
@@ -1908,25 +1813,13 @@ Bên cạnh khóa chính, các khóa nghiệp vụ cần được giới hạn t
     \end{tabular}
 \end{table}
 
-Ví dụ, ràng buộc duy nhất cho Feature Flag được định nghĩa như sau:
+Ví dụ, ràng buộc duy nhất cho Feature Flag được định nghĩa như sau.
 
-\begin{lstlisting}[
-    caption={Ràng buộc khóa Feature Flag duy nhất trong project},
-    label={lst:feature-flag-unique-constraint}
-]
-ALTER TABLE feature_flags
-ADD CONSTRAINT unique_feature_flag_key_per_project
-UNIQUE (project_id, key);
-\end{lstlisting}
+
 
 Các khóa nghiệp vụ như project key, environment key và flag key phải tuân theo quy tắc định dạng thống nhất. Trong hệ thống, khóa chỉ chứa chữ thường, chữ số và dấu gạch ngang, có độ dài từ 3 đến 64 ký tự:
 
-\begin{lstlisting}[
-    caption={Biểu thức kiểm tra định dạng khóa nghiệp vụ},
-    label={lst:business-key-regex}
-]
-^[a-z0-9][a-z0-9-]{2,63}$
-\end{lstlisting}
+
 
 Việc giới hạn định dạng giúp các khóa có thể được sử dụng ổn định trong URL, cache key, log và request evaluation.
 
@@ -1975,14 +1868,7 @@ Chính sách xử lý khi thực thể cha bị xóa phụ thuộc vào ý nghĩ
 
 Đối với environment mặc định, hệ thống sử dụng chỉ mục duy nhất có điều kiện để bảo đảm một project chỉ có tối đa một environment với \texttt{isDefault = true}:
 
-\begin{lstlisting}[
-    caption={Ràng buộc một environment mặc định trong mỗi project},
-    label={lst:one-default-environment}
-]
-CREATE UNIQUE INDEX unique_default_environment_per_project
-ON environments (project_id)
-WHERE is_default = TRUE;
-\end{lstlisting}
+
 
 \subsubsection{Ràng buộc giá trị phần trăm rollout}
 
@@ -2013,47 +1899,17 @@ Vì tham số rule được lưu trong trường \texttt{JSONB}, validation chí
     \item object không chứa cấu trúc không được hỗ trợ.
 \end{itemize}
 
-Ví dụ payload hợp lệ:
+Ví dụ payload hợp lệ.
 
-\begin{lstlisting}[
-    caption={Tham số percentage rollout hợp lệ},
-    label={lst:valid-percentage-rollout}
-]
-{
-  "percentage": 25
-}
-\end{lstlisting}
 
-Ví dụ các giá trị không hợp lệ gồm:
 
-\begin{lstlisting}[
-    caption={Các tham số percentage rollout không hợp lệ},
-    label={lst:invalid-percentage-rollout}
-]
-{ "percentage": -10 }
-{ "percentage": 120 }
-{ "percentage": "25" }
-{ "percentage": null }
-\end{lstlisting}
+Ví dụ các giá trị không hợp lệ gồm.
+
+
 
 Ngoài validation tại tầng ứng dụng, PostgreSQL có thể sử dụng \texttt{CHECK} constraint dựa trên nội dung JSONB để tăng mức bảo vệ dữ liệu:
 
-\begin{lstlisting}[
-    caption={Ràng buộc giá trị percentage trong tham số JSONB},
-    label={lst:percentage-jsonb-check}
-]
-ALTER TABLE flag_rules
-ADD CONSTRAINT valid_percentage_rollout
-CHECK (
-    type <> 'PERCENTAGE_ROLLOUT'
-    OR (
-        parameters ? 'percentage'
-        AND jsonb_typeof(parameters->'percentage') = 'number'
-        AND (parameters->>'percentage')::numeric >= 0
-        AND (parameters->>'percentage')::numeric <= 100
-    )
-);
-\end{lstlisting}
+
 
 Ràng buộc cơ sở dữ liệu đóng vai trò bảo vệ cuối cùng. Tầng API vẫn phải validation trước để trả về thông báo lỗi rõ ràng thay vì phụ thuộc hoàn toàn vào lỗi constraint của PostgreSQL.
 
@@ -2070,37 +1926,13 @@ Các biện pháp bảo vệ gồm:
     \item trigger PostgreSQL từ chối mọi thao tác \texttt{UPDATE} và \texttt{DELETE}.
 \end{itemize}
 
-Hàm trigger được định nghĩa như sau:
+Hàm trigger được định nghĩa như sau.
 
-\begin{lstlisting}[
-    caption={Hàm ngăn thay đổi bản ghi audit log},
-    label={lst:prevent-audit-log-mutation}
-]
-CREATE OR REPLACE FUNCTION prevent_audit_log_mutation()
-RETURNS trigger AS $$
-BEGIN
-    RAISE EXCEPTION
-        'Audit log entries are append-only';
-END;
-$$ LANGUAGE plpgsql;
-\end{lstlisting}
+
 
 Trigger được áp dụng cho cả thao tác cập nhật và xóa:
 
-\begin{lstlisting}[
-    caption={Trigger bảo vệ bảng audit log},
-    label={lst:audit-log-protection-triggers}
-]
-CREATE TRIGGER prevent_audit_log_update
-BEFORE UPDATE ON audit_log_entries
-FOR EACH ROW
-EXECUTE FUNCTION prevent_audit_log_mutation();
 
-CREATE TRIGGER prevent_audit_log_delete
-BEFORE DELETE ON audit_log_entries
-FOR EACH ROW
-EXECUTE FUNCTION prevent_audit_log_mutation();
-\end{lstlisting}
 
 Audit log phải được ghi trong cùng transaction với thay đổi dữ liệu nghiệp vụ. Transaction chỉ được commit khi cả thao tác cập nhật và thao tác tạo audit log đều thành công.
 
