@@ -1,10 +1,8 @@
 \section{Tổng quan về Feature Flag}
 
 \subsection{Khái niệm Feature Flag}
-\label{subsec:khai-niem-feature-flag}
 
 \subsubsection{Định nghĩa Feature Flag}
-\label{subsubsec:dinh-nghia-feature-flag}
 
 Feature Flag, còn được gọi là Feature Toggle hoặc Feature Switch, là một kỹ thuật phát triển phần mềm cho phép hệ thống quyết định tại thời điểm chạy liệu một tính năng hoặc một nhánh xử lý có được kích hoạt hay không. Quyết định này được thực hiện dựa trên cấu hình bên ngoài mã nguồn và ngữ cảnh của đối tượng đang sử dụng hệ thống, thay vì được cố định trong quá trình biên dịch hoặc triển khai ứng dụng \cite{fowler_feature_toggles,unleash_feature_flags}.
 
@@ -13,7 +11,6 @@ Có thể xem Feature Flag như một công tắc logic nằm giữa mã nguồn
 Đặc điểm cốt lõi của Feature Flag là tách biệt hai hoạt động thường bị xem là đồng nhất: \textit{deploy} và \textit{release}. Deploy là quá trình đưa mã nguồn lên môi trường chạy, trong khi release là quá trình cho phép một nhóm người dùng thực sự truy cập và sử dụng tính năng. Sự tách biệt này giúp đội phát triển triển khai mã thường xuyên hơn nhưng vẫn kiểm soát được thời điểm, phạm vi và điều kiện phát hành tính năng \cite{microsoft_devops}.
 
 \subsubsection{Các thành phần cơ bản của Feature Flag}
-\label{subsubsec:cac-thanh-phan-feature-flag}
 
 Một Feature Flag thường bao gồm các thành phần cơ bản sau:
 
@@ -34,7 +31,6 @@ Một Feature Flag thường bao gồm các thành phần cơ bản sau:
 Trong một nền tảng quản lý Feature Flag, các thành phần trên thường được tổ chức theo project và environment. Cùng một flag có thể tồn tại trên nhiều môi trường như development, staging và production, nhưng có cấu hình và quy tắc khác nhau. Cách tổ chức này cho phép đội phát triển kiểm thử tính năng ở môi trường nội bộ trước khi mở rộng phạm vi phát hành trên môi trường production \cite{launchdarkly_feature_flags}.
 
 \subsubsection{Cơ chế quyết định hành vi tại thời điểm chạy}
-\label{subsubsec:co-che-quyet-dinh-runtime}
 
 Feature Flag điều khiển hành vi của phần mềm thông qua quá trình đánh giá tại thời điểm chạy. Khi ứng dụng cần thực hiện một chức năng được kiểm soát bởi flag, ứng dụng gửi khóa của flag cùng với ngữ cảnh người dùng đến bộ máy đánh giá. Bộ máy này tải cấu hình hiện tại của flag, kiểm tra trạng thái tổng quát và lần lượt đối chiếu ngữ cảnh với các quy tắc đã được thiết lập.
 
@@ -73,10 +69,8 @@ return showCurrentCheckout();
 Như vậy, Feature Flag không thay đổi mã nguồn tại thời điểm chạy mà thay đổi nhánh xử lý được lựa chọn trong mã nguồn đã triển khai. Hiệu quả của kỹ thuật này phụ thuộc vào việc thiết kế quy tắc rõ ràng, xác định thứ tự ưu tiên nhất quán và cung cấp giá trị mặc định an toàn khi quá trình đánh giá xảy ra lỗi.
 
 \subsection{Deploy và Release}
-\label{subsec:deploy-va-release}
 
 \subsubsection{Khái niệm Deploy}
-\label{subsubsec:khai-niem-deploy}
 
 Deploy là quá trình đưa một phiên bản phần mềm từ môi trường phát triển hoặc kiểm thử lên một môi trường chạy cụ thể, chẳng hạn như staging hoặc production. Quá trình này có thể bao gồm biên dịch mã nguồn, đóng gói ứng dụng, cập nhật cơ sở dữ liệu, cấu hình hạ tầng, khởi động dịch vụ và kiểm tra trạng thái hoạt động sau triển khai.
 
@@ -85,7 +79,6 @@ Mục tiêu của deploy là làm cho mã nguồn mới có mặt và có khả 
 Trong quy trình phát triển hiện đại, deploy thường được tự động hóa thông qua các pipeline tích hợp và phân phối liên tục. Việc triển khai thường xuyên với các thay đổi nhỏ giúp giảm độ phức tạp của mỗi lần cập nhật, rút ngắn vòng phản hồi và hạn chế rủi ro so với việc tích lũy nhiều thay đổi trong một lần triển khai lớn \cite{microsoft_devops}.
 
 \subsubsection{Khái niệm Release}
-\label{subsubsec:khai-niem-release}
 
 Release là quá trình đưa một tính năng hoặc một thay đổi trong phần mềm đến người sử dụng thực tế. Hoạt động này xác định thời điểm, phạm vi và đối tượng được phép truy cập chức năng, thay vì chỉ xác định mã nguồn đang được cài đặt ở môi trường nào.
 
@@ -94,7 +87,6 @@ Một release có thể được thực hiện cho toàn bộ người dùng ho�
 Release cũng không nhất thiết yêu cầu một lần deploy mới. Khi mã nguồn của tính năng đã tồn tại trên production và được kiểm soát bằng Feature Flag, đội phát triển có thể release tính năng bằng cách thay đổi cấu hình của flag. Tương tự, tính năng có thể được tạm dừng hoặc thu hẹp phạm vi cung cấp mà không cần loại bỏ mã nguồn khỏi môi trường chạy.
 
 \subsubsection{Sự khác biệt giữa Deploy và Release}
-\label{subsubsec:khac-biet-deploy-release}
 
 Deploy và release thường diễn ra gần nhau trong các quy trình phát triển truyền thống nên dễ bị xem là cùng một hoạt động. Tuy nhiên, hai khái niệm này giải quyết hai vấn đề khác nhau. Deploy trả lời câu hỏi mã nguồn đã được đưa lên môi trường chạy hay chưa, trong khi release trả lời câu hỏi người dùng đã được phép sử dụng tính năng hay chưa.
 
@@ -138,7 +130,6 @@ Sự khác biệt giữa deploy và release được thể hiện trong Bảng~\
 Nếu deploy và release bị ràng buộc chặt với nhau, mọi lần đưa mã mới lên production đều đồng thời làm thay đổi hành vi của toàn bộ hệ thống. Điều này làm tăng phạm vi ảnh hưởng khi xảy ra lỗi và khiến đội phát triển phải phụ thuộc vào các khung thời gian phát hành cố định. Ngược lại, khi hai hoạt động được tách biệt, việc triển khai kỹ thuật có thể diễn ra thường xuyên, còn quyết định phát hành được thực hiện độc lập dựa trên mức độ sẵn sàng và rủi ro nghiệp vụ.
 
 \subsubsection{Tách Deploy khỏi Release bằng Feature Flag}
-\label{subsubsec:tach-deploy-release-feature-flag}
 
 Feature Flag cung cấp một lớp điều khiển nằm giữa mã nguồn đã được deploy và hành vi được cung cấp cho người dùng. Mã của tính năng mới được triển khai cùng ứng dụng nhưng được đặt phía sau một flag. Khi flag ở trạng thái tắt, ứng dụng tiếp tục thực hiện hành vi hiện tại. Khi flag được bật, ứng dụng chuyển sang nhánh xử lý mới mà không cần deploy lại \cite{fowler_feature_toggles}.
 
@@ -173,10 +164,8 @@ Việc tách deploy khỏi release cũng hỗ trợ mô hình phát triển liê
 Tuy nhiên, Feature Flag không loại bỏ hoàn toàn nhu cầu rollback. Nếu lỗi nằm trong phần mã dùng chung, quá trình khởi động ứng dụng, thay đổi cơ sở dữ liệu hoặc hạ tầng, việc tắt flag có thể không đủ để khôi phục hệ thống. Do đó, Feature Flag nên được xem là cơ chế kiểm soát release và giảm phạm vi ảnh hưởng, không phải là phương án thay thế cho toàn bộ chiến lược rollback và khôi phục sự cố.
 
 \subsection{Vai trò của Feature Flag trong vòng đời phần mềm}
-\label{subsec:vai-tro-feature-flag-trong-vong-doi-phan-mem}
 
 \subsubsection{Hỗ trợ phát triển và tích hợp liên tục}
-\label{subsubsec:ho-tro-phat-trien-va-tich-hop-lien-tuc}
 
 Feature Flag hỗ trợ quá trình phát triển và tích hợp liên tục bằng cách cho phép mã nguồn của tính năng chưa hoàn thiện được tích hợp sớm vào nhánh mã chính nhưng chưa được cung cấp cho người dùng. Thay vì duy trì các nhánh tính năng trong thời gian dài, đội phát triển có thể bảo vệ phần mã mới bằng một flag và giữ flag ở trạng thái tắt cho đến khi tính năng đạt mức độ sẵn sàng cần thiết.
 
@@ -187,7 +176,6 @@ Feature Flag cũng hỗ trợ kiểm thử theo từng giai đoạn trong pipeli
 Tuy nhiên, việc sử dụng Feature Flag trong phát triển liên tục đòi hỏi các nhánh xử lý cũ và mới đều phải được kiểm thử. Flag cần có mục đích, người chịu trách nhiệm và thời điểm loại bỏ rõ ràng để tránh tích lũy mã không còn cần thiết trong hệ thống \cite{unleash_feature_flag_best_practices,mahdavi_hezaveh_feature_toggles}.
 
 \subsubsection{Giảm rủi ro khi phát hành}
-\label{subsubsec:giam-rui-ro-khi-phat-hanh}
 
 Trong mô hình phát hành truyền thống, một tính năng mới thường được cung cấp đồng thời cho toàn bộ người dùng ngay sau khi deploy. Nếu tính năng chứa lỗi, phạm vi ảnh hưởng có thể lớn và đội vận hành phải rollback phiên bản hoặc thực hiện một lần triển khai khẩn cấp. Feature Flag giảm rủi ro này bằng cách cho phép kiểm soát phạm vi release độc lập với quá trình deploy.
 
@@ -198,7 +186,6 @@ Rollout theo phần trăm là một chiến lược phổ biến để thực hi
 Feature Flag không loại bỏ lỗi khỏi phần mềm, nhưng giúp giảm xác suất và mức độ ảnh hưởng của lỗi trong quá trình phát hành. Nhờ khả năng kiểm soát đối tượng và phạm vi tiếp cận, đội phát triển có thể đưa ra quyết định mở rộng hoặc thu hẹp release dựa trên dữ liệu quan sát được thay vì phát hành toàn bộ trong một lần.
 
 \subsubsection{Hỗ trợ thử nghiệm trên môi trường thực tế}
-\label{subsubsec:ho-tro-thu-nghiem-tren-moi-truong-thuc-te}
 
 Một số vấn đề chỉ xuất hiện trong điều kiện vận hành thực tế, nơi hệ thống phải xử lý dữ liệu, lưu lượng truy cập, cấu hình hạ tầng và hành vi người dùng đa dạng hơn môi trường kiểm thử. Feature Flag cho phép đội phát triển kiểm tra tính năng trên production nhưng giới hạn quyền truy cập cho một nhóm đối tượng được lựa chọn.
 
@@ -209,7 +196,6 @@ Feature Flag cũng là cơ sở để thực hiện các thử nghiệm so sánh
 Việc thử nghiệm trên production cần được kiểm soát cẩn thận. Đội phát triển phải xác định rõ đối tượng tham gia, tiêu chí thành công, thời gian thử nghiệm và phương án dừng. Các dữ liệu nhạy cảm không nên được đưa trực tiếp vào cấu hình flag, đồng thời các thay đổi cấu hình cần được ghi nhận để có thể truy vết khi kết quả thử nghiệm bất thường \cite{unleash_feature_flag_best_practices}.
 
 \subsubsection{Tăng khả năng phản ứng khi xảy ra sự cố}
-\label{subsubsec:tang-kha-nang-phan-ung-khi-xay-ra-su-co}
 
 Feature Flag giúp rút ngắn thời gian phản ứng khi một tính năng gây lỗi trên môi trường production. Thay vì phải sửa mã nguồn, xây dựng lại ứng dụng và thực hiện một lần deploy mới, đội vận hành có thể tắt flag để ngừng cung cấp tính năng và đưa người dùng trở lại hành vi ổn định trước đó.
 
@@ -235,12 +221,10 @@ Mọi thao tác bật, tắt hoặc thay đổi quy tắc trong tình huống s�
 Feature Flag chủ yếu xử lý sự cố liên quan đến hành vi được đặt phía sau flag. Nếu lỗi nằm trong phần mã khởi động, cơ sở dữ liệu, hạ tầng hoặc thành phần dùng chung, việc tắt flag có thể không đủ để phục hồi hệ thống. Do đó, Feature Flag cần được kết hợp với giám sát, cảnh báo, rollback phiên bản và các cơ chế phục hồi khác trong chiến lược vận hành tổng thể.
 
 \subsection{Các loại Feature Flag phổ biến}
-\label{subsec:cac-loai-feature-flag-pho-bien}
 
 Feature Flag có thể được phân loại theo mục đích sử dụng, thời gian tồn tại và đối tượng chịu trách nhiệm quản lý. Một cách phân loại phổ biến gồm release flag, experiment flag, ops flag và permission flag \cite{fowler_feature_toggles}. Việc xác định đúng loại flag giúp đội phát triển thiết kế quy tắc đánh giá, cơ chế giám sát và kế hoạch loại bỏ phù hợp.
 
 \subsubsection{Release Flag}
-\label{subsubsec:release-flag}
 
 Release flag được sử dụng để kiểm soát việc phát hành một tính năng mới sau khi mã nguồn của tính năng đã được deploy. Loại flag này cho phép đội phát triển tích hợp mã chưa hoàn thiện hoặc chưa sẵn sàng phát hành rộng rãi vào nhánh mã chính mà không làm thay đổi trải nghiệm của người dùng hiện tại.
 
@@ -251,7 +235,6 @@ Ví dụ, một giao diện thanh toán mới có thể được triển khai l�
 Release flag thường là loại flag có thời gian tồn tại ngắn hoặc trung hạn. Sau khi tính năng đã được phát hành hoàn toàn và ổn định, flag cùng các nhánh mã không còn cần thiết nên được loại bỏ để giảm độ phức tạp của hệ thống \cite{unleash_feature_flag_best_practices}.
 
 \subsubsection{Experiment Flag}
-\label{subsubsec:experiment-flag}
 
 Experiment flag được sử dụng để phân phối các biến thể khác nhau của một tính năng cho những nhóm người dùng khác nhau nhằm đo lường và so sánh kết quả. Loại flag này thường được áp dụng trong thử nghiệm A/B, kiểm chứng giả thuyết sản phẩm hoặc đánh giá tác động của một thay đổi đối với hành vi người dùng.
 
@@ -264,7 +247,6 @@ Kết quả của experiment flag cần được kết hợp với dữ liệu �
 Experiment flag thường có thời gian tồn tại giới hạn theo thời gian thử nghiệm. Sau khi thu thập đủ dữ liệu và xác định được biến thể phù hợp, thử nghiệm cần được kết thúc, biến thể được lựa chọn trở thành hành vi chính và các nhánh mã còn lại nên được loại bỏ.
 
 \subsubsection{Ops và Kill-Switch Flag}
-\label{subsubsec:ops-va-kill-switch-flag}
 
 Ops flag được sử dụng để kiểm soát hành vi vận hành của hệ thống, đặc biệt đối với các chức năng có ảnh hưởng đến hiệu năng, độ ổn định hoặc các dịch vụ phụ thuộc. Loại flag này cho phép đội vận hành thay đổi cách hệ thống hoạt động mà không cần sửa mã nguồn và deploy lại ứng dụng.
 
@@ -287,7 +269,6 @@ Một kill switch hiệu quả cần có các đặc điểm sau:
 Ops flag và kill-switch flag có thể tồn tại lâu hơn release flag nếu chúng đóng vai trò như một cơ chế kiểm soát vận hành lâu dài. Tuy nhiên, các flag không còn gắn với rủi ro thực tế hoặc không còn được sử dụng vẫn cần được rà soát và loại bỏ.
 
 \subsubsection{Permission Flag}
-\label{subsubsec:permission-flag}
 
 Permission flag được sử dụng để xác định người dùng hoặc nhóm người dùng nào có quyền truy cập một tính năng. Quyết định đánh giá thường dựa trên vai trò, gói dịch vụ, loại tài khoản, tổ chức hoặc các thuộc tính nghiệp vụ khác.
 
@@ -298,7 +279,6 @@ Permission flag có điểm tương đồng với cơ chế phân quyền, nhưn
 Permission flag thường có thời gian tồn tại dài vì nó có thể phản ánh chính sách sản phẩm hoặc mô hình kinh doanh ổn định. Do đó, loại flag này cần được đặt tên rõ ràng, quản lý quyền thay đổi chặt chẽ và kiểm thử như một phần của logic nghiệp vụ.
 
 \subsubsection{Vòng đời và thời gian tồn tại của từng loại Flag}
-\label{subsubsec:vong-doi-va-thoi-gian-ton-tai-flag}
 
 Mỗi loại Feature Flag có mục đích và thời gian tồn tại khác nhau. Việc áp dụng cùng một quy trình quản lý cho mọi loại flag có thể dẫn đến tình trạng các flag tạm thời tồn tại quá lâu hoặc các flag dài hạn bị loại bỏ không phù hợp.
 
@@ -356,12 +336,10 @@ Ngược lại, ops flag và permission flag có thể được duy trì lâu d�
 Để quản lý vòng đời hiệu quả, mỗi flag nên có metadata mô tả loại flag, người chịu trách nhiệm, ngày tạo, thời điểm dự kiến rà soát và trạng thái vòng đời. Hệ thống cũng nên hỗ trợ lưu trữ flag thay vì xóa trực tiếp, ghi nhận lịch sử thay đổi và cảnh báo các flag đã tồn tại vượt quá thời gian dự kiến \cite{unleash_feature_flag_best_practices}.
 
 \subsection{Các chiến lược phát hành tính năng}
-\label{subsec:cac-chien-luoc-phat-hanh-tinh-nang}
 
 Feature Flag cho phép đội phát triển kiểm soát phạm vi phát hành tính năng theo nhiều chiến lược khác nhau. Thay vì chỉ bật hoặc tắt tính năng cho toàn bộ hệ thống, flag có thể được đánh giá dựa trên danh tính, vai trò hoặc nhóm phân phối của người dùng. Việc lựa chọn chiến lược phù hợp phụ thuộc vào mục tiêu phát hành, mức độ rủi ro và loại thông tin có trong ngữ cảnh đánh giá.
 
 \subsubsection{Bật hoặc tắt toàn cục}
-\label{subsubsec:bat-tat-toan-cuc}
 
 Bật hoặc tắt toàn cục là chiến lược đơn giản nhất, trong đó một tính năng được cung cấp cho toàn bộ người dùng hoặc bị vô hiệu hóa hoàn toàn. Kết quả đánh giá không phụ thuộc vào danh tính, vai trò hay thuộc tính của người dùng.
 
@@ -379,7 +357,6 @@ Bật hoặc tắt toàn cục thường được sử dụng trong các trườ
 Do không cần xử lý nhiều điều kiện, chiến lược này có chi phí đánh giá thấp và hành vi dễ dự đoán. Tuy nhiên, nó không giới hạn được phạm vi ảnh hưởng khi tính năng được bật, vì toàn bộ người dùng sẽ nhận cùng một kết quả.
 
 \subsubsection{Targeting theo người dùng}
-\label{subsubsec:targeting-theo-nguoi-dung}
 
 Targeting theo người dùng cho phép bật tính năng cho một tập hợp đối tượng cụ thể dựa trên khóa định danh của họ. Khóa này có thể là mã người dùng, mã khách hàng hoặc một \texttt{targetingKey} ổn định do ứng dụng tích hợp cung cấp trong ngữ cảnh đánh giá \cite{openfeature_evaluation_context}.
 
@@ -399,7 +376,6 @@ Ví dụ, một flag có thể được cấu hình bật cho các khóa \texttt
 Khóa dùng để targeting cần ổn định và duy nhất trong phạm vi phù hợp. Không nên phụ thuộc vào các giá trị có thể thay đổi thường xuyên, chẳng hạn như tên hiển thị hoặc địa chỉ email chưa được chuẩn hóa. Đồng thời, dữ liệu định danh nhạy cảm không nên được đưa trực tiếp vào cấu hình nếu không thực sự cần thiết \cite{unleash_feature_flag_best_practices}.
 
 \subsubsection{Targeting theo vai trò}
-\label{subsubsec:targeting-theo-vai-tro}
 
 Targeting theo vai trò quyết định trạng thái tính năng dựa trên vai trò nghiệp vụ của người dùng, chẳng hạn như \texttt{admin}, \texttt{beta-customer} hoặc \texttt{regular-customer}. Ứng dụng tích hợp cung cấp danh sách vai trò trong ngữ cảnh đánh giá, sau đó hệ thống kiểm tra xem ít nhất một vai trò có phù hợp với quy tắc đã cấu hình hay không.
 
@@ -427,7 +403,6 @@ const result = await featureFlagClient.evaluate(
 Cần phân biệt targeting theo vai trò với cơ chế phân quyền bảo mật. Vai trò trong Feature Flag được sử dụng để quyết định cách phát hành tính năng, nhưng backend vẫn phải kiểm tra quyền truy cập đối với các tài nguyên và thao tác nhạy cảm. Việc flag trả về trạng thái bật không tự động chứng minh rằng người dùng có quyền thực hiện mọi hành động liên quan.
 
 \subsubsection{Rollout theo phần trăm người dùng}
-\label{subsubsec:rollout-theo-phan-tram-nguoi-dung}
 
 Rollout theo phần trăm cho phép phát hành tính năng cho một tỷ lệ xác định trong tổng số người dùng đủ điều kiện. Chiến lược này giúp đội phát triển mở rộng phạm vi phát hành từng bước thay vì bật tính năng đồng thời cho toàn bộ hệ thống.
 
@@ -452,7 +427,6 @@ Ví dụ, với rollout \(20\%\), các bucket từ \(0\) đến \(1999\) nhận 
 Rollout theo phần trăm giúp giới hạn phạm vi ảnh hưởng nhưng không bảo đảm rằng tỷ lệ quan sát được trong một tập người dùng nhỏ luôn chính xác tuyệt đối. Tỷ lệ cấu hình thể hiện tỷ lệ bucket mục tiêu; khi số lượng người dùng đủ lớn, tỷ lệ thực tế thường tiến gần đến giá trị này.
 
 \subsubsection{Kết hợp nhiều chiến lược Targeting}
-\label{subsubsec:ket-hop-nhieu-chien-luoc-targeting}
 
 Trong thực tế, một flag thường cần kết hợp nhiều chiến lược để đáp ứng quy trình phát hành theo từng giai đoạn. Ví dụ, tính năng có thể được bật cho một số tài khoản kiểm thử cụ thể, tiếp tục bật cho toàn bộ khách hàng beta và sau đó rollout cho \(20\%\) người dùng còn lại.
 
@@ -484,12 +458,10 @@ Các quy tắc cùng loại cũng cần có mức độ ưu tiên xác định. 
 Khi kết hợp nhiều chiến lược, hệ thống nên trả về không chỉ trạng thái bật hoặc tắt mà còn cả lý do đánh giá, chẳng hạn như \texttt{USER\_MATCH}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_MATCH} hoặc \texttt{DEFAULT\_OFF}. Thông tin này giúp giải thích quyết định, hỗ trợ kiểm thử và rút ngắn thời gian phân tích khi hành vi thực tế không đúng như mong đợi \cite{openfeature_flag_evaluation}.
 
 \subsection{Lợi ích và rủi ro của Feature Flag}
-\label{subsec:loi-ich-va-rui-ro-feature-flag}
 
 Feature Flag mang lại khả năng kiểm soát linh hoạt đối với quá trình phát hành và vận hành phần mềm. Tuy nhiên, việc bổ sung các điểm rẽ nhánh động vào hệ thống cũng làm tăng độ phức tạp của mã nguồn, cấu hình và quy trình quản trị. Vì vậy, Feature Flag chỉ phát huy hiệu quả khi được sử dụng có mục đích, có cơ chế giám sát và có kế hoạch quản lý vòng đời rõ ràng \cite{unleash_feature_flag_best_practices,mahdavi_hezaveh_feature_toggles}.
 
 \subsubsection{Tăng tốc độ phát hành}
-\label{subsubsec:tang-toc-do-phat-hanh}
 
 Feature Flag giúp tăng tốc độ phát hành bằng cách tách quá trình deploy mã nguồn khỏi quyết định release tính năng. Đội phát triển có thể tích hợp và triển khai mã của tính năng mới lên môi trường production trong khi vẫn giữ tính năng ở trạng thái tắt đối với người dùng cuối. Khi tính năng đã sẵn sàng, việc phát hành được thực hiện bằng cách thay đổi cấu hình flag thay vì xây dựng và triển khai một phiên bản mới \cite{fowler_feature_toggles,microsoft_devops}.
 
@@ -500,7 +472,6 @@ Feature Flag cũng giảm sự phụ thuộc giữa đội phát triển và đ�
 Tuy nhiên, tốc độ phát hành chỉ được cải thiện khi quy trình cấu hình flag đủ rõ ràng và đáng tin cậy. Nếu việc bật flag yêu cầu nhiều thao tác thủ công, thiếu kiểm thử hoặc không có cơ chế phê duyệt phù hợp, Feature Flag có thể chuyển rủi ro từ deploy sang quá trình quản lý cấu hình.
 
 \subsubsection{Kiểm soát phạm vi ảnh hưởng}
-\label{subsubsec:kiem-soat-pham-vi-anh-huong}
 
 Feature Flag cho phép giới hạn phạm vi người dùng chịu ảnh hưởng của một thay đổi. Thay vì phát hành đồng thời cho toàn bộ hệ thống, tính năng có thể được bật trước cho tài khoản nội bộ, người dùng beta, một vai trò cụ thể hoặc một tỷ lệ nhỏ người dùng.
 
@@ -511,7 +482,6 @@ Các chiến lược targeting còn cho phép tổ chức kiểm soát phạm vi
 Việc giới hạn phạm vi ảnh hưởng không đồng nghĩa với việc loại bỏ hoàn toàn rủi ro. Các thay đổi trong mã dùng chung, cơ sở dữ liệu hoặc hạ tầng vẫn có thể ảnh hưởng đến toàn bộ hệ thống, ngay cả khi tính năng được đặt phía sau flag. Do đó, phạm vi bảo vệ của từng flag cần được xác định rõ trong quá trình thiết kế.
 
 \subsubsection{Rollback và khôi phục dịch vụ}
-\label{subsubsec:rollback-va-khoi-phuc-dich-vu}
 
 Khi một tính năng gây lỗi trên production, Feature Flag cho phép vô hiệu hóa nhanh hành vi mới và đưa người dùng trở lại nhánh xử lý ổn định trước đó. Thao tác này thường chỉ yêu cầu thay đổi cấu hình và có thể được thực hiện nhanh hơn so với rollback phiên bản hoặc triển khai một bản sửa lỗi khẩn cấp.
 
@@ -535,7 +505,6 @@ Khả năng tắt flag không hoàn toàn tương đương với rollback. Rollb
 Vì vậy, Feature Flag nên được kết hợp với cơ chế rollback phiên bản, giám sát, cảnh báo và kế hoạch khôi phục sự cố. Nhánh xử lý khi flag tắt cũng cần được kiểm thử thường xuyên để bảo đảm vẫn hoạt động khi cần sử dụng.
 
 \subsubsection{Độ phức tạp của các nhánh xử lý}
-\label{subsubsec:do-phuc-tap-cua-cac-nhanh-xu-ly}
 
 Mỗi Feature Flag bổ sung ít nhất một điểm rẽ nhánh vào mã nguồn. Khi nhiều flag cùng tác động đến một luồng xử lý, số lượng tổ hợp trạng thái có thể tăng nhanh. Với \(n\) flag nhị phân độc lập, về lý thuyết có thể tồn tại tối đa:
 $
@@ -550,7 +519,6 @@ Không phải mọi tổ hợp đều xuất hiện trong thực tế, nhưng đ
 Để hạn chế độ phức tạp, điểm kiểm tra flag nên được đặt tại các ranh giới chức năng rõ ràng. Đội phát triển nên tránh kiểm tra cùng một flag tại quá nhiều vị trí hoặc lồng nhiều flag trong cùng một khối điều kiện. Bộ máy đánh giá cũng cần trả về lý do quyết định để hỗ trợ kiểm thử và phân tích lỗi.
 
 \subsubsection{Feature Flag Debt}
-\label{subsubsec:feature-flag-debt}
 
 Feature flag debt là khoản nợ kỹ thuật hình thành khi các flag tạm thời không được loại bỏ sau khi đã hoàn thành mục đích. Flag có thể đã được bật cho toàn bộ người dùng nhưng nhánh xử lý cũ vẫn tồn tại, hoặc thử nghiệm đã kết thúc nhưng các biến thể không còn sử dụng vẫn được giữ lại trong mã nguồn và cấu hình \cite{mahdavi_hezaveh_feature_toggles}.
 
@@ -569,7 +537,6 @@ Feature flag debt có thể dẫn đến các vấn đề sau:
 Để kiểm soát feature flag debt, mỗi flag nên có loại, người chịu trách nhiệm, ngày tạo và thời điểm dự kiến rà soát. Release flag và experiment flag cần có tiêu chí kết thúc rõ ràng. Khi tính năng đã ổn định, đội phát triển nên loại bỏ nhánh cũ, điểm kiểm tra trong mã nguồn và cấu hình flag không còn sử dụng \cite{unleash_feature_flag_best_practices}.
 
 \subsubsection{Rủi ro từ cấu hình sai}
-\label{subsubsec:rui-ro-tu-cau-hinh-sai}
 
 Feature Flag chuyển một phần hành vi của hệ thống từ mã nguồn sang cấu hình có thể thay đổi tại thời điểm chạy. Điều này tạo ra sự linh hoạt nhưng cũng làm tăng rủi ro từ thao tác cấu hình sai.
 
@@ -592,7 +559,6 @@ Rủi ro cũng có thể xuất hiện do khác biệt cấu hình giữa các e
 Hệ thống cũng cần xác định giá trị mặc định an toàn khi không thể tải cấu hình hoặc khi quá trình đánh giá xảy ra lỗi. Việc lựa chọn mặc định bật hay tắt phụ thuộc vào bản chất của tính năng, nhưng quyết định này phải được xác định có chủ đích thay vì phụ thuộc vào hành vi ngẫu nhiên.
 
 \subsubsection{Rủi ro bảo mật và quyền truy cập}
-\label{subsubsec:rui-ro-bao-mat-va-quyen-truy-cap}
 
 Nền tảng Feature Flag có khả năng thay đổi hành vi của ứng dụng production nên các API và dashboard quản trị trở thành mục tiêu nhạy cảm. Nếu quyền truy cập không được kiểm soát, một người dùng không hợp lệ có thể bật tính năng chưa hoàn thiện, tắt chức năng quan trọng hoặc thay đổi phạm vi phát hành.
 
