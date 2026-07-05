@@ -1,10 +1,10 @@
 \section{Kiến trúc tổng thể của hệ thống}
 
-Phần này trình bày kiến trúc ở mức hệ thống. Các chi tiết về mô hình dữ liệu, Rule Evaluation Engine, API, cache và bảo mật được tách sang các mục chuyên sâu phía sau để tránh lặp lại nội dung.
+Phần này trình bày kiến trúc ở mức hệ thống dựa trên sơ đồ tổng thể và source code hiện tại của repository. Các chi tiết về mô hình dữ liệu, Rule Evaluation Engine, API, cache, kiểm thử và bảo mật được trình bày ở các mục chuyên sâu phía sau.
 
 \subsection{Các thành phần chính}
 
-Hệ thống được tổ chức thành sáu thành phần: Admin Dashboard, Backend API, Rule Evaluation Engine, PostgreSQL/Cache, JavaScript SDK và Demo Application. Dashboard phục vụ quản trị cấu hình; Backend API là ranh giới truy cập duy nhất; Rule Evaluation Engine quyết định trạng thái flag tại runtime; database lưu cấu hình và audit log; cache tăng tốc truy xuất snapshot; SDK và Demo Application minh họa cách ứng dụng khách tích hợp Feature Flag.
+Hình~\ref{fig:system-overall-architecture} mô tả hệ thống theo ba lớp chính: client/frontend, backend API và persistence/cache. Backend NestJS là ranh giới truy cập duy nhất cho cả luồng quản trị và luồng evaluation; Rule Evaluation Engine được tách khỏi controller để giữ logic quyết định xác định, dễ kiểm thử và không phụ thuộc giao diện.
 
 \begin{figure}[H]
     \centering
@@ -13,34 +13,29 @@ Hệ thống được tổ chức thành sáu thành phần: Admin Dashboard, Ba
     \label{fig:system-overall-architecture}
 \end{figure}
 
+\subsubsection{Frontend / Client layer}
 
-\subsubsection{Admin Dashboard}
+Lớp client gồm \texttt{apps/admin}, \texttt{apps/demo} và \texttt{packages/js-sdk}. Admin Dashboard là React/Vite SPA cho project, flag, rule, group, audit log, history, RBAC demo và statistics. Demo Application mô phỏng ứng dụng thương mại điện tử nhỏ và dùng kết quả evaluation để bật hoặc ẩn tính năng. \texttt{@ffp/js-sdk} chuẩn hóa cách gọi Evaluation API, validate response, xử lý timeout/lỗi mạng và trả fallback fail-closed cho ứng dụng web.
 
-Dashboard cung cấp giao diện quản trị cho project, Feature Flag, rule, flag group, audit log, history, RBAC demo và thống kê evaluation. Dashboard không tự quyết định kết quả evaluation mà gửi yêu cầu đến Backend API, nhờ đó logic nghiệp vụ và quyền truy cập vẫn được kiểm soát tập trung ở phía máy chủ.
+\subsubsection{Backend API và lớp bảo vệ}
 
-\subsubsection{Backend API}
+Backend nằm trong \texttt{apps/backend} và được triển khai bằng NestJS với global prefix \texttt{/v1}, DTO validation, Swagger, CORS theo admin/demo origin và request context middleware. \texttt{AuthModule} cung cấp demo authentication guard và permission guard cho control-plane endpoint; Health API và Evaluation API được đánh dấu public để phục vụ runtime evaluation.
 
-Backend API gom toàn bộ management endpoint và Evaluation API trong một service NestJS. Các endpoint quản trị xử lý validation, phân quyền, persistence và audit log; Evaluation API phục vụ ứng dụng tích hợp với response nhất quán gồm trạng thái bật/tắt và reason code.
+\subsubsection{Management modules}
 
-\subsubsection{Rule Evaluation Engine}
+Các module quản trị gồm project, feature flag, flag rule, flag group, sample user, audit log/history và statistics. Mutation quan trọng đi qua validation, permission check, Prisma transaction, audit log append-only và cache invalidation. Cách tổ chức này giữ logic quản trị tập trung ở backend thay vì phân tán sang Dashboard.
 
-Rule Evaluation Engine là lớp domain thuần, độc lập với controller. Engine nhận evaluation request, sử dụng snapshot cấu hình đã được chuẩn hóa và trả về quyết định xác định. Thứ tự ưu tiên chi tiết được trình bày trong mục thiết kế engine, vì vậy mục này chỉ xác định vị trí của engine trong kiến trúc tổng thể.
+\subsubsection{Evaluation runtime}
 
-\subsubsection{Database và cache}
+Data plane bắt đầu tại \texttt{POST /v1/evaluate}. \texttt{EvaluationService} lấy snapshot từ cache hoặc repository, gọi hàm thuần \texttt{evaluateFlag}, rồi trả kết quả gồm \texttt{projectKey}, \texttt{flagKey}, \texttt{enabled}, \texttt{variant}, \texttt{reason} và \texttt{matchedRuleId}. Engine áp dụng precedence: archived, config disabled, group kill switch, flag kill switch, global on, user allowlist, role targeting, percentage rollout và default off.
 
-PostgreSQL là nguồn dữ liệu chính cho project, environment, flag, rule, group, audit log và thống kê aggregate. Cache chỉ được xem là tầng tăng tốc cho evaluation snapshot; dữ liệu trong cache có thể bị loại bỏ mà không làm mất tính đúng đắn vì database vẫn là nguồn sự thật.
+\subsubsection{Persistence, cache và deployment}
 
-\subsubsection{JavaScript SDK}
-
-JavaScript SDK đóng gói cách gọi Evaluation API, chuẩn hóa timeout, lỗi mạng và fallback fail-closed cho ứng dụng web. SDK giúp Demo Application không phụ thuộc trực tiếp vào chi tiết endpoint và là cơ sở để mở rộng SDK cho các ngôn ngữ khác.
-
-\subsubsection{Demo Application}
-
-Demo Application mô phỏng một hệ thống thương mại điện tử nhỏ, sử dụng SDK để quyết định hiển thị tính năng theo kết quả evaluation. Vai trò của ứng dụng này là chứng minh giá trị thực tế của nền tảng thay vì chứa logic quản trị riêng.
+PostgreSQL là nguồn sự thật cho project, environment, flag, config, rule, group, audit log, sample user và aggregate metric. Evaluation Snapshot Cache chỉ lưu cấu hình cần cho evaluation, không lưu context người dùng hay kết quả theo user; provider có thể là \texttt{memory}, \texttt{none} hoặc optional \texttt{redis}. Repository hỗ trợ chạy bằng npm workspace hoặc Docker Compose với PostgreSQL, migration, seed, backend, admin, demo, demo staging và optional Redis.
 
 \subsection{Control plane và data plane}
 
-Kiến trúc được phân chia theo hai luồng trách nhiệm. \textit{Control plane} quản lý cấu hình và lịch sử thay đổi; \textit{data plane} xử lý evaluation ở runtime. Cách phân chia này phù hợp với đặc điểm của Feature Flag: thao tác quản trị ít hơn nhưng yêu cầu evaluation có thể xuất hiện liên tục từ ứng dụng tích hợp \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+Kiến trúc tách \textit{control plane} và \textit{data plane} vì Feature Flag có hai loại tải khác nhau: thay đổi cấu hình ít hơn nhưng evaluation có thể xảy ra liên tục từ ứng dụng tích hợp \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}. Control plane gồm Admin Dashboard, Auth/Permission Guards, Management API, Audit Log/History và Cache Invalidation. Data plane gồm Evaluation API, Snapshot Cache, Rule Evaluation Engine và Evaluation Metrics.
 
 \begin{figure}[H]
     \centering
@@ -49,46 +44,17 @@ Kiến trúc được phân chia theo hai luồng trách nhiệm. \textit{Contro
     \label{fig:control-plane-data-plane}
 \end{figure}
 
-
-\subsubsection{Vai trò của control plane}
-
-Control plane bao gồm Dashboard, management endpoints, persistence và audit logging. Mọi mutation quan trọng đều đi qua validation, kiểm tra quyền, ghi database và tạo audit entry append-only.
-
-\subsubsection{Vai trò của data plane}
-
-Data plane bao gồm Evaluation API, Rule Evaluation Engine và snapshot cache. Luồng này được tối ưu cho quyết định nhanh, xác định và fail-closed khi thiếu cấu hình hoặc phát sinh lỗi.
-
-\subsubsection{Luồng dữ liệu giữa hai thành phần}
-
-Người quản trị thay đổi cấu hình qua Dashboard; Backend API lưu thay đổi, ghi audit log và invalidation snapshot liên quan. Ứng dụng khách gửi evaluation context qua SDK hoặc gọi trực tiếp Evaluation API; engine đọc snapshot hiện tại và trả kết quả cho ứng dụng.
-
-\subsubsection{Lợi ích của việc tách biệt hai plane}
-
-Sự tách biệt giúp giảm coupling giữa giao diện quản trị và runtime evaluation, cho phép tối ưu hai luồng theo tải khác nhau, đồng thời làm rõ ranh giới bảo mật: dữ liệu quản trị và lịch sử thay đổi không cần phơi bày cho ứng dụng khách.
+Trong control plane, mọi mutation quan trọng được backend kiểm tra quyền, validate dữ liệu, ghi PostgreSQL và tạo audit entry với before/after snapshot. Trong data plane, ứng dụng khách chỉ gửi project key, environment key nếu có, flag key và context không nhạy cảm; Evaluation API đọc snapshot cấu hình, chạy engine và trả reason code. Cache và metric chỉ là tối ưu/quan sát best-effort nên không được làm thay đổi quyết định bật/tắt.
 
 \subsection{Luồng quản trị Feature Flag}
 
-Luồng quản trị tập trung vào việc biến ý định phát hành thành cấu hình có kiểm soát. Các bước dưới đây chỉ mô tả trình tự kiến trúc; cấu trúc bảng dữ liệu và endpoint cụ thể được trình bày ở các mục sau.
+Người dùng quản trị chọn project trên Dashboard rồi tạo/sửa flag, đổi lifecycle, cấu hình status/serving mode theo environment, thay thế rule, gán group hoặc bật kill switch. Dashboard chỉ gửi request và hiển thị trạng thái; backend chịu trách nhiệm kiểm tra quyền, kiểm tra dữ liệu, lưu bằng Prisma transaction và ghi audit log. Rule được lưu dưới dạng \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_TARGETING} hoặc \texttt{PERCENTAGE\_ROLLOUT} với \texttt{priority} và tham số \texttt{JSONB}.
 
-\subsubsection{Tạo và chỉnh sửa Feature Flag}
-
-Người quản trị khai báo flag key, tên và mô tả. Backend kiểm tra ràng buộc duy nhất trong project, tạo hoặc cập nhật bản ghi liên quan và trả kết quả cho Dashboard.
-
-\subsubsection{Cấu hình trạng thái và serving mode}
-
-Sau khi có flag, người quản trị cấu hình lifecycle/status và serving mode theo từng environment. Thiết kế này tách trạng thái quản lý của flag khỏi cách flag được phục vụ ở runtime.
-
-\subsubsection{Cấu hình và sắp xếp rule}
-
-Khi flag chạy ở chế độ targeted, người quản trị cấu hình các rule hỗ trợ bởi engine. Dashboard chỉ biểu diễn và gửi cấu hình; việc diễn giải rule thuộc trách nhiệm của Rule Evaluation Engine.
-
-\subsubsection{Lưu audit log và invalidation cache}
-
-Sau mỗi mutation, Backend API ghi audit log và làm mới snapshot liên quan. Nhờ vậy, hệ thống vừa có khả năng truy vết vừa hạn chế việc data plane sử dụng cấu hình cũ.
+Sau khi mutation commit, cache invalidator xóa snapshot liên quan để evaluation tiếp theo không dùng cấu hình cũ. Ví dụ, thay đổi flag config/rule sẽ invalidation snapshot của flag; gán group hoặc bật group kill switch sẽ invalidation các flag bị ảnh hưởng. Nhờ vậy, thay đổi từ Dashboard có thể được truy vết qua audit/history và phản ánh ở Demo Application mà không cần redeploy.
 
 \subsection{Luồng đánh giá Feature Flag}
 
-Luồng evaluation bắt đầu từ ứng dụng khách và kết thúc bằng một quyết định có reason code. Evaluation API không thay đổi cấu hình, không ghi audit log quản trị và không yêu cầu Dashboard tham gia trong runtime.
+Luồng evaluation bắt đầu từ Demo Application hoặc SDK và kết thúc bằng một response có reason code. Evaluation API không thay đổi cấu hình và không ghi audit log quản trị. Hình~\ref{fig:evaluation-flow} mô tả flow chính: nhận request, lấy snapshot từ cache hoặc PostgreSQL, gọi Rule Evaluation Engine, ghi metric best-effort và trả kết quả cho client.
 
 \begin{figure}[H]
     \centering
@@ -97,55 +63,16 @@ Luồng evaluation bắt đầu từ ứng dụng khách và kết thúc bằng 
     \label{fig:evaluation-flow}
 \end{figure}
 
+Nếu snapshot không tồn tại, service trả \texttt{enabled=false} với \texttt{reason=NOT\_FOUND}; nếu có lỗi bất thường, hệ thống fail-closed với \texttt{reason=ERROR}. Nếu snapshot hợp lệ, engine xét các điều kiện terminal trước rồi mới xét global on và rule targeting. Percentage rollout dùng stable hashing trên project key, flag key và targeting key để kết quả lặp lại ổn định cho cùng một context.
 
 \subsection{Luồng tích hợp ứng dụng khách}
 
-Ứng dụng khách có thể gọi trực tiếp Evaluation API hoặc sử dụng JavaScript SDK. Trong mini project, Demo Application dùng SDK để giảm mã lặp ở phía client và thể hiện cách tích hợp có thể tái sử dụng.
+Ứng dụng khách có thể gọi trực tiếp Evaluation API hoặc dùng \texttt{@ffp/js-sdk}. Trong project này, Demo Application dùng SDK để cấu hình \texttt{baseUrl}, \texttt{projectKey}, optional \texttt{environmentKey}, timeout và \texttt{fetch}; sau đó gọi \texttt{evaluate}, \texttt{isEnabled} hoặc \texttt{getVariant}. Context chỉ là đầu vào targeting, thường gồm \texttt{targetingKey}, \texttt{userId} mẫu, \texttt{roles} và \texttt{attributes}, không phải bằng chứng phân quyền.
 
-\subsubsection{Khởi tạo evaluation context}
-
-Ứng dụng tạo context từ các định danh không nhạy cảm như targeting key, user ID mẫu, role và organization ID mẫu. Context chỉ là đầu vào cho engine, không phải bằng chứng phân quyền.
-
-\subsubsection{Gọi trực tiếp Evaluation API}
-
-Cách gọi trực tiếp phù hợp cho kiểm thử hoặc hệ thống muốn tự quản lý HTTP client. Client gửi project key, environment key, flag key và context, sau đó tự xử lý response.
-
-\subsubsection{Gọi thông qua JavaScript SDK}
-
-SDK bao bọc cùng contract nhưng bổ sung cấu hình base URL, timeout và fallback. Nội dung triển khai SDK cụ thể được trình bày trong chương kết quả.
-
-\subsubsection{Áp dụng kết quả trong ứng dụng}
-
-Ứng dụng chỉ sử dụng trường kết quả để bật hoặc ẩn hành vi giao diện tương ứng. Việc này giữ cho logic sản phẩm tách khỏi cách cấu hình flag được quản trị.
-
-\subsubsection{Xử lý khi Evaluation API không khả dụng}
-
-Khi không nhận được kết quả hợp lệ, client áp dụng mặc định an toàn là tắt tính năng. Quy tắc này tránh việc lỗi hạ tầng vô tình mở tính năng chưa sẵn sàng.
+Khi API timeout, lỗi mạng, HTTP lỗi, JSON sai shape hoặc response không khớp project/flag, SDK trả fallback an toàn: \texttt{enabled=false}, \texttt{variant=off}, \texttt{reason=ERROR} và \texttt{errorSource=CLIENT}. Quy tắc này ngăn lỗi hạ tầng vô tình mở tính năng chưa sẵn sàng.
 
 \subsection{Lựa chọn công nghệ}
 
-Các công nghệ được chọn theo tiêu chí phù hợp phạm vi mini project, dễ kiểm thử và đủ gần với một hệ thống thực tế.
+NestJS được chọn cho backend vì hỗ trợ module hóa, dependency injection, guard/pipe/filter, Swagger và Jest, phù hợp với yêu cầu tách controller, service, repository và domain evaluation. React/Vite được chọn cho Admin Dashboard và Demo Application vì nhẹ, dễ chia component và phù hợp npm workspace. PostgreSQL và Prisma được dùng để có transaction, khóa ngoại, unique constraint, \texttt{JSONB}, migration và data access có kiểu.
 
-\subsubsection{Lựa chọn NestJS cho Backend API}
-
-NestJS hỗ trợ cấu trúc module rõ ràng, dependency injection, DTO validation và test bằng Jest, phù hợp với backend REST cần tách controller, service và domain logic.
-
-\subsubsection{Lựa chọn React cho giao diện web}
-
-React phù hợp để xây dựng Dashboard và Demo Application dạng SPA, tái sử dụng component và phản hồi nhanh với trạng thái cấu hình thay đổi.
-
-\subsubsection{Lựa chọn PostgreSQL và Prisma}
-
-PostgreSQL cung cấp giao dịch và kiểu JSONB cho rule parameters/audit snapshot; Prisma giúp mô hình hóa schema, migration và truy cập dữ liệu có kiểu.
-
-\subsubsection{Lựa chọn cache in-memory hoặc Redis}
-
-In-memory cache đủ cho demo một instance; Redis là hướng mở rộng khi cần chia sẻ snapshot giữa nhiều backend instance. Thiết kế giữ cache là tùy chọn để không phụ thuộc vào hạ tầng ngoài.
-
-\subsubsection{Lựa chọn Docker và Docker Compose}
-
-Docker Compose gom backend, frontend, demo và database vào một quy trình khởi chạy thống nhất, thuận tiện cho chấm điểm và trình diễn.
-
-\subsubsection{Các phương án thay thế và lý do không lựa chọn}
-
-Các lựa chọn như microservice tách riêng evaluation service, message broker hoặc frontend framework khác chưa cần thiết trong phạm vi mini project. Hệ thống ưu tiên kiến trúc đơn giản, có ranh giới rõ và có thể mở rộng sau.
+Cache snapshot dùng in-memory mặc định để đơn giản cho demo một instance; optional Redis thể hiện hướng mở rộng khi cần cache chia sẻ. JavaScript SDK được tách thành package riêng để ổn định contract tích hợp và đóng gói fail-closed behavior ở client. Docker Compose được chọn để khởi chạy lặp lại toàn bộ PostgreSQL, migration, seed, backend, admin và demo cho chấm điểm/trình diễn. Các phương án như tách microservice evaluation, message broker hoặc local-evaluation SDK phức tạp được để ngoài phạm vi vì làm tăng chi phí vận hành so với mục tiêu mini project.
