@@ -18,15 +18,15 @@ Bên cạnh việc nghiên cứu cơ chế đánh giá Feature Flag, đề tài 
 
 \subsection{Kết quả xây dựng hệ thống}
 
-Dựa trên các yêu cầu đặt ra của mini project, đề tài đã xây dựng thành công một nền tảng Feature Flag hoàn chỉnh gồm Backend API, Rule Evaluation Engine, Admin Dashboard, Demo Application và JavaScript SDK. Bên cạnh các chức năng bắt buộc, hệ thống còn hiện thực nhiều chức năng thuộc mức khuyến khích như caching, phân quyền, thống kê evaluation, versioning, group kill switch và triển khai bằng Docker Compose. Các thành phần được thiết kế theo kiến trúc tách biệt, giúp dễ dàng bảo trì và mở rộng trong tương lai.
+Dựa trên các yêu cầu đặt ra của mini project, đề tài đã xây dựng thành công một nền tảng Feature Flag hoàn chỉnh gồm Backend API, Rule Evaluation Engine, Admin Dashboard, Demo Application và JavaScript SDK. Bên cạnh các chức năng bắt buộc, hệ thống còn hiện thực nhiều chức năng thuộc mức khuyến khích như caching evaluation snapshot, phân quyền, thống kê evaluation, lịch sử cấu hình dựa trên audit log, group kill switch và triển khai bằng Docker Compose. Các thành phần được thiết kế theo kiến trúc tách biệt, giúp dễ dàng bảo trì và mở rộng trong tương lai.
 
 \subsubsection{Backend API và Rule Evaluation Engine}
 
-Backend API được xây dựng theo kiến trúc RESTful, cung cấp đầy đủ các API phục vụ quản lý project, environment, feature flag, rule, audit log và evaluation. Hệ thống sử dụng Rule Evaluation Engine để đánh giá trạng thái của Feature Flag dựa trên thứ tự ưu tiên xác định, bao gồm kiểm tra trạng thái hệ thống, global enable, user targeting, role targeting và percentage rollout. Ngoài việc trả về kết quả bật hoặc tắt, Evaluation API còn cung cấp reason code và thông tin rule được áp dụng nhằm tăng khả năng giải thích và hỗ trợ quá trình theo dõi. Thiết kế này phù hợp với các nguyên tắc của OpenFeature và kế thừa các chiến lược Feature Flag được sử dụng trong các nền tảng hiện đại \cite{openfeature_flag_evaluation,openfeature_evaluation_context,launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
+Backend API được xây dựng theo kiến trúc RESTful, cung cấp đầy đủ các API phục vụ quản lý project, feature flag, rule, group, audit log, statistics và evaluation. Hệ thống sử dụng Rule Evaluation Engine để đánh giá trạng thái của Feature Flag dựa trên thứ tự ưu tiên xác định, bao gồm kiểm tra trạng thái hệ thống, global enable, user targeting, role targeting và percentage rollout. Ngoài việc trả về kết quả bật hoặc tắt, Evaluation API còn cung cấp reason code và thông tin rule được áp dụng nhằm tăng khả năng giải thích và hỗ trợ quá trình theo dõi. Thiết kế này phù hợp với các nguyên tắc của OpenFeature và kế thừa các chiến lược Feature Flag được sử dụng trong các nền tảng hiện đại \cite{openfeature_flag_evaluation,openfeature_evaluation_context,launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
 
 \subsubsection{Admin Dashboard}
 
-Đề tài đã xây dựng giao diện quản trị trên nền tảng web cho phép người quản trị thực hiện toàn bộ các thao tác quản lý Feature Flag. Dashboard hỗ trợ tạo và cập nhật project, environment, feature flag và rule; thay đổi trạng thái runtime; theo dõi audit log; xem thống kê evaluation; đồng thời hiển thị quyền của từng người dùng theo mô hình phân quyền. Giao diện được thiết kế trực quan nhằm giúp người quản trị dễ dàng nhận biết trạng thái của từng Feature Flag và giảm nguy cơ thao tác nhầm trong quá trình phát hành tính năng.
+Đề tài đã xây dựng giao diện quản trị trên nền tảng web cho phép người quản trị thực hiện toàn bộ các thao tác quản lý Feature Flag. Dashboard hỗ trợ tạo và cập nhật project, feature flag, rule và group; thay đổi trạng thái runtime; theo dõi audit log; xem thống kê evaluation; đồng thời hiển thị quyền của từng người dùng theo mô hình phân quyền. Giao diện được thiết kế trực quan nhằm giúp người quản trị dễ dàng nhận biết trạng thái của từng Feature Flag và giảm nguy cơ thao tác nhầm trong quá trình phát hành tính năng.
 
 \subsubsection{Demo Application và SDK}
 
@@ -34,7 +34,7 @@ Backend API được xây dựng theo kiến trúc RESTful, cung cấp đầy đ
 
 \subsubsection{Các chức năng khuyến khích}
 
-Ngoài các chức năng thuộc phạm vi MVP, hệ thống còn hiện thực nhiều nội dung khuyến khích nhằm nâng cao giá trị thực tiễn của sản phẩm. Hệ thống hỗ trợ caching kết quả evaluation để cải thiện hiệu năng, lưu trữ lịch sử thay đổi cấu hình thông qua audit log và versioning, thống kê số lần evaluation theo Feature Flag, phân quyền quản trị với các vai trò khác nhau, triển khai group kill switch để vô hiệu hóa nhanh nhiều Feature Flag cùng lúc và sử dụng Docker Compose để triển khai đồng bộ toàn bộ các thành phần của hệ thống. Những chức năng này giúp nền tảng tiệm cận hơn với cách triển khai của các hệ thống Feature Flag hiện đại và tạo tiền đề cho việc mở rộng trong các giai đoạn phát triển tiếp theo \cite{unleash_feature_flag_best_practices,redis_client_side_caching,docker_compose,owasp_logging}.
+Ngoài các chức năng thuộc phạm vi MVP, hệ thống còn hiện thực nhiều nội dung khuyến khích nhằm nâng cao giá trị thực tiễn của sản phẩm. Hệ thống hỗ trợ caching evaluation snapshot để cải thiện hiệu năng, lưu trữ lịch sử thay đổi cấu hình thông qua audit-backed history, thống kê aggregate số lần evaluation theo Feature Flag, phân quyền quản trị với các vai trò khác nhau, triển khai group kill switch để vô hiệu hóa nhanh nhiều Feature Flag cùng lúc và sử dụng Docker Compose để triển khai đồng bộ toàn bộ các thành phần của hệ thống. Những chức năng này giúp nền tảng tiệm cận hơn với cách triển khai của các hệ thống Feature Flag hiện đại và tạo tiền đề cho việc mở rộng trong các giai đoạn phát triển tiếp theo \cite{unleash_feature_flag_best_practices,redis_client_side_caching,docker_compose,owasp_logging}.
 
 \subsection{Kết quả kiểm thử và demo}
 
@@ -42,7 +42,7 @@ Sau khi hoàn thành quá trình phát triển, hệ thống được kiểm th�
 
 \subsubsection{Kết quả kiểm thử chức năng}
 
-Các API quản lý project, environment, feature flag, rule, audit log và evaluation đều được kiểm thử với các trường hợp dữ liệu hợp lệ và không hợp lệ. Kết quả kiểm thử cho thấy các chức năng tạo, cập nhật, truy vấn và lưu trữ dữ liệu đều hoạt động đúng theo thiết kế. Dashboard phản ánh chính xác trạng thái của hệ thống sau mỗi thao tác, đồng thời các cơ chế validation, xử lý lỗi và phân quyền được thực hiện đúng như mong đợi. Audit log ghi nhận đầy đủ các thay đổi cấu hình, hỗ trợ truy vết quá trình quản trị hệ thống.
+Các API quản lý project, feature flag, rule, group, audit log, statistics và evaluation đều được kiểm thử với các trường hợp dữ liệu hợp lệ và không hợp lệ. Kết quả kiểm thử cho thấy các chức năng tạo, cập nhật, truy vấn và lưu trữ dữ liệu đều hoạt động đúng theo thiết kế. Dashboard phản ánh chính xác trạng thái của hệ thống sau mỗi thao tác, đồng thời các cơ chế validation, xử lý lỗi và phân quyền được thực hiện đúng như mong đợi. Audit log ghi nhận đầy đủ các thay đổi cấu hình, hỗ trợ truy vết quá trình quản trị hệ thống.
 
 \subsubsection{Kết quả kiểm thử evaluation}
 

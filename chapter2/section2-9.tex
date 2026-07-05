@@ -86,7 +86,7 @@ Các trường hợp kiểm thử bao gồm:
 \begin{itemize}
     \item Tạo mới project và feature flag thành công.
     \item Cập nhật thông tin feature flag.
-    \item Thêm, sửa và xóa rule.
+    \item Replace toàn bộ rule set và kiểm tra snapshot trước/sau.
     \item Thay đổi trạng thái enabled, disabled hoặc archived.
     \item Gửi dữ liệu không hợp lệ và kiểm tra phản hồi validation.
     \item Kiểm tra các trường hợp conflict hoặc tài nguyên không tồn tại.
@@ -169,7 +169,7 @@ Các trường hợp kiểm thử gồm:
 \begin{itemize}
     \item Project không tồn tại.
     \item Feature flag không tồn tại.
-    \item Rule không tồn tại.
+    \item Rule set hoặc flag config không tồn tại trong các tình huống liên quan.
     \item Environment không tồn tại.
     \item Evaluation API yêu cầu đánh giá một flag không tồn tại.
 \end{itemize}
@@ -183,7 +183,7 @@ Các bài kiểm thử xung đột dữ liệu được sử dụng để xác m
 Các trường hợp kiểm thử bao gồm:
 \begin{itemize}
     \item Tạo feature flag với key đã tồn tại trong cùng project.
-    \item Tạo environment mặc định khi project đã có environment mặc định khác.
+    \item Tạo project hoặc group với key đã tồn tại trong cùng phạm vi.
     \item Tạo dữ liệu vi phạm các ràng buộc khóa duy nhất.
     \item Thực hiện thao tác không hợp lệ đối với tài nguyên đã được lưu trữ.
 \end{itemize}

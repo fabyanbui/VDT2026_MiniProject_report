@@ -12,13 +12,13 @@ Cấu trúc này giúp giảm trùng lặp mã nguồn, dễ dàng chia sẻ cá
 
 \subsubsection{Cấu trúc Backend API}
 
-Backend API được xây dựng bằng NestJS theo kiến trúc module nhằm tách biệt các miền chức năng của hệ thống. Mỗi module đảm nhiệm một nghiệp vụ riêng như quản lý project, environment, feature flag, flag group, rule evaluation, audit log, authentication và thống kê evaluation.
+Backend API được xây dựng bằng NestJS theo kiến trúc module nhằm tách biệt các miền chức năng của hệ thống. Mỗi module đảm nhiệm một nghiệp vụ riêng như quản lý project, feature flag, flag group, rule evaluation, audit log, authentication, sample user và thống kê evaluation.
 
 Tầng controller chịu trách nhiệm tiếp nhận và xác thực request, tầng service xử lý nghiệp vụ, còn tầng repository thực hiện truy cập cơ sở dữ liệu thông qua Prisma ORM. Các DTO được sử dụng để kiểm tra dữ liệu đầu vào, trong khi middleware, guard, interceptor và exception filter đảm nhiệm các chức năng cắt ngang như xác thực, phân quyền, ghi nhận request ID, logging và xử lý lỗi thống nhất. Kiến trúc phân lớp này giúp tăng khả năng bảo trì, kiểm thử và mở rộng hệ thống khi bổ sung các loại rule hoặc endpoint mới.
 
 \subsubsection{Cấu trúc Admin Dashboard}
 
-Admin Dashboard được xây dựng bằng React theo hướng component-based. Giao diện được chia thành các nhóm thành phần độc lập như trang quản lý project, feature flag, flag group, environment, audit log, dashboard thống kê và các màn hình cấu hình rule.
+Admin Dashboard được xây dựng bằng React theo hướng component-based. Giao diện được chia thành các nhóm thành phần độc lập như trang quản lý project, feature flag, flag group, audit log, statistics và màn hình cấu hình rule.
 
 Các thành phần dùng chung như layout, biểu mẫu, bảng dữ liệu, hộp thoại xác nhận, badge trạng thái và hook xử lý API được tách riêng để tái sử dụng trong toàn bộ ứng dụng. Dữ liệu được lấy từ Backend API thông qua các service riêng biệt, giúp tách logic giao diện khỏi logic giao tiếp mạng và đơn giản hóa việc bảo trì khi API thay đổi.
 
@@ -46,7 +46,7 @@ Lớp truy cập dữ liệu được xây dựng bằng Prisma ORM. Prisma cung
 
 \subsubsection{Công cụ kiểm thử và kiểm tra mã nguồn}
 
-Dự án sử dụng Jest để xây dựng các bài kiểm thử đơn vị cho các thành phần nghiệp vụ quan trọng, đặc biệt là Rule Evaluation Engine và các hàm tiện ích. Các trường hợp kiểm thử bao gồm đánh giá theo user, role, percentage rollout, kill switch, default value và các tình huống ngoại lệ nhằm bảo đảm tính đúng đắn của thuật toán evaluation.
+Dự án sử dụng Jest để xây dựng các bài kiểm thử đơn vị cho các thành phần nghiệp vụ quan trọng, đặc biệt là Rule Evaluation Engine, cache, SDK và các hàm tiện ích. Các trường hợp kiểm thử bao gồm đánh giá theo user allowlist, role, percentage rollout, group/flag kill switch, default off, \texttt{NOT\_FOUND}, \texttt{INVALID\_CONTEXT} và các tình huống ngoại lệ nhằm bảo đảm tính đúng đắn của thuật toán evaluation.
 
 Bên cạnh đó, ESLint được sử dụng để kiểm tra chất lượng mã nguồn và phát hiện các lỗi phổ biến trong quá trình phát triển. Việc kết hợp TypeScript với ESLint giúp chuẩn hóa phong cách lập trình, hạn chế lỗi tiềm ẩn và nâng cao khả năng bảo trì của toàn bộ hệ thống.
 
@@ -62,7 +62,7 @@ Việc sử dụng Swagger giúp tài liệu API luôn đồng bộ với mã ng
 
 \subsubsection{Khởi tạo database schema}
 
-Toàn bộ mô hình dữ liệu của hệ thống được định nghĩa trong Prisma Schema và sinh tự động thành các bảng trong PostgreSQL thông qua Prisma Migrate. Schema bao gồm các thực thể chính như Project, Environment, Feature Flag, Flag Group, Flag Configuration, Flag Rule, Sample User, Organization, Audit Log và các bảng phục vụ thống kê evaluation.
+Toàn bộ mô hình dữ liệu của hệ thống được định nghĩa trong Prisma Schema và sinh tự động thành các bảng trong PostgreSQL thông qua Prisma Migrate. Schema bao gồm các thực thể chính như Project, Environment, Feature Flag, Flag Group, FlagEnvironmentConfig, FlagRule, SampleUserContext, AuditLogEntry và các bảng phục vụ thống kê evaluation.
 
 Các ràng buộc toàn vẹn như khóa chính, khóa ngoại, chỉ mục, giá trị duy nhất và các quan hệ một-nhiều được khai báo trực tiếp trong schema. Ngoài các kiểu dữ liệu cơ bản, PostgreSQL còn sử dụng kiểu dữ liệu JSONB để lưu trữ linh hoạt các tham số rule, thuộc tính người dùng và snapshot của audit log, giúp hệ thống dễ dàng mở rộng khi bổ sung các loại rule mới \cite{postgresql_json_types}.
 
@@ -78,11 +78,11 @@ Sau khi hoàn tất migration, hệ thống cung cấp các script seed để t�
 
 Mỗi feature flag được cấu hình với trạng thái, serving mode, kill switch và các rule phù hợp để minh họa các chiến lược rollout như bật hoặc tắt toàn cục, targeting theo user, targeting theo role, percentage rollout và group kill switch. Nhờ đó, các chức năng của Evaluation Engine và Dashboard có thể được kiểm thử ngay sau khi khởi tạo dữ liệu.
 
-\subsubsection{Seed user và organization mẫu}
+\subsubsection{Seed sample user và thuộc tính organization mẫu}
 
-Hệ thống đồng thời tạo tập dữ liệu người dùng và organization mẫu nhằm phục vụ các kịch bản đánh giá Feature Flag. Mỗi người dùng được gán một \texttt{targetingKey} duy nhất cùng với các thuộc tính như vai trò, organization và các metadata cần thiết cho quá trình evaluation.
+Hệ thống đồng thời tạo tập sample user và thuộc tính organization mẫu nhằm phục vụ các kịch bản đánh giá Feature Flag. Mỗi người dùng được gán một \texttt{targetingKey} duy nhất cùng với các thuộc tính như vai trò, organization và các metadata cần thiết cho quá trình evaluation.
 
-Việc chuẩn bị sẵn dữ liệu mẫu giúp dễ dàng kiểm thử các trường hợp targeting theo user, role và organization, đồng thời bảo đảm các kết quả percentage rollout luôn ổn định nhờ sử dụng cùng một định danh người dùng trong quá trình đánh giá. Các tập dữ liệu này cũng được sử dụng để minh họa các kịch bản demo và hỗ trợ kiểm thử tự động của hệ thống.
+Việc chuẩn bị sẵn dữ liệu mẫu giúp dễ dàng kiểm thử các trường hợp targeting theo user ID, role và rollout theo organization-level targetingKey trong demo, đồng thời bảo đảm các kết quả percentage rollout luôn ổn định nhờ sử dụng cùng một định danh người dùng trong quá trình đánh giá. Các tập dữ liệu này cũng được sử dụng để minh họa các kịch bản demo và hỗ trợ kiểm thử tự động của hệ thống.
 
 \subsection{Triển khai bằng Docker Compose}
 
@@ -90,7 +90,7 @@ Việc chuẩn bị sẵn dữ liệu mẫu giúp dễ dàng kiểm thử các t
 
 \subsubsection{Các service trong Docker Compose}
 
-Docker Compose được sử dụng để quản lý các service chính của hệ thống. Trong phiên bản hiện tại, các service bao gồm cơ sở dữ liệu PostgreSQL và các ứng dụng chạy trong môi trường Node.js như Backend API, Admin Dashboard và Demo Application. Khi cần mở rộng, các service này có thể được bổ sung thêm Redis để cache kết quả evaluation hoặc các thành phần giám sát mà không làm thay đổi kiến trúc tổng thể.
+Docker Compose được sử dụng để quản lý các service chính của hệ thống. Trong phiên bản hiện tại, các service bao gồm cơ sở dữ liệu PostgreSQL và các ứng dụng chạy trong môi trường Node.js như Backend API, Admin Dashboard và Demo Application. Khi cần mở rộng, các service này có thể được bổ sung thêm Redis để cache snapshot cấu hình evaluation hoặc các thành phần giám sát mà không làm thay đổi kiến trúc tổng thể.
 
 Mỗi service được khai báo độc lập với image, cổng truy cập, biến môi trường, volume và các phụ thuộc cần thiết. Việc quản lý tập trung giúp quá trình khởi động, dừng và cập nhật toàn bộ hệ thống chỉ cần thực hiện bằng một số lệnh Docker Compose thống nhất.
 
@@ -126,7 +126,7 @@ Tiếp theo, các biến môi trường được cấu hình thông qua tệp c�
 
 Sau khi cơ sở dữ liệu PostgreSQL được khởi động, Prisma Migrate được sử dụng để tạo hoặc cập nhật schema theo phiên bản mới nhất của hệ thống. Quá trình migration đồng thời thiết lập các bảng dữ liệu, khóa ngoại, chỉ mục và các ràng buộc toàn vẹn cần thiết.
 
-Khi migration hoàn tất, các script seed được thực thi để tạo dữ liệu mẫu phục vụ phát triển và kiểm thử. Dữ liệu khởi tạo bao gồm project, environment, feature flag, flag group, rule, organization và người dùng mẫu, cho phép hệ thống có thể sử dụng ngay sau khi cài đặt mà không cần cấu hình thủ công.
+Khi migration hoàn tất, các script seed được thực thi để tạo dữ liệu mẫu phục vụ phát triển và kiểm thử. Dữ liệu khởi tạo bao gồm project, environment, feature flag, flag group, rule và sample user, cho phép hệ thống có thể sử dụng ngay sau khi cài đặt mà không cần cấu hình thủ công.
 
 \subsubsection{Khởi chạy các service}
 

@@ -43,7 +43,7 @@ Trong phạm vi báo cáo, đề tài triển khai một nền tảng Feature Fl
 
 \begin{itemize}
     \item Backend API chịu trách nhiệm quản lý dữ liệu, xử lý nghiệp vụ và cung cấp evaluation endpoint.
-    \item Frontend dashboard hỗ trợ quản trị project, flag, cấu hình rule và audit log.
+    \item Frontend dashboard hỗ trợ quản trị project, flag, rule, group, audit log và thống kê evaluation.
     \item Evaluation engine thực hiện việc đánh giá flag dựa trên trạng thái cấu hình và context của request.
     \item Demo app tích hợp evaluation API để minh họa việc hiển thị hoặc ẩn tính năng theo kết quả đánh giá.
 \end{itemize}
@@ -52,5 +52,5 @@ Các chiến lược được hỗ trợ bao gồm bật hoặc tắt toàn cụ
 
 Đề tài tập trung vào việc chứng minh đầy đủ luồng hoạt động của Feature Flag, từ khâu tạo và cấu hình flag đến khi ứng dụng gửi context và nhận kết quả đánh giá. Các vấn đề ở quy mô hệ thống phân tán lớn như đồng bộ cấu hình đa vùng, streaming update theo thời gian thực, độ sẵn sàng đa trung tâm dữ liệu, phân tích thử nghiệm thống kê chuyên sâu và quản lý hàng triệu request mỗi giây không thuộc phạm vi triển khai chính.
 
-Các nội dung nâng cao như caching, SDK JavaScript, phân quyền, versioning cấu hình, thống kê lượt đánh giá, kill switch theo nhóm và Docker Compose được xem là phần mở rộng nhằm đánh giá khả năng phát triển tiếp của hệ thống, thay vì điều kiện bắt buộc để hoàn thành luồng chức năng cốt lõi.
+Các nội dung nâng cao như caching, SDK JavaScript, phân quyền, lịch sử cấu hình dựa trên audit log, thống kê lượt đánh giá, kill switch theo nhóm và Docker Compose được xem là phần mở rộng nhằm đánh giá khả năng phát triển tiếp của hệ thống, thay vì điều kiện bắt buộc để hoàn thành luồng chức năng cốt lõi.
 

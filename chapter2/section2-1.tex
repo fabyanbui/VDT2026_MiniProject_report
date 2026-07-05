@@ -450,7 +450,7 @@ Ví dụ, một chiến lược phát hành kết hợp có thể được cấu
 
 Các quy tắc cùng loại cũng cần có mức độ ưu tiên xác định. Bộ máy đánh giá thường sắp xếp quy tắc theo trường \texttt{priority} và dừng tại quy tắc đầu tiên phù hợp \cite{launchdarkly_targeting_rules}. Vì vậy, thay đổi thứ tự quy tắc có thể làm thay đổi kết quả ngay cả khi nội dung từng quy tắc không đổi.
 
-Khi kết hợp nhiều chiến lược, hệ thống nên trả về không chỉ trạng thái bật hoặc tắt mà còn cả lý do đánh giá, chẳng hạn như \texttt{USER\_MATCH}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_MATCH} hoặc \texttt{DEFAULT\_OFF}. Thông tin này giúp giải thích quyết định, hỗ trợ kiểm thử và rút ngắn thời gian phân tích khi hành vi thực tế không đúng như mong đợi \cite{openfeature_flag_evaluation}.
+Khi kết hợp nhiều chiến lược, hệ thống nên trả về không chỉ trạng thái bật hoặc tắt mà còn cả lý do đánh giá, chẳng hạn như \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_ROLLOUT} hoặc \texttt{DEFAULT\_OFF}. Thông tin này giúp giải thích quyết định, hỗ trợ kiểm thử và rút ngắn thời gian phân tích khi hành vi thực tế không đúng như mong đợi \cite{openfeature_flag_evaluation}.
 
 \subsection{Lợi ích và rủi ro của Feature Flag}
 \label{subsec:loi-ich-va-rui-ro-feature-flag}

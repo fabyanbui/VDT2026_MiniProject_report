@@ -1,6 +1,6 @@
 \section{Hiệu năng, nhất quán và bảo mật}
 
-\subsection{Caching kết quả evaluation}
+\subsection{Caching evaluation snapshot}
 
 Trong hệ thống Feature Flag, Evaluation API có thể được gọi với tần suất rất lớn bởi nhiều ứng dụng khách trong quá trình xử lý request. Mỗi lần đánh giá đều cần truy xuất cấu hình feature flag, rule và environment trước khi thực hiện quá trình evaluation. Nếu mọi request đều truy cập trực tiếp cơ sở dữ liệu thì độ trễ sẽ tăng, đồng thời tạo áp lực không cần thiết lên hệ quản trị cơ sở dữ liệu. Vì vậy, caching là một kỹ thuật quan trọng nhằm giảm thời gian phản hồi, giảm số lần truy vấn dữ liệu và tăng khả năng mở rộng của hệ thống. Các nền tảng Feature Flag hiện đại đều khuyến nghị sử dụng cache để tối ưu quá trình evaluation trong khi vẫn đảm bảo tính đúng đắn của kết quả \cite{unleash_feature_flag_best_practices,redis_client_side_caching}.
 
@@ -24,9 +24,9 @@ Do configuration chỉ thay đổi khi có thao tác quản trị, cache snapsho
 
 Ngoài configuration snapshot, một số hệ thống còn cache trực tiếp kết quả evaluation. Tuy nhiên, cách tiếp cận này cần được áp dụng thận trọng vì kết quả evaluation phụ thuộc vào evaluation context của từng request, bao gồm targeting key, vai trò người dùng và các thuộc tính khác.
 
-Nếu cache kết quả evaluation, khóa cache phải bao gồm toàn bộ các thông tin ảnh hưởng đến kết quả đánh giá. Khi số lượng người dùng và thuộc tính lớn, số lượng khóa cache sẽ tăng nhanh, làm giảm hiệu quả sử dụng bộ nhớ và tăng chi phí invalidation khi cấu hình feature flag thay đổi.
+Nếu cache trực tiếp kết quả evaluation, khóa cache phải bao gồm toàn bộ các thông tin ảnh hưởng đến kết quả đánh giá. Khi số lượng người dùng và thuộc tính lớn, số lượng khóa cache sẽ tăng nhanh, làm giảm hiệu quả sử dụng bộ nhớ và tăng chi phí invalidation khi cấu hình feature flag thay đổi.
 
-Trong phạm vi mini project, giải pháp được lựa chọn là ưu tiên cache configuration snapshot thay vì cache kết quả evaluation. Evaluation Engine vẫn thực hiện tính toán trên snapshot đã được cache, do thuật toán evaluation có độ phức tạp thấp và chỉ bao gồm các phép so sánh điều kiện đơn giản. Cách tiếp cận này giúp cân bằng giữa hiệu năng, tính đúng đắn và độ đơn giản của hệ thống.
+Trong phạm vi mini project, giải pháp được lựa chọn là cache configuration snapshot thay vì cache final evaluation decision. Evaluation Engine vẫn thực hiện tính toán trên snapshot đã được cache, do thuật toán evaluation có độ phức tạp thấp và chỉ bao gồm các phép so sánh điều kiện đơn giản. Cách tiếp cận này giúp cân bằng giữa hiệu năng, tính đúng đắn và độ đơn giản của hệ thống.
 
 \subsubsection{Lựa chọn in-memory cache và Redis}
 
@@ -36,7 +36,7 @@ In-memory cache lưu dữ liệu trực tiếp trong bộ nhớ của tiến tr�
 
 Redis là hệ quản trị dữ liệu trong bộ nhớ hoạt động độc lập với ứng dụng. Redis cho phép nhiều backend cùng sử dụng một cache chung, hỗ trợ thời gian sống (TTL), cơ chế invalidation linh hoạt và khả năng mở rộng tốt hơn. Đổi lại, hệ thống cần triển khai thêm một thành phần riêng và phát sinh chi phí giao tiếp qua mạng \cite{redis_client_side_caching}.
 
-Trong phạm vi mini project, hệ thống ưu tiên sử dụng in-memory cache nhằm giảm độ phức tạp triển khai và đáp ứng đầy đủ yêu cầu về hiệu năng. Kiến trúc của lớp cache được thiết kế theo hướng trừu tượng hóa để có thể thay thế bằng Redis trong tương lai mà không cần thay đổi Evaluation Engine. Điều này phù hợp với định hướng mở rộng của hệ thống và cũng đáp ứng yêu cầu khuyến khích về caching trong đề tài.
+Trong phạm vi mini project, cấu hình mặc định sử dụng in-memory cache để giữ luồng demo ổn định và đơn giản. Source code cũng đã có provider \texttt{none} để tắt cache khi cần kiểm thử, và provider Redis tùy chọn thông qua biến \texttt{EVALUATION\_CACHE\_PROVIDER=redis} cùng Docker Compose profile \texttt{redis}. Redis vì vậy là lựa chọn mở rộng đã được chuẩn bị, nhưng không phải phụ thuộc bắt buộc của demo ổn định.
 
 \subsection{Thiết kế cache key và thời gian tồn tại}
 
@@ -44,10 +44,10 @@ Trong phạm vi mini project, hệ thống ưu tiên sử dụng in-memory cache
 
 \subsubsection{Thành phần của cache key}
 
-Trong hệ thống được đề xuất, cache key được xây dựng từ các thành phần định danh duy nhất của configuration snapshot. Đối với mỗi feature flag, khóa cache bao gồm project key, environment key và feature flag key theo định dạng:
+Trong hệ thống được đề xuất, cache key được xây dựng từ các thành phần định danh duy nhất của configuration snapshot. Đối với mỗi feature flag, khóa cache bao gồm project key, environment scope và feature flag key theo định dạng:
 
 \begin{center}
-\texttt{projectKey:environmentKey:flagKey}
+\texttt{evaluation-snapshot:projectKey:environmentScope:flagKey}
 \end{center}
 
 Cách tổ chức này đảm bảo mỗi cấu hình của feature flag trong từng environment được lưu thành một bản ghi độc lập. Khi Evaluation API nhận request, hệ thống có thể xác định chính xác snapshot cần sử dụng chỉ thông qua các khóa định danh mà không phải truy vấn cơ sở dữ liệu.
@@ -58,7 +58,7 @@ Việc sử dụng các khóa có ý nghĩa rõ ràng cũng giúp đơn giản h
 
 Một feature flag có thể được cấu hình khác nhau giữa các environment như Development, Staging và Production. Ví dụ, cùng một feature flag có thể được bật hoàn toàn trong môi trường Development nhưng chỉ rollout cho một tỷ lệ nhỏ người dùng trên Production.
 
-Do đó, environment phải là một thành phần bắt buộc trong cache key. Nếu chỉ sử dụng project key và feature flag key, snapshot của các environment khác nhau có thể ghi đè lên nhau, dẫn đến Evaluation Engine sử dụng sai cấu hình.
+Do đó, environment scope là một thành phần trong cache key. Khi request không truyền \texttt{environmentKey}, backend dùng scope nội bộ \texttt{\_\_default\_\_} để tránh trộn lẫn snapshot mặc định với snapshot của environment cụ thể. Nếu chỉ sử dụng project key và feature flag key, snapshot của các environment khác nhau có thể ghi đè lên nhau, dẫn đến Evaluation Engine sử dụng sai cấu hình.
 
 Việc tách biệt cache theo environment cũng phù hợp với mô hình quản lý feature flag của các nền tảng hiện đại, trong đó mỗi environment được xem là một không gian cấu hình độc lập \cite{launchdarkly_feature_flags}.
 
@@ -68,7 +68,7 @@ Việc tách biệt cache theo environment cũng phù hợp với mô hình qu�
 
 Ngược lại, nếu lựa chọn cache trực tiếp kết quả evaluation thì evaluation context phải trở thành một phần của cache key. Khi đó, khóa cache cần phản ánh toàn bộ các thuộc tính có ảnh hưởng đến kết quả đánh giá, chẳng hạn như targeting key, vai trò người dùng hoặc các thuộc tính tùy chỉnh.
 
-Tuy nhiên, số lượng tổ hợp evaluation context trong thực tế rất lớn, khiến cache key tăng nhanh và làm giảm hiệu quả của cache. Vì lý do đó, hệ thống trong mini project không cache kết quả evaluation mà chỉ cache configuration snapshot, giúp cache có tỷ lệ tái sử dụng cao hơn và đơn giản hóa cơ chế invalidation.
+Tuy nhiên, số lượng tổ hợp evaluation context trong thực tế rất lớn, khiến cache key tăng nhanh và làm giảm hiệu quả của cache. Vì lý do đó, hệ thống trong mini project không cache final evaluation decision mà chỉ cache configuration snapshot, giúp cache có tỷ lệ tái sử dụng cao hơn và đơn giản hóa cơ chế invalidation.
 
 \subsubsection{Lựa chọn thời gian tồn tại}
 
@@ -104,9 +104,9 @@ Vì vậy, hệ thống cần thực hiện invalidation đối với toàn bộ
 
 Feature flag thường được cấu hình độc lập theo từng environment như Development, Staging và Production. Một thay đổi trong môi trường Production không làm thay đổi cấu hình của cùng feature flag trên Staging hoặc Development.
 
-Do cache key đã bao gồm environment, quá trình invalidation cũng được thực hiện theo từng environment riêng biệt. Khi cấu hình của một feature flag trong một environment được cập nhật, hệ thống chỉ xóa cache snapshot tương ứng với environment đó mà không ảnh hưởng đến cache của các environment khác.
+Do cache key đã bao gồm environment scope, quá trình invalidation có thể giới hạn theo environment khi mutation chỉ ảnh hưởng đến một môi trường cụ thể. Với request không truyền \texttt{environmentKey}, source code dùng scope nội bộ \texttt{\_\_default\_\_}; các provider cũng xóa alias default khi invalidation theo environment có thể ảnh hưởng đến default environment.
 
-Cơ chế invalidation theo environment giúp hạn chế số lượng cache bị xóa sau mỗi lần cập nhật, tăng tỷ lệ cache hit đối với các môi trường không thay đổi và phù hợp với mô hình quản lý cấu hình độc lập của các nền tảng Feature Flag hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+Một số thao tác có phạm vi rộng hơn, chẳng hạn gán hoặc gỡ flag khỏi group, cần invalidation snapshot của flag ở mọi environment vì quan hệ group không gắn với một environment đơn lẻ. Cách kết hợp invalidation theo environment và theo toàn bộ flag giúp giảm phạm vi xóa cache khi có thể, nhưng vẫn bảo toàn tính đúng đắn của evaluation \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
 
 \subsection{Tính nhất quán của cấu hình}
 
@@ -130,7 +130,7 @@ Trong hệ thống được đề xuất, stale configuration được giảm th
 
 \subsubsection{Giao dịch khi cập nhật cấu hình}
 
-Việc cập nhật feature flag thường liên quan đến nhiều bảng dữ liệu như feature flag, flag configuration, rule và audit log. Nếu từng thao tác được thực hiện độc lập, hệ thống có thể rơi vào trạng thái chỉ cập nhật một phần dữ liệu khi xảy ra lỗi, dẫn đến cấu hình không nhất quán.
+Việc cập nhật feature flag thường liên quan đến nhiều bảng dữ liệu như feature flag, flag environment configuration, rule và audit log. Nếu từng thao tác được thực hiện độc lập, hệ thống có thể rơi vào trạng thái chỉ cập nhật một phần dữ liệu khi xảy ra lỗi, dẫn đến cấu hình không nhất quán.
 
 Để đảm bảo tính toàn vẹn dữ liệu, các thay đổi liên quan đến cùng một thao tác quản trị nên được thực hiện trong một transaction của cơ sở dữ liệu. Chỉ khi transaction được commit thành công thì cache mới được invalidation hoặc làm mới. Nếu transaction bị rollback, cache hiện tại vẫn tiếp tục được sử dụng vì dữ liệu trong cơ sở dữ liệu chưa thay đổi.
 
@@ -186,9 +186,9 @@ Khác với Evaluation API chủ yếu phục vụ truy vấn trạng thái feat
 
 \subsubsection{Xác thực người dùng quản trị}
 
-Mọi request gửi tới Management API phải được thực hiện bởi người dùng đã được xác thực. Trước khi cho phép truy cập các chức năng quản trị, hệ thống cần kiểm tra danh tính của người gửi thông qua cơ chế xác thực phù hợp như session hoặc access token.
+Mọi request gửi tới Management API phải có bearer token demo hợp lệ. Backend không tin các header actor do client tự khai báo; token được phân giải thành actor và role ở phía server trước khi kiểm tra quyền.
 
-Sau khi xác thực thành công, thông tin người dùng được gắn vào request để phục vụ quá trình phân quyền và ghi nhận audit log. Các request không hợp lệ hoặc không có thông tin xác thực phải bị từ chối trước khi thực hiện bất kỳ thao tác nào trên dữ liệu của hệ thống. Việc tách riêng quá trình xác thực khỏi logic nghiệp vụ giúp giảm nguy cơ truy cập trái phép và đơn giản hóa việc mở rộng hệ thống trong tương lai.
+Sau khi xác thực thành công, actor và role demo được gắn vào request context để phục vụ phân quyền và ghi nhận audit log. Các request không hợp lệ hoặc không có thông tin xác thực phải bị từ chối trước khi thực hiện bất kỳ thao tác nào trên dữ liệu của hệ thống. Việc tách riêng quá trình xác thực khỏi logic nghiệp vụ giúp giảm nguy cơ truy cập trái phép và đơn giản hóa việc mở rộng hệ thống trong tương lai.
 
 \subsubsection{Bảo vệ mutation endpoint}
 
@@ -206,27 +206,27 @@ Trong hệ thống được đề xuất, mọi mutation endpoint đều yêu c�
 
 Audit log chứa lịch sử thay đổi cấu hình feature flag, bao gồm actor, thời gian thực hiện, hành động và dữ liệu trước và sau khi thay đổi. Đây là nguồn thông tin quan trọng phục vụ kiểm tra, khắc phục sự cố và điều tra các thay đổi bất thường.
 
-Do audit log có thể chứa thông tin nhạy cảm về cấu hình hệ thống và hoạt động của người quản trị, không phải mọi người dùng đều được phép truy cập. Trong phạm vi mini project, chỉ người dùng có quyền quản trị mới được xem audit log thông qua Management API. Hệ thống không cho phép chỉnh sửa hoặc xóa các bản ghi audit log, đảm bảo lịch sử thay đổi luôn mang tính append-only và có giá trị phục vụ truy vết sau này \cite{owasp_logging,owasp_rest_security}.
+Do audit log có thể chứa thông tin nhạy cảm về cấu hình hệ thống và hoạt động của người quản trị, quyền truy cập vẫn phải đi qua Management API và permission matrix. Trong phạm vi mini project, các role có quyền đọc control-plane như \texttt{ADMIN}, \texttt{DEVELOPER} và \texttt{VIEWER} được xem audit log, trong khi mọi thao tác sửa hoặc xóa bản ghi audit đều không được hỗ trợ. Hệ thống giữ lịch sử thay đổi theo mô hình append-only để phục vụ truy vết sau này \cite{owasp_logging,owasp_rest_security}.
 
 \subsection{Phân quyền quản trị}
 
-Hệ thống quản lý Feature Flag bao gồm nhiều chức năng với mức độ ảnh hưởng khác nhau, từ xem cấu hình, đánh giá trạng thái đến thay đổi trực tiếp hành vi của ứng dụng đang chạy. Vì vậy, không phải mọi người dùng đều nên có cùng quyền truy cập đối với Management API và Dashboard. Việc áp dụng mô hình phân quyền theo vai trò (Role-Based Access Control -- RBAC) giúp giới hạn phạm vi thao tác của từng nhóm người dùng, giảm nguy cơ thay đổi cấu hình ngoài ý muốn và tăng khả năng truy vết khi xảy ra sự cố. Trong phạm vi mini project, hệ thống sử dụng ba vai trò gồm \textit{admin}, \textit{developer} và \textit{viewer} để minh họa cơ chế phân quyền \cite{owasp_rest_security}.
+Hệ thống quản lý Feature Flag bao gồm nhiều chức năng với mức độ ảnh hưởng khác nhau, từ xem cấu hình, đánh giá trạng thái đến thay đổi trực tiếp hành vi của ứng dụng đang chạy. Vì vậy, không phải mọi người dùng đều nên có cùng quyền truy cập đối với Management API và Dashboard. Việc áp dụng mô hình phân quyền theo vai trò (Role-Based Access Control -- RBAC) giúp giới hạn phạm vi thao tác của từng nhóm người dùng, giảm nguy cơ thay đổi cấu hình ngoài ý muốn và tăng khả năng truy vết khi xảy ra sự cố. Trong phạm vi mini project, hệ thống sử dụng ba vai trò demo gồm \textit{admin}, \textit{developer} và \textit{viewer}. Backend phân giải role từ bearer token demo và áp dụng permission matrix tập trung để minh họa cơ chế phân quyền \cite{owasp_rest_security}.
 
 \subsubsection{Quyền của admin}
 
-Admin là vai trò có quyền cao nhất trong hệ thống. Người dùng thuộc vai trò này có thể thực hiện toàn bộ các chức năng quản trị như tạo project, tạo và cập nhật feature flag, cấu hình rule, bật hoặc tắt kill switch, quản lý group, xem audit log và quản lý tài khoản người dùng.
+Admin là vai trò có quyền cao nhất trong hệ thống demo. Người dùng thuộc vai trò này có thể thực hiện toàn bộ thao tác control-plane hiện có như tạo/cập nhật project, tạo/cập nhật/archive/restore/delete feature flag, replace rule, quản lý group, bật/tắt group kill switch, quản lý sample user, xem history, audit log và statistics.
 
-Do các thao tác của admin có thể ảnh hưởng trực tiếp đến hành vi của hệ thống đang vận hành, mọi thay đổi đều được ghi nhận vào audit log cùng với thông tin actor và thời điểm thực hiện. Đây là vai trò duy nhất được phép thực hiện các thao tác có khả năng thay đổi cấu hình của toàn bộ hệ thống.
+Do các thao tác của admin có thể ảnh hưởng trực tiếp đến hành vi của hệ thống đang vận hành, mọi thay đổi đều được ghi nhận vào audit log cùng với thông tin actor và thời điểm thực hiện. Đây là vai trò duy nhất được phép quản lý project, vòng đời flag, group kill switch và sample user trong permission matrix hiện tại.
 
 \subsubsection{Quyền của developer}
 
 Developer là vai trò phục vụ quá trình phát triển và kiểm thử tính năng. Người dùng thuộc nhóm này có thể xem danh sách project, feature flag, rule và trạng thái hiện tại của hệ thống. Tùy theo chính sách triển khai, developer cũng có thể được phép cập nhật một số cấu hình trong môi trường phát triển hoặc thử nghiệm.
 
-Trong phạm vi mini project, developer được phép quản lý feature flag và rule nhưng không được thực hiện các thao tác quản trị hệ thống như quản lý tài khoản hoặc thay đổi quyền của người dùng khác. Việc tách biệt quyền của developer giúp giảm rủi ro thay đổi ngoài ý muốn đối với các chức năng quản trị quan trọng.
+Trong phạm vi mini project, developer được phép đọc dữ liệu control-plane, quản lý feature flag, replace rule và gán hoặc gỡ flag khỏi group. Developer không được quản lý project, không được archive/restore flag, không được tạo/đổi tên group, không được bật group kill switch và không được quản lý sample user. Việc tách biệt quyền này giúp demo rõ nguyên tắc least privilege.
 
 \subsubsection{Quyền của viewer}
 
-Viewer là vai trò chỉ có quyền đọc dữ liệu. Người dùng thuộc nhóm này có thể xem danh sách project, feature flag, trạng thái runtime và audit log nếu được cấp quyền, nhưng không được phép thực hiện bất kỳ thao tác thay đổi cấu hình nào.
+Viewer là vai trò chỉ có quyền đọc dữ liệu. Người dùng thuộc nhóm này có thể xem project, flag, group, rule, history, audit log và statistics, nhưng không được phép thực hiện bất kỳ thao tác thay đổi cấu hình nào.
 
 Mọi endpoint thực hiện tạo, cập nhật hoặc xóa dữ liệu đều phải từ chối request đến từ viewer. Vai trò này phù hợp với các đối tượng cần theo dõi trạng thái hệ thống hoặc kiểm tra cấu hình mà không tham gia vào quá trình quản trị.
 

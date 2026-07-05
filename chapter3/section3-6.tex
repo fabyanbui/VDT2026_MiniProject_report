@@ -34,7 +34,7 @@ Sau khi hoàn thành kiểm thử ở mức đơn vị, hệ thống tiếp tụ
 
 \subsubsection{API quản trị}
 
-Nhóm API quản trị bao gồm các chức năng quản lý project, environment, feature flag, rule, flag group và sample user. Các trường hợp kiểm thử bao gồm tạo mới, cập nhật, truy vấn, archive, khôi phục và các thao tác thay đổi cấu hình.
+Nhóm API quản trị bao gồm các chức năng quản lý project, feature flag, replace rule set, flag group, sample user context, audit log, history và statistics; environment được kiểm thử thông qua seed data, repository, Evaluation API, group config và statistics thay vì controller CRUD riêng. Các trường hợp kiểm thử bao gồm tạo mới, cập nhật, truy vấn, archive, khôi phục và các thao tác thay đổi cấu hình.
 
 Kết quả kiểm thử cho thấy dữ liệu được kiểm tra hợp lệ trước khi ghi xuống cơ sở dữ liệu. Các trường hợp khóa trùng, tham số không hợp lệ hoặc thiếu dữ liệu đều trả về phản hồi lỗi thống nhất cùng request ID để hỗ trợ truy vết. Đối với các thao tác thay đổi cấu hình, hệ thống đồng thời ghi nhận audit log và thực hiện cache invalidation khi cần thiết, bảo đảm dữ liệu phục vụ evaluation luôn được cập nhật.
 

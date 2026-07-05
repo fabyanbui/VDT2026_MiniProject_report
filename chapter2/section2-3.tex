@@ -241,7 +241,7 @@ Evaluation API phải luôn trả về kết quả nhất quán đối với cù
 
 Evaluation API là thành phần được gọi với tần suất cao trong quá trình vận hành ứng dụng, do đó cần có thời gian phản hồi thấp và không làm ảnh hưởng đến hiệu năng của hệ thống tích hợp.
 
-Quá trình evaluate cần giới hạn số lượng thao tác truy cập cơ sở dữ liệu, thực hiện đánh giá rule theo thứ tự ưu tiên và hỗ trợ cơ chế cache để giảm độ trễ trong các lần truy cập lặp lại. Trong phạm vi mở rộng của mini project, hệ thống có thể sử dụng bộ nhớ trong hoặc Redis để lưu kết quả evaluate phù hợp với các yêu cầu về hiệu năng \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
+Quá trình evaluate cần giới hạn số lượng thao tác truy cập cơ sở dữ liệu, thực hiện đánh giá rule theo thứ tự xác định và hỗ trợ cơ chế cache để giảm độ trễ trong các lần truy cập lặp lại. Trong source code hiện tại, hệ thống cache evaluation snapshot bằng bộ nhớ trong theo mặc định, có thể tắt cache bằng provider \texttt{none} hoặc dùng Redis tùy chọn để lưu snapshot cấu hình thay vì cache final decision theo từng người dùng \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
 
 \subsubsection{Tính nhất quán của cấu hình}
 
@@ -271,7 +271,7 @@ Bên cạnh đó, mọi thao tác thay đổi Feature Flag, rule hoặc cấu h�
 
 Bên cạnh các chức năng trong mức MVP, đề tài còn đề xuất một số yêu cầu khuyến khích nhằm nâng cao hiệu năng, khả năng mở rộng và tính hoàn thiện của hệ thống. Các chức năng này phản ánh nhiều đặc điểm thường gặp trong các nền tảng Feature Flag thương mại, đồng thời tạo nền tảng cho việc phát triển hệ thống theo hướng sẵn sàng vận hành trong môi trường thực tế \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
 
-\subsubsection{Caching kết quả evaluation}
+\subsubsection{Caching evaluation snapshot}
 
 Evaluation API thường được gọi với tần suất rất lớn, do đó việc truy cập cơ sở dữ liệu cho mỗi lần evaluate có thể làm tăng độ trễ và giảm khả năng đáp ứng của hệ thống.
 

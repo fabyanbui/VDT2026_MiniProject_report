@@ -12,7 +12,7 @@ Demo Application mô phỏng một website thương mại điện tử với cá
 
 \subsubsection{Dữ liệu người dùng và organization}
 
-Để phục vụ các kịch bản demo, hệ thống chuẩn bị sẵn tập dữ liệu người dùng mẫu (seed data). Mỗi tài khoản bao gồm các thông tin như \texttt{userId}, \texttt{targetingId}, vai trò (\textit{role}) và thông tin \texttt{organization}. Trong đó, \texttt{targetingId} được sử dụng làm khóa ổn định cho quá trình percentage rollout nhằm đảm bảo cùng một người dùng luôn nhận được kết quả đánh giá giống nhau giữa các lần truy cập \cite{launchdarkly_percentage_rollouts}.
+Để phục vụ các kịch bản demo, hệ thống chuẩn bị sẵn tập dữ liệu người dùng mẫu (seed data). Mỗi tài khoản trong demo có \texttt{userId}, trường nội bộ \texttt{targetingId}, vai trò (\textit{role}) và thông tin organization. Khi gửi Evaluation Context, Demo Application chuyển \texttt{targetingId} thành \texttt{targetingKey}; đây là khóa ổn định cho percentage rollout nhằm đảm bảo cùng một người dùng luôn nhận được kết quả đánh giá giống nhau giữa các lần truy cập \cite{launchdarkly_percentage_rollouts}.
 
 Các tài khoản được chia thành nhiều nhóm như quản trị viên cửa hàng, khách hàng beta và khách hàng thông thường. Việc phân chia này giúp minh họa đầy đủ các chiến lược targeting theo vai trò, theo người dùng và theo phần trăm người dùng mà không cần xây dựng cơ chế đăng ký tài khoản hoặc xác thực phức tạp.
 
@@ -36,7 +36,7 @@ Trong quá trình trình diễn, hai phiên bản của ứng dụng được m�
 
 SDK được khởi tạo khi ứng dụng bắt đầu hoạt động bằng cách cung cấp địa chỉ Evaluation API và các thông số cấu hình cần thiết. Sau khi được tạo, SDK được sử dụng như một singleton trong toàn bộ vòng đời của ứng dụng nhằm tránh khởi tạo lại nhiều lần.
 
-Bên cạnh địa chỉ API, SDK cho phép cấu hình môi trường làm việc, thời gian timeout và các giá trị mặc định. Việc tập trung cấu hình tại một vị trí giúp đơn giản hóa quá trình bảo trì cũng như tạo điều kiện mở rộng khi cần bổ sung cơ chế cache hoặc xác thực trong tương lai.
+Bên cạnh địa chỉ API, SDK cho phép cấu hình \texttt{projectKey}, \texttt{environmentKey}, thời gian timeout và tùy chọn \texttt{fetch} khi runtime cần cung cấp implementation riêng. Việc tập trung cấu hình tại một vị trí giúp đơn giản hóa quá trình bảo trì và tránh lặp lại chi tiết HTTP trong Demo Application.
 
 \subsubsection{Phương thức evaluate}
 
@@ -44,15 +44,23 @@ Phương thức chính của SDK là \texttt{evaluate()}, nhận vào khóa Feat
 
 Sau khi nhận được phản hồi, SDK chuyển đổi dữ liệu thành cấu trúc đơn giản để ứng dụng sử dụng trực tiếp. Nhờ đó, mã nguồn của Demo Application không cần quan tâm đến chi tiết giao thức truyền thông hay định dạng phản hồi của Backend API. Cách thiết kế này giúp giảm sự phụ thuộc giữa ứng dụng khách và nền tảng Feature Flag, đồng thời phù hợp với kiến trúc Feature Flag hiện đại \cite{openfeature_flag_evaluation}.
 
-\subsubsection{Cấu hình default value}
+\subsubsection{Fail-closed fallback của SDK}
 
-SDK hỗ trợ khai báo giá trị mặc định (\textit{default value}) cho mỗi lần evaluation. Nếu Feature Flag không tồn tại hoặc Evaluation API không trả về kết quả hợp lệ, SDK sẽ trả về giá trị mặc định thay vì để ứng dụng xử lý ngoại lệ.
+SDK hiện tại không nhận một default value tùy biến cho từng flag. Thay vào đó, mọi lỗi ở phía client như request không hợp lệ, timeout, lỗi mạng, HTTP không thành công, JSON không hợp lệ hoặc response sai schema đều được chuẩn hóa thành một kết quả fail-closed:
 
-Cơ chế này bảo đảm ứng dụng luôn hoạt động ổn định ngay cả khi xảy ra lỗi ngoài mong muốn. Việc sử dụng default value cũng phù hợp với nguyên tắc fail-safe trong các hệ thống Feature Flag, giúp hạn chế ảnh hưởng của sự cố đến trải nghiệm người dùng \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
+\begin{itemize}
+    \item \texttt{enabled = false};
+    \item \texttt{variant = off};
+    \item \texttt{reason = ERROR};
+    \item \texttt{matchedRuleId = null};
+    \item \texttt{errorSource = CLIENT} để phân biệt lỗi do SDK với lỗi do backend trả về.
+\end{itemize}
+
+Cơ chế này bảo đảm ứng dụng luôn hoạt động ổn định ngay cả khi xảy ra lỗi ngoài mong muốn, đồng thời phù hợp với nguyên tắc fail-safe trong các hệ thống Feature Flag \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
 
 \subsubsection{Xử lý timeout và lỗi mạng}
 
-Trong quá trình giao tiếp với Evaluation API, SDK thiết lập thời gian chờ tối đa cho mỗi yêu cầu. Nếu quá thời gian quy định hoặc xảy ra lỗi mạng, SDK sẽ hủy yêu cầu, ghi nhận lỗi và trả về giá trị mặc định đã cấu hình thay vì làm gián đoạn luồng xử lý của ứng dụng.
+Trong quá trình giao tiếp với Evaluation API, SDK thiết lập thời gian chờ tối đa cho mỗi yêu cầu. Nếu quá thời gian quy định hoặc xảy ra lỗi mạng, SDK sẽ hủy yêu cầu và trả về kết quả fail-closed với \texttt{reason = ERROR} thay vì làm gián đoạn luồng xử lý của ứng dụng.
 
 Ngoài timeout, SDK cũng xử lý các trường hợp như máy chủ không phản hồi, phản hồi không hợp lệ hoặc lỗi HTTP. Việc che giấu các chi tiết xử lý lỗi bên trong SDK giúp mã nguồn của Demo Application ngắn gọn hơn, đồng thời bảo đảm mọi Feature Flag đều được đánh giá theo cùng một quy trình thống nhất. Cách tiếp cận này phù hợp với khuyến nghị về xử lý lỗi và bảo vệ tính sẵn sàng của các dịch vụ REST \cite{owasp_rest_security,openfeature_flag_evaluation}.
 
@@ -102,15 +110,15 @@ Việc tách biệt \texttt{userId} và \texttt{targetingKey} giúp hệ thống
 
 \subsubsection{Role}
 
-Thông tin vai trò của người dùng được truyền dưới dạng danh sách các giá trị \texttt{role}. Evaluation Engine kiểm tra các vai trò này khi đánh giá các rule targeting theo role để quyết định trạng thái của Feature Flag.
+Thông tin vai trò của người dùng được truyền dưới dạng danh sách các giá trị \texttt{roles}. Evaluation Engine kiểm tra các vai trò này khi đánh giá các rule targeting theo role để quyết định trạng thái của Feature Flag.
 
 Trong Demo Application, các vai trò như khách hàng thông thường, khách hàng beta hoặc quản trị viên được sử dụng để minh họa việc phát hành tính năng theo từng nhóm người dùng. Nhờ đó, cùng một Feature Flag có thể được kích hoạt cho một số vai trò nhất định mà không ảnh hưởng đến các nhóm còn lại \cite{launchdarkly_targeting_rules}.
 
-\subsubsection{Organization ID}
+\subsubsection{Organization trong attributes}
 
-Mỗi người dùng trong Demo Application đều thuộc một \texttt{organizationId}. Thuộc tính này được đưa vào Evaluation Context nhằm minh họa khả năng mở rộng của hệ thống khi cần triển khai Feature Flag theo từng tổ chức hoặc khách hàng.
+Mỗi người dùng trong Demo Application đều thuộc một \texttt{attributes.organizationId}. Thuộc tính này được đưa vào Evaluation Context nhằm minh họa khả năng mở rộng của hệ thống khi cần triển khai Feature Flag theo từng tổ chức hoặc khách hàng.
 
-Trong phạm vi mini project, \texttt{organizationId} chủ yếu phục vụ mục đích trình diễn và chuẩn bị cho các chiến lược targeting nâng cao trong tương lai. Việc đưa thuộc tính này vào Evaluation Context ngay từ đầu giúp hạn chế thay đổi giao diện lập trình của SDK khi mở rộng hệ thống.
+Trong phạm vi mini project, \texttt{attributes.organizationId} chủ yếu phục vụ mục đích trình diễn và chuẩn bị cho các chiến lược targeting nâng cao trong tương lai. Việc đưa thuộc tính này vào Evaluation Context ngay từ đầu giúp hạn chế thay đổi giao diện lập trình của SDK khi mở rộng hệ thống.
 
 \subsubsection{Thuộc tính mở rộng}
 
@@ -120,29 +128,28 @@ Mặc dù Rule Evaluation Engine hiện tại chưa khai thác toàn bộ các t
 
 \subsection{Hành vi fallback}
 
-Để bảo đảm Demo Application luôn hoạt động ổn định trong các tình huống bất thường, JavaScript SDK triển khai cơ chế fallback khi không thể nhận được kết quả evaluation hợp lệ từ Backend API. Thay vì làm gián đoạn luồng xử lý hoặc gây lỗi giao diện, SDK trả về giá trị mặc định đã được cấu hình và ghi nhận nguyên nhân xảy ra lỗi. Cách tiếp cận này phù hợp với nguyên tắc fail-safe trong các hệ thống Feature Flag, giúp ứng dụng vẫn duy trì khả năng phục vụ ngay cả khi dịch vụ đánh giá tạm thời không khả dụng \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
+Để bảo đảm Demo Application luôn hoạt động ổn định trong các tình huống bất thường, JavaScript SDK triển khai cơ chế fallback fail-closed khi không thể nhận được kết quả evaluation hợp lệ từ Backend API. Thay vì làm gián đoạn luồng xử lý hoặc gây lỗi giao diện, SDK trả về một kết quả tắt an toàn và ghi nhận nguyên nhân xảy ra lỗi bằng \texttt{errorSource = CLIENT}. Cách tiếp cận này phù hợp với nguyên tắc fail-safe trong các hệ thống Feature Flag, giúp ứng dụng vẫn duy trì khả năng phục vụ ngay cả khi dịch vụ đánh giá tạm thời không khả dụng \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
 
 \subsubsection{Evaluation API không khả dụng}
 
-Trong trường hợp Evaluation API không thể kết nối do máy chủ ngừng hoạt động hoặc gặp sự cố mạng, SDK không tiếp tục thử đánh giá Feature Flag tại phía ứng dụng. Thay vào đó, SDK trả về giá trị mặc định đã được cấu hình cho Feature Flag tương ứng.
+Trong trường hợp Evaluation API không thể kết nối do máy chủ ngừng hoạt động hoặc gặp sự cố mạng, SDK không tiếp tục thử đánh giá Feature Flag tại phía ứng dụng. Thay vào đó, SDK trả về \texttt{enabled = false}, \texttt{variant = off}, \texttt{reason = ERROR} và \texttt{errorSource = CLIENT}.
 
 Cơ chế này giúp Demo Application không phụ thuộc hoàn toàn vào trạng thái của Evaluation API và tránh tình trạng toàn bộ giao diện bị ảnh hưởng bởi lỗi của một dịch vụ bên ngoài. Đồng thời, việc xử lý tập trung trong SDK giúp ứng dụng khách không cần tự cài đặt các cơ chế phục hồi riêng.
 
 \subsubsection{Request timeout}
 
-Mỗi yêu cầu gửi đến Evaluation API đều được giới hạn bởi một khoảng thời gian chờ tối đa. Nếu máy chủ phản hồi chậm vượt quá thời gian này, SDK sẽ hủy yêu cầu và coi đây là một lần evaluation thất bại.
+Mỗi yêu cầu gửi đến Evaluation API đều được giới hạn bởi một khoảng thời gian chờ tối đa. Nếu máy chủ phản hồi chậm vượt quá thời gian này, SDK hủy request bằng \texttt{AbortController} và coi đây là một lần evaluation thất bại ở phía client.
 
-Sau khi timeout xảy ra, SDK trả về giá trị mặc định thay vì tiếp tục chờ phản hồi. Cách xử lý này giúp duy trì khả năng phản hồi của giao diện người dùng, đồng thời tránh hiện tượng treo ứng dụng khi dịch vụ phía máy chủ gặp vấn đề về hiệu năng hoặc kết nối mạng \cite{owasp_rest_security}.
+Sau khi timeout xảy ra, SDK trả về kết quả fail-closed thay vì tiếp tục chờ phản hồi. Cách xử lý này giúp duy trì khả năng phản hồi của giao diện người dùng, đồng thời tránh hiện tượng treo ứng dụng khi dịch vụ phía máy chủ gặp vấn đề về hiệu năng hoặc kết nối mạng \cite{owasp_rest_security}.
 
 \subsubsection{Flag không tồn tại}
 
-Nếu Evaluation API xác định Feature Flag không tồn tại hoặc đã bị loại bỏ khỏi hệ thống, phản hồi sẽ chứa reason code tương ứng và SDK trả về giá trị mặc định của ứng dụng.
+Nếu Evaluation API xác định project, environment, Feature Flag hoặc config không tồn tại, backend trả về một response hợp lệ với \texttt{enabled = false}, \texttt{variant = off} và \texttt{reason = NOT\_FOUND}. SDK không đổi reason này thành lỗi client mà chuyển tiếp kết quả backend để Demo Application có thể hiển thị trạng thái tắt an toàn.
 
-Việc sử dụng giá trị mặc định trong trường hợp này giúp ứng dụng tiếp tục hoạt động bình thường ngay cả khi tồn tại sự khác biệt giữa phiên bản ứng dụng và cấu hình hiện có trên Feature Flag Platform. Đồng thời, cơ chế này hạn chế nguy cơ phát sinh lỗi do truy cập vào các Feature Flag không hợp lệ \cite{openfeature_flag_evaluation}.
+Việc sử dụng response có cấu trúc trong trường hợp này giúp ứng dụng tiếp tục hoạt động bình thường ngay cả khi tồn tại sự khác biệt giữa phiên bản ứng dụng và cấu hình hiện có trên Feature Flag Platform \cite{openfeature_flag_evaluation}.
 
 \subsubsection{Context không đầy đủ}
 
-Trong một số trường hợp, Evaluation Context có thể thiếu các trường dữ liệu cần thiết như \texttt{targetingKey}, \texttt{userId} hoặc \texttt{role}. Khi đó, Evaluation API không thể áp dụng đầy đủ các rule targeting và sẽ thực hiện xử lý theo cơ chế mặc định của Rule Evaluation Engine.
+Trong một số trường hợp, Evaluation Context có thể thiếu các trường dữ liệu cần thiết như \texttt{targetingKey}, \texttt{userId} hoặc \texttt{roles}. Với user allowlist và role targeting, engine xem rule phụ thuộc vào dữ liệu thiếu là không khớp và tiếp tục đánh giá rule khác. Riêng percentage rollout yêu cầu \texttt{targetingKey}; nếu đã tới bước rollout mà khóa này rỗng hoặc không có, backend trả \texttt{INVALID\_CONTEXT}.
 
-Đối với Demo Application, SDK vẫn gửi toàn bộ thông tin hiện có trong Evaluation Context và sử dụng kết quả trả về từ Evaluation API. Nếu không thể xác định trạng thái của Feature Flag, SDK tiếp tục trả về giá trị mặc định đã cấu hình. Cách tiếp cận này giúp ứng dụng hoạt động ổn định, đồng thời cho phép mở rộng Evaluation Context trong tương lai mà không làm thay đổi giao diện lập trình của SDK \cite{openfeature_evaluation_context,openfeature_flag_evaluation}.
-
+Đối với Demo Application, SDK vẫn gửi toàn bộ thông tin hiện có trong Evaluation Context và sử dụng kết quả trả về từ Evaluation API. Nếu lỗi xảy ra ở phía SDK hoặc response không hợp lệ, SDK áp dụng fail-closed fallback; nếu backend trả một reason hợp lệ như \texttt{NOT\_FOUND} hoặc \texttt{INVALID\_CONTEXT}, SDK chuyển tiếp nguyên trạng cho ứng dụng \cite{openfeature_evaluation_context,openfeature_flag_evaluation}.

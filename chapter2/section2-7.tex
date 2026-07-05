@@ -1,711 +1,141 @@
+
 \section{Thiết kế API}
 
 \subsection{Nguyên tắc thiết kế API}
-\label{subsec:api-design-principles}
 
-API của hệ thống được thiết kế nhằm cung cấp giao diện thống nhất cho dashboard quản trị, demo application và các ứng dụng khách tích hợp Feature Flag. Thiết kế ưu tiên tính rõ ràng, khả năng dự đoán, khả năng mở rộng và xử lý lỗi nhất quán. Các endpoint được tổ chức theo tài nguyên nghiệp vụ, sử dụng định dạng JSON và tuân theo các nguyên tắc phổ biến của kiến trúc REST.
-
-\subsubsection{Kiến trúc REST}
-\label{subsubsec:rest-architecture}
-
-Hệ thống sử dụng kiến trúc REST, trong đó project, environment, feature flag, flag configuration, rule và audit log được biểu diễn dưới dạng các resource. Mỗi resource được định danh bằng URL và được thao tác thông qua các HTTP method phù hợp.
-
-Các phương thức HTTP chính gồm:
+API của hệ thống được tổ chức theo kiến trúc REST, sử dụng JSON, tiền tố phiên bản \texttt{/v1} và quy ước trường dữ liệu dạng \texttt{camelCase}. Thiết kế hiện tại tách rõ hai nhóm endpoint:
 
 \begin{itemize}
-    \item \texttt{GET}: truy vấn một resource hoặc danh sách resource;
-    \item \texttt{POST}: tạo resource mới hoặc thực hiện thao tác evaluation;
-    \item \texttt{PATCH}: cập nhật một phần trạng thái hoặc thuộc tính của resource;
-    \item \texttt{DELETE}: xóa resource khi việc xóa vật lý được cho phép.
+    \item \textbf{Control plane}: các endpoint quản trị project, feature flag, rule, group, sample user, audit log, lịch sử cấu hình và thống kê. Nhóm này yêu cầu bearer token demo và được kiểm tra quyền ở backend.
+    \item \textbf{Data plane}: endpoint \texttt{POST /v1/evaluate}. Endpoint này phục vụ runtime evaluation cho demo app và SDK, không yêu cầu bearer token quản trị.
 \end{itemize}
 
-Ví dụ, endpoint \texttt{GET /v1/projects} trả về danh sách project, trong khi \texttt{POST /v1/projects} tạo một project mới. Việc cập nhật trạng thái của feature flag được thực hiện bằng \texttt{PATCH} vì request chỉ thay đổi một phần dữ liệu hiện có.
-
-Đối với feature flag, thao tác archive được ưu tiên thay cho xóa vật lý nhằm bảo toàn lịch sử cấu hình và audit log. Do đó, feature flag được archive thông qua endpoint cập nhật trạng thái thay vì bị loại bỏ hoàn toàn khỏi cơ sở dữ liệu.
-
-Evaluation API được thiết kế dưới dạng \texttt{POST /v1/evaluate}. Mặc dù thao tác evaluation không làm thay đổi cấu hình flag, request sử dụng \texttt{POST} vì evaluation context được truyền trong request body và có thể chứa nhiều trường như targeting key, user ID, role và custom attributes. Thiết kế này cũng tránh việc đưa thông tin ngữ cảnh hoặc dữ liệu có khả năng nhạy cảm vào query string \cite{openfeature_evaluation_context,openfeature_flag_evaluation}.
-
-API sử dụng JSON cho cả request và response. Mỗi response trả về HTTP status code phù hợp với kết quả xử lý, đồng thời sử dụng cấu trúc dữ liệu thống nhất để client có thể xử lý một cách dự đoán được.
+Các endpoint quản trị dùng khóa nghiệp vụ ổn định như \texttt{projectKey}, \texttt{flagKey} và \texttt{groupKey} trên URL thay vì yêu cầu frontend phải biết định danh nội bộ. Cách này khớp với source code hiện tại trong các controller NestJS và thuận tiện cho demo, vì người trình bày có thể đọc URL theo đúng ngữ nghĩa nghiệp vụ.
 
 \subsubsection{Versioning đường dẫn API}
-\label{subsubsec:api-path-versioning}
 
-Các endpoint được đặt dưới tiền tố phiên bản \texttt{/v1}. Ví dụ:
+Toàn bộ REST API được đặt dưới tiền tố \texttt{/v1}. Một số endpoint chính trong source code hiện tại gồm:
 
 \begin{lstlisting}
 POST /v1/evaluate
 GET  /v1/projects
-GET  /v1/projects/{projectId}/feature-flags
-GET  /v1/audit-logs
-GET  /v1/statistics/feature-flags/{flagId}
+GET  /v1/projects/{projectKey}/flags
+GET  /v1/projects/{projectKey}/groups
+GET  /v1/projects/{projectKey}/audit-logs
+GET  /v1/projects/{projectKey}/stats/flags
 \end{lstlisting}
 
-Versioning trên đường dẫn giúp phân biệt rõ ràng giữa các phiên bản API và cho phép hệ thống phát triển mà không làm gián đoạn các ứng dụng khách đang sử dụng phiên bản cũ. Khi xuất hiện thay đổi không tương thích ngược, chẳng hạn thay đổi cấu trúc request, response hoặc ý nghĩa của một trường dữ liệu, hệ thống có thể cung cấp phiên bản mới dưới tiền tố \texttt{/v2}.
+Trong phạm vi mini project, chỉ có phiên bản \texttt{v1}. Nếu sau này cần thay đổi không tương thích ngược về request hoặc response, hệ thống có thể bổ sung \texttt{/v2} mà không phá vỡ client đang dùng \texttt{/v1}.
 
-Các thay đổi tương thích ngược, như bổ sung trường tùy chọn vào response hoặc thêm endpoint mới, không yêu cầu tăng phiên bản API. Ngược lại, việc xóa trường, đổi tên trường hoặc thay đổi kiểu dữ liệu được xem là breaking change và cần được triển khai trong phiên bản mới.
+\subsubsection{Phân trang, lọc và sắp xếp}
 
-Trong phạm vi mini project, toàn bộ endpoint sử dụng phiên bản \texttt{v1}. Cách tổ chức này đủ đơn giản cho việc triển khai hiện tại nhưng vẫn thể hiện khả năng mở rộng và duy trì hợp đồng tích hợp trong tương lai.
-
-\subsubsection{Quy ước đặt tên resource}
-\label{subsubsec:resource-naming-convention}
-
-Tên resource trong URL sử dụng danh từ số nhiều, chữ thường và dấu gạch ngang khi cần phân tách nhiều từ. Các URL không sử dụng động từ để mô tả thao tác vì hành động đã được thể hiện bởi HTTP method.
-
-Một số resource chính gồm.
-
-
-
-Đối với tài nguyên phụ thuộc vào resource cha, API sử dụng URL lồng nhau để thể hiện phạm vi. Ví dụ.
-
-
-
-Các tham số định danh trong URL sử dụng hậu tố \texttt{Id}, chẳng hạn \texttt{projectId}, \texttt{flagId} và \texttt{ruleId}. Các khóa nghiệp vụ như \texttt{projectKey}, \texttt{environmentKey} và \texttt{flagKey} được sử dụng trong request body hoặc query parameter khi cần tìm kiếm resource theo khóa có ý nghĩa đối với ứng dụng khách.
-
-Tên trường JSON sử dụng quy ước \texttt{camelCase}, ví dụ:
-
-\begin{lstlisting}
-{
-  "projectKey": "ecommerce-demo",
-  "environmentKey": "production",
-  "flagKey": "new-checkout",
-  "context": { "targetingKey": "user-001" }
-}
-\end{lstlisting}
-
-Quy ước thống nhất giữa URL, DTO và response giúp giảm nhầm lẫn trong quá trình phát triển frontend, backend và SDK.
-
-\subsubsection{Phân trang và lọc dữ liệu}
-\label{subsubsec:pagination-filtering}
-
-Các endpoint trả về danh sách resource hỗ trợ phân trang bằng hai query parameter là \texttt{limit} và \texttt{offset}. Trong đó, \texttt{limit} xác định số bản ghi tối đa được trả về và \texttt{offset} xác định số bản ghi cần bỏ qua từ đầu tập kết quả.
-
-
-
-
-Giá trị mặc định của \texttt{limit} là 20, giá trị mặc định của \texttt{offset} là 0 và giá trị tối đa của \texttt{limit} là 100. Việc giới hạn số lượng bản ghi trong mỗi request giúp tránh tải quá nhiều dữ liệu vào bộ nhớ và giảm thời gian phản hồi của API.
-
-Response danh sách bao gồm dữ liệu và metadata phân trang:
+Các endpoint trả về danh sách sử dụng offset pagination với \texttt{limit} và \texttt{offset}. Giá trị mặc định là \texttt{limit = 20}, \texttt{offset = 0}; \texttt{limit} không vượt quá 100. Response danh sách trong backend hiện tại có dạng:
 
 \begin{lstlisting}
 {
   "items": [],
-  "pagination": {
+  "page": {
     "limit": 20,
     "offset": 0,
-    "total": 125
+    "total": 42,
+    "hasNext": true
   }
 }
 \end{lstlisting}
 
-Các endpoint danh sách có thể hỗ trợ thêm query parameter để lọc dữ liệu theo trạng thái, project, environment hoặc từ khóa tìm kiếm. Ví dụ.
-
-
-
-Các điều kiện lọc được kết hợp theo phép hội. Những query parameter không được cung cấp sẽ không tham gia vào điều kiện truy vấn. Backend thực hiện validation giá trị query parameter trước khi truy vấn cơ sở dữ liệu nhằm tránh các điều kiện không hợp lệ hoặc gây tải không cần thiết.
-
-Kết quả danh sách phải có thứ tự xác định. Nếu client không cung cấp tiêu chí sắp xếp, hệ thống sử dụng thứ tự mặc định theo thời điểm tạo giảm dần hoặc theo khóa nghiệp vụ tăng dần, tùy loại resource. Việc xác định rõ thứ tự giúp kết quả phân trang ổn định giữa các request liên tiếp.
-
-\subsubsection{Idempotency và tính nhất quán}
-\label{subsubsec:idempotency-consistency}
-
-Idempotency thể hiện việc gửi cùng một request nhiều lần nhưng không làm thay đổi kết quả cuối cùng của hệ thống sau lần xử lý đầu tiên. Các endpoint sử dụng \texttt{GET}, \texttt{PUT} và \texttt{DELETE} về nguyên tắc cần có tính idempotent, trong khi \texttt{POST} thường không bảo đảm tính chất này.
-
-Trong hệ thống, các thao tác cập nhật trạng thái bằng \texttt{PATCH} được thiết kế theo hướng idempotent. Ví dụ, việc gửi nhiều lần request đặt trạng thái flag thành \texttt{DISABLED} vẫn tạo ra cùng một trạng thái cuối cùng.
-
-
-
-Đối với endpoint tạo resource bằng \texttt{POST}, backend áp dụng ràng buộc duy nhất trên các khóa nghiệp vụ như project key, environment key và flag key. Nếu client gửi lại request tạo resource với cùng khóa, hệ thống trả về lỗi \texttt{409 Conflict} thay vì tạo bản ghi trùng lặp.
-
-Evaluation API có tính idempotent về mặt kết quả khi cấu hình flag và evaluation context không thay đổi. Cùng một project key, environment key, flag key và targeting key phải tạo ra cùng một kết quả evaluation. Đặc biệt, percentage rollout sử dụng hàm băm xác định thay vì giá trị ngẫu nhiên để bảo đảm một người dùng được gán ổn định vào cùng một bucket qua nhiều lần evaluation \cite{launchdarkly_percentage_rollouts}.
-
-Các thao tác thay đổi nhiều resource liên quan, chẳng hạn cập nhật flag configuration và ghi audit log, được thực hiện trong cùng một database transaction. Nếu một bước thất bại, toàn bộ transaction được rollback nhằm tránh trạng thái cấu hình đã thay đổi nhưng audit log chưa được ghi nhận.
-
-Đối với các request cập nhật cấu hình đồng thời, hệ thống sử dụng timestamp cập nhật hoặc version cấu hình để phát hiện dữ liệu cũ. Client không được ghi đè một phiên bản mới hơn bằng dữ liệu được đọc từ phiên bản cũ mà không có kiểm tra phù hợp. Nguyên tắc này giúp hạn chế lost update và duy trì tính nhất quán của cấu hình Feature Flag.
-
-Sau khi mutation thành công, cache liên quan đến project, environment hoặc flag phải được invalidation trước khi request tiếp theo sử dụng dữ liệu mới. Cơ sở dữ liệu được xem là nguồn dữ liệu chính, trong khi cache chỉ đóng vai trò tăng hiệu năng và không được phép trở thành nguồn cấu hình độc lập.
+Các query filter phụ thuộc từng endpoint. Ví dụ, danh sách flag hỗ trợ \texttt{search}, \texttt{status} và \texttt{lifecycleStatus}; rule hỗ trợ lọc theo \texttt{type}; audit log hỗ trợ lọc theo \texttt{targetType}, \texttt{targetKey}, \texttt{actor}, \texttt{action}, \texttt{from} và \texttt{to}; statistics hỗ trợ \texttt{environmentKey}, khoảng thời gian và sort theo tổng số lượt evaluation.
 
 \subsection{API quản lý project và environment}
-\label{subsec:project-environment-api}
 
-Project là phạm vi quản lý cấp cao nhất của hệ thống Feature Flag. Mỗi project đại diện cho một ứng dụng hoặc một sản phẩm độc lập và chứa các environment, feature flag, user context mẫu và audit log tương ứng. Environment biểu diễn các môi trường triển khai như development, staging và production, cho phép cùng một feature flag có cấu hình khác nhau theo từng môi trường.
+Project là phạm vi quản lý cấp cao nhất. Source code hiện tại triển khai các endpoint project sau:
 
-\subsubsection{Tạo và truy vấn project}
-\label{subsubsec:create-query-project}
+\begin{itemize}
+    \item \texttt{GET /v1/projects}: danh sách project;
+    \item \texttt{POST /v1/projects}: tạo project;
+    \item \texttt{GET /v1/projects/\{projectKey\}}: xem chi tiết project;
+    \item \texttt{PATCH /v1/projects/\{projectKey\}}: cập nhật metadata;
+    \item \texttt{DELETE /v1/projects/\{projectKey\}}: soft delete project.
+\end{itemize}
 
-Project được tạo thông qua endpoint.
-
-
-
-Request body gồm tên hiển thị, khóa định danh và mô tả tùy chọn.
-
-
-
-Trường \texttt{key} là khóa nghiệp vụ được sử dụng khi tích hợp Evaluation API. Giá trị này phải tuân theo biểu thức chính quy:
-
-
-
-Theo quy ước trên, project key chỉ gồm chữ thường, chữ số và dấu gạch ngang, có độ dài từ 3 đến 64 ký tự và không bắt đầu bằng dấu gạch ngang. Project key phải duy nhất trong toàn hệ thống và không được thay đổi sau khi project được tạo nhằm duy trì tính ổn định của các tích hợp bên ngoài.
-
-Response thành công sử dụng mã trạng thái \texttt{201 Created}.
-
-
-
-Nếu project key đã tồn tại, hệ thống trả về \texttt{409 Conflict}. Nếu request không thỏa mãn các ràng buộc validation, hệ thống trả về \texttt{400 Bad Request} cùng danh sách trường không hợp lệ.
-
-Danh sách project được truy vấn thông qua endpoint.
-
-
-
-Endpoint hỗ trợ phân trang, tìm kiếm và lọc theo trạng thái vòng đời.
-
-
-
-Kết quả trả về bao gồm danh sách project và metadata phân trang.
-
-
-
-Thông tin chi tiết của một project được truy vấn bằng định danh nội bộ:
-
-
-
-Response chi tiết có thể bao gồm environment mặc định, số lượng feature flag và các metadata cần thiết cho dashboard. Nếu project không tồn tại, hệ thống trả về \texttt{404 Not Found}.
-
-\subsubsection{Cập nhật và archive project}
-\label{subsubsec:update-archive-project}
-
-Thông tin có thể chỉnh sửa của project được cập nhật thông qua endpoint.
-
-
-
-Request chỉ cần chứa các trường cần thay đổi.
-
-
-
-Project key không được phép thay đổi sau khi khởi tạo vì khóa này có thể đã được sử dụng trong Evaluation API, SDK và cấu hình của các ứng dụng khách. Việc giữ nguyên project key giúp tránh phá vỡ hợp đồng tích hợp và hạn chế yêu cầu cập nhật đồng thời trên nhiều hệ thống.
-
-Mỗi lần cập nhật thành công, backend ghi một audit log chứa actor, request ID, dữ liệu trước thay đổi và dữ liệu sau thay đổi. Việc cập nhật project và ghi audit log được thực hiện trong cùng một transaction để bảo đảm tính nhất quán.
-
-Thay vì xóa vật lý, project được archive thông qua endpoint.
-
-
-
-Khi archive, trạng thái vòng đời của project được chuyển từ \texttt{ACTIVE} sang \texttt{ARCHIVED}. Thao tác này không xóa environment, feature flag, rule hoặc audit log thuộc project. Nhờ đó, hệ thống vẫn bảo toàn được lịch sử cấu hình và khả năng truy vết.
-
-Project đã archive không cho phép tạo mới hoặc sửa đổi environment, feature flag và rule. Các endpoint mutation đối với resource thuộc project sẽ trả về \texttt{409 Conflict} hoặc lỗi nghiệp vụ tương ứng. Evaluation API đối với project đã archive trả về kết quả an toàn với trạng thái tắt và reason code phù hợp.
-
-Project có thể được khôi phục thông qua endpoint.
-
-
-
-Thao tác archive và restore được thiết kế idempotent. Việc archive một project đã ở trạng thái \texttt{ARCHIVED} hoặc restore một project đang ở trạng thái \texttt{ACTIVE} không tạo ra trạng thái trung gian không hợp lệ.
-
-\subsubsection{Quản lý environment}
-\label{subsubsec:environment-management}
-
-Environment được quản lý trong phạm vi một project. Endpoint tạo environment có dạng.
-
-
-
-Request body gồm khóa, tên hiển thị, mô tả và trạng thái environment mặc định.
-
-
-
-Environment key phải duy nhất trong phạm vi project. Hai project khác nhau có thể cùng sử dụng các environment key phổ biến như \texttt{development}, \texttt{staging} và \texttt{production}. Tuy nhiên, trong cùng một project không được tồn tại hai environment có cùng key.
-
-Response thành công sử dụng mã trạng thái \texttt{201 Created}.
-
-
-
-Danh sách environment của project được truy vấn bằng endpoint.
-
-
-
-Thông tin chi tiết của một environment được truy vấn bằng:
-
-
-
-Environment được cập nhật thông qua endpoint.
-
-
-
-Các trường có thể cập nhật gồm \texttt{name} và \texttt{description}. Environment key được giữ ổn định sau khi tạo vì giá trị này có thể được ứng dụng khách truyền trong Evaluation API.
-
-Trong phạm vi hệ thống, environment không được xóa nếu đang được tham chiếu bởi các flag configuration. Trường hợp cần loại bỏ một environment, hệ thống chỉ cho phép thực hiện khi environment không còn cấu hình liên quan và không phải environment mặc định. Quy tắc này giúp ngăn việc xóa ngoài ý muốn toàn bộ cấu hình Feature Flag của một môi trường đang hoạt động.
-
-Mỗi thao tác tạo, cập nhật hoặc xóa environment đều tạo audit log. Audit log được liên kết với project và environment tương ứng để hỗ trợ truy vết lịch sử quản trị.
-
-\subsubsection{Thiết lập environment mặc định}
-\label{subsubsec:set-default-environment}
-
-Mỗi project phải có tối đa một environment mặc định. Environment mặc định được sử dụng khi Evaluation API không nhận được \texttt{environmentKey} từ ứng dụng khách.
-
-Environment mặc định được thiết lập thông qua endpoint.
-
-
-
-Request không cần body vì hành động đã được xác định đầy đủ bởi URL. Khi endpoint được gọi, backend thực hiện các bước sau trong cùng một transaction:
-
-\begin{enumerate}
-    \item Kiểm tra project và environment có tồn tại;
-    \item Kiểm tra environment thuộc đúng project;
-    \item Đặt \texttt{isDefault = false} cho environment mặc định hiện tại;
-    \item Đặt \texttt{isDefault = true} cho environment được lựa chọn;
-    \item Ghi audit log cho thay đổi.
-\end{enumerate}
-
-Cơ sở dữ liệu sử dụng partial unique index để bảo đảm chỉ có một environment có \texttt{isDefault = true} trong mỗi project. Ràng buộc ở tầng cơ sở dữ liệu giúp duy trì tính đúng đắn ngay cả khi có nhiều request cập nhật đồng thời.
-
-Ví dụ response.
-
-
-
-Nếu environment không thuộc project được chỉ định, hệ thống trả về \texttt{404 Not Found} nhằm tránh làm lộ sự tồn tại của resource ngoài phạm vi truy cập. Nếu project đã archive, thao tác thiết lập environment mặc định bị từ chối.
-
-Khi project chưa có environment mặc định, environment đầu tiên có thể được tự động đặt làm mặc định. Đối với các environment được tạo sau đó, trường \texttt{isDefault} mặc định là \texttt{false}, trừ khi client yêu cầu thiết lập làm mặc định và thao tác được thực hiện thành công trong cùng transaction.
-
-Việc lựa chọn environment mặc định giúp Evaluation API đơn giản hơn đối với các ứng dụng chỉ sử dụng một môi trường. Tuy nhiên, ứng dụng khách triển khai trên nhiều môi trường nên truyền rõ \texttt{environmentKey} để tránh đánh giá nhầm cấu hình.
+Endpoint quản lý environment riêng chưa được mở ra trong phiên bản hiện tại. Environment vẫn là một phần của mô hình dữ liệu và seed data, gồm các môi trường như \texttt{production}, \texttt{staging} và \texttt{development}. Evaluation API có thể nhận \texttt{environmentKey}; nếu client không truyền trường này, backend dùng environment mặc định của project. Nhờ đó, hệ thống vẫn chứng minh được khả năng cấu hình theo môi trường mà không làm dashboard phức tạp quá mức.
 
 \subsection{API quản lý Feature Flag}
-\label{subsec:feature-flag-api}
 
-Feature Flag là tài nguyên trung tâm của hệ thống, đại diện cho một điểm kiểm soát hành vi trong ứng dụng khách. Mỗi flag thuộc về một project, được định danh bằng khóa nghiệp vụ ổn định và có thể sở hữu cấu hình riêng cho từng environment. API quản lý Feature Flag hỗ trợ tạo mới, truy vấn, cập nhật metadata, thay đổi trạng thái vòng đời và quản lý cấu hình runtime theo environment.
-
-\subsubsection{Tạo Feature Flag}
-\label{subsubsec:create-feature-flag}
-
-Feature Flag được tạo trong phạm vi một project thông qua endpoint.
-
-
-
-Request body gồm khóa định danh, tên hiển thị, mô tả và các thông tin metadata cơ bản.
-
-
-
-Trường \texttt{key} là khóa nghiệp vụ được ứng dụng khách sử dụng khi gọi Evaluation API. Giá trị này phải tuân theo biểu thức chính quy:
-
-
-
-Flag key phải duy nhất trong phạm vi project. Hai project khác nhau có thể sử dụng cùng một flag key, nhưng trong cùng một project không được tồn tại hai flag có cùng khóa. Sau khi được tạo, flag key không được phép thay đổi nhằm tránh phá vỡ các đoạn mã tích hợp, SDK và request evaluation đang sử dụng khóa này.
-
-Khi tạo flag, backend kiểm tra project tồn tại và đang ở trạng thái \texttt{ACTIVE}. Nếu project đã archive, request bị từ chối vì các resource thuộc project không còn được phép thay đổi.
-
-Response thành công sử dụng mã trạng thái \texttt{201 Created}.
-
-
-
-Nếu flag key đã tồn tại trong project, hệ thống trả về \texttt{409 Conflict}. Nếu dữ liệu đầu vào không hợp lệ, hệ thống trả về \texttt{400 Bad Request} cùng thông tin chi tiết về các trường vi phạm validation.
-
-Sau khi flag được tạo, hệ thống có thể tự động tạo các bản ghi cấu hình mặc định cho những environment hiện có của project. Mỗi cấu hình ban đầu sử dụng trạng thái an toàn:
+Feature Flag được quản lý theo phạm vi project và được định danh bằng \texttt{flagKey}. Các endpoint hiện tại gồm:
 
 \begin{itemize}
-    \item \texttt{status = DISABLED};
-    \item \texttt{servingMode = TARGETED};
-    \item \texttt{killSwitch = false};
-    \item variant mặc định là \texttt{off}.
+    \item \texttt{GET /v1/projects/\{projectKey\}/flags}: danh sách flag đang hoạt động;
+    \item \texttt{GET /v1/projects/\{projectKey\}/flags/deleted}: danh sách flag đã soft delete;
+    \item \texttt{POST /v1/projects/\{projectKey\}/flags}: tạo flag;
+    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}}: xem chi tiết flag;
+    \item \texttt{PATCH /v1/projects/\{projectKey\}/flags/\{flagKey\}}: cập nhật metadata và cấu hình runtime của default environment;
+    \item \texttt{POST /v1/projects/\{projectKey\}/flags/\{flagKey\}/archive}: archive flag;
+    \item \texttt{POST /v1/projects/\{projectKey\}/flags/\{flagKey\}/restore}: restore flag đã archive;
+    \item \texttt{DELETE /v1/projects/\{projectKey\}/flags/\{flagKey\}}: soft delete flag;
+    \item \texttt{POST /v1/projects/\{projectKey\}/flags/\{flagKey\}/restore-deleted}: khôi phục flag đã soft delete.
 \end{itemize}
 
-Cách khởi tạo này bảo đảm tính năng mới không được bật ngoài ý muốn ngay sau khi flag được tạo. Nguyên tắc mặc định tắt giúp giảm rủi ro phát hành nhầm và phù hợp với chiến lược fail-safe của hệ thống Feature Flag \cite{unleash_feature_flag_best_practices}.
+Khi tạo flag, backend tạo cấu hình \texttt{FlagEnvironmentConfig} mặc định với \texttt{status = DISABLED}, \texttt{servingMode = TARGETED} và \texttt{killSwitch = false}. Khi cập nhật \texttt{status}, \texttt{servingMode} hoặc \texttt{killSwitch}, backend ghi audit log trong cùng transaction và invalidation evaluation snapshot cache của flag liên quan.
 
-Thao tác tạo flag và tạo các cấu hình ban đầu được thực hiện trong cùng một database transaction. Nếu một bước thất bại, toàn bộ dữ liệu được rollback để tránh tồn tại flag không có cấu hình môi trường tương ứng.
-
-\subsubsection{Truy vấn danh sách và chi tiết flag}
-\label{subsubsec:query-feature-flags}
-
-Danh sách Feature Flag của một project được truy vấn thông qua endpoint.
-
-
-
-Endpoint hỗ trợ phân trang, tìm kiếm và lọc theo trạng thái vòng đời.
-
-
-
-Kết quả trả về gồm danh sách flag và metadata phân trang.
-
-
-
-Kết quả mặc định được sắp xếp theo thời điểm cập nhật giảm dần để các flag vừa thay đổi xuất hiện trước trên dashboard. Client có thể sử dụng các query parameter bổ sung để lọc flag theo environment, trạng thái cấu hình hoặc group khi các chức năng này được hỗ trợ.
-
-Thông tin chi tiết của một flag được truy vấn bằng endpoint.
-
-
-
-Response chi tiết bao gồm metadata của flag và danh sách cấu hình theo environment.
-
-
-
-Danh sách chi tiết không nhất thiết trả về toàn bộ rule parameter nếu dashboard chưa yêu cầu. Các rule có thể được tải thông qua endpoint riêng nhằm giảm kích thước response và tránh truy vấn dữ liệu không cần thiết.
-
-Nếu flag không tồn tại, hệ thống trả về \texttt{404 Not Found}. Flag đã archive vẫn có thể được truy vấn để phục vụ kiểm tra lịch sử, nhưng response phải thể hiện rõ \texttt{lifecycleStatus = ARCHIVED}.
-
-\subsubsection{Cập nhật thông tin flag}
-\label{subsubsec:update-feature-flag}
-
-Metadata của Feature Flag được cập nhật thông qua endpoint.
-
-
-
-Request chỉ cần chứa các trường cần thay đổi.
-
-
-
-Các trường có thể cập nhật gồm \texttt{name} và \texttt{description}. Trường \texttt{key} không được phép thay đổi sau khi flag được tạo vì đây là định danh được sử dụng trực tiếp trong mã nguồn và Evaluation API.
-
-Backend kiểm tra flag tồn tại, thuộc project đang hoạt động và chưa bị archive. Nếu flag đã archive, thao tác cập nhật metadata bị từ chối cho đến khi flag được restore.
-
-Response thành công trả về trạng thái mới nhất của flag.
-
-
-
-Mỗi lần cập nhật tạo một audit log với action tương ứng, thông tin actor, request ID, snapshot trước thay đổi và snapshot sau thay đổi. Việc cập nhật flag và ghi audit log được thực hiện trong cùng một transaction.
-
-Metadata của flag không trực tiếp làm thay đổi kết quả evaluation. Tuy nhiên, sau khi mutation thành công, cache liên quan vẫn có thể được invalidation để bảo đảm các response quản trị và SDK không tiếp tục sử dụng dữ liệu cũ.
-
-\subsubsection{Archive và restore flag}
-\label{subsubsec:archive-restore-feature-flag}
-
-Feature Flag không được xóa vật lý trong luồng quản trị thông thường. Khi không còn sử dụng, flag được archive thông qua endpoint.
-
-
-
-Thao tác archive chuyển \texttt{lifecycleStatus} từ \texttt{ACTIVE} sang \texttt{ARCHIVED}. Các cấu hình, rule, thống kê evaluation và audit log liên quan vẫn được giữ nguyên trong cơ sở dữ liệu.
-
-Trước khi archive, backend kiểm tra trạng thái hiện tại của flag. Nếu flag đang được bật trong một hoặc nhiều environment, hệ thống có thể yêu cầu người quản trị xác nhận hoặc tự động chuyển các cấu hình về trạng thái tắt trước khi hoàn tất thao tác. Trong phạm vi mini project, quá trình archive được thực hiện trong transaction gồm:
-
-\begin{enumerate}
-    \item Chuyển trạng thái các cấu hình của flag thành \texttt{DISABLED};
-    \item Chuyển vòng đời flag thành \texttt{ARCHIVED};
-    \item Tăng version của các cấu hình bị thay đổi;
-    \item Ghi audit log cho toàn bộ thao tác;
-    \item Invalidate các cache liên quan đến flag.
-\end{enumerate}
-
-Evaluation API khi gặp flag đã archive luôn trả về trạng thái tắt.
-
-
-
-Flag được khôi phục thông qua endpoint.
-
-
-
-Thao tác restore chỉ chuyển vòng đời của flag về \texttt{ACTIVE}. Các cấu hình theo environment vẫn giữ trạng thái \texttt{DISABLED} để tránh tự động bật lại tính năng trên production. Người quản trị phải chủ động kích hoạt từng cấu hình sau khi kiểm tra.
-
-Archive và restore được thiết kế theo hướng idempotent. Gửi lại request archive đối với flag đã archive hoặc restore đối với flag đang active không làm phát sinh trạng thái không nhất quán. Hệ thống có thể trả về trạng thái hiện tại hoặc lỗi nghiệp vụ rõ ràng mà không tạo thêm thay đổi dữ liệu.
-
-Việc archive thay cho xóa vật lý giúp duy trì khả năng truy vết, bảo toàn các tham chiếu audit log và hạn chế nguy cơ tái sử dụng nhầm một flag key cũ. Quản lý vòng đời và loại bỏ các flag không còn sử dụng cũng giúp giảm feature flag debt trong hệ thống \cite{mahdavi_hezaveh_feature_toggles}.
-
-\subsubsection{Quản lý cấu hình theo environment}
-\label{subsubsec:environment-specific-flag-config}
-
-Một Feature Flag có thể có nhiều cấu hình, mỗi cấu hình tương ứng với một environment. Cách tổ chức này cho phép cùng một flag được bật trên development, rollout giới hạn trên staging và tắt hoàn toàn trên production.
-
-Cấu hình của flag trong một environment được truy vấn bằng endpoint.
-
-
-
-Response gồm trạng thái phục vụ, kill switch, version và danh sách rule.
-
-
-
-Cấu hình được cập nhật thông qua endpoint.
-
-
-
-Ví dụ request bật flag theo chế độ toàn cục.
-
-
-
-Ví dụ request chuyển flag sang chế độ đánh giá theo rule.
-
-
-
-Trường \texttt{status} xác định cấu hình có tham gia evaluation hay không. Khi \texttt{status = DISABLED}, Evaluation Engine trả về trạng thái tắt trước khi xét serving mode và các rule.
-
-Trường \texttt{servingMode} có hai giá trị chính:
-
-\begin{itemize}
-    \item \texttt{GLOBAL\_ON}: bật tính năng cho toàn bộ context hợp lệ trong environment;
-    \item \texttt{TARGETED}: đánh giá tuần tự các rule targeting và percentage rollout.
-\end{itemize}
-
-Trường \texttt{killSwitch} có độ ưu tiên cao hơn serving mode và các rule. Khi giá trị này bằng \texttt{true}, flag bị tắt ngay lập tức trong environment tương ứng và Evaluation API trả về reason code \texttt{KILL\_SWITCH}.
-
-Trường \texttt{expectedVersion} được sử dụng để kiểm soát cập nhật đồng thời. Backend chỉ chấp nhận mutation khi version hiện tại của cấu hình trùng với version mà client đã đọc. Nếu không trùng khớp, hệ thống trả về \texttt{409 Conflict} nhằm ngăn một request cũ ghi đè cấu hình mới hơn.
-
-Sau mỗi lần cập nhật thành công, version của cấu hình được tăng lên:
-
-
-
-Nếu flag chưa có cấu hình cho environment được chỉ định, hệ thống có thể tạo cấu hình thông qua endpoint.
-
-
-
-Request body gồm environment và trạng thái ban đầu.
-
-
-
-Backend phải kiểm tra environment và flag cùng thuộc một project. Mỗi cặp \texttt{flagId} và \texttt{environmentId} chỉ được tồn tại một cấu hình duy nhất.
-
-Mọi mutation đối với cấu hình đều được ghi audit log và thực hiện trong transaction. Sau khi transaction hoàn tất, hệ thống invalidates cache theo project, environment và flag để các evaluation tiếp theo sử dụng cấu hình mới nhất. Việc phân tách cấu hình theo environment phù hợp với mô hình quản lý Feature Flag phổ biến, trong đó một flag có thể có trạng thái và targeting rule độc lập trên từng môi trường triển khai \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+Cần phân biệt \texttt{lifecycleStatus} của flag với trạng thái runtime. \texttt{ACTIVE} hoặc \texttt{ARCHIVED} mô tả vòng đời của flag; còn \texttt{enabled} trong Evaluation API là kết quả On/Off tại runtime.
 
 \subsection{API quản lý rule}
-\label{subsec:rule-management-api}
 
-Rule xác định điều kiện để một Feature Flag được bật đối với từng evaluation context. Mỗi rule thuộc về một flag configuration của một environment và được đánh giá theo thứ tự ưu tiên đã cấu hình. API quản lý rule cho phép tạo, cập nhật, xóa và sắp xếp thứ tự thực thi của các rule, đồng thời thực hiện kiểm tra tính hợp lệ của từng loại rule trước khi lưu vào cơ sở dữ liệu.
-
-\subsubsection{Tạo rule}
-\label{subsubsec:create-rule}
-
-Rule được tạo thông qua endpoint.
-
-
-
-Request body gồm loại rule, độ ưu tiên và các tham số tương ứng.
-
-
-
-Hệ thống hỗ trợ ba loại rule chính:
+Source code hiện tại không dùng endpoint CRUD từng rule riêng lẻ. Dashboard gửi toàn bộ danh sách rule mong muốn cho một flag bằng endpoint replace:
 
 \begin{itemize}
-    \item \texttt{USER\_ALLOWLIST};
-    \item \texttt{ROLE\_TARGETING};
-    \item \texttt{PERCENTAGE\_ROLLOUT}.
+    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}/rules}: xem rule hiện tại;
+    \item \texttt{PUT /v1/projects/\{projectKey\}/flags/\{flagKey\}/rules}: thay thế toàn bộ ordered rule set.
 \end{itemize}
 
-Các tham số của từng loại rule được lưu trong trường \texttt{parameters} dưới dạng JSONB để cho phép mở rộng mà không phải thay đổi lược đồ cơ sở dữ liệu \cite{postgresql_json_types}.
+Request \texttt{PUT} chứa mảng \texttt{rules}; mỗi rule có \texttt{type}, \texttt{priority}, \texttt{enabled} và \texttt{parameters}. Ba loại rule được hỗ trợ là \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_TARGETING} và \texttt{PERCENTAGE\_ROLLOUT}. Với source code hiện tại, user allowlist dùng \texttt{parameters.userIds}; role targeting dùng \texttt{parameters.roles}; percentage rollout dùng \texttt{parameters.percentage}. Rule bị disable được bỏ qua khi evaluation.
 
-Khi nhận request tạo rule, backend thực hiện các bước:
+Việc replace toàn bộ danh sách rule giúp UI dễ lưu thứ tự hiện tại và giúp audit log ghi được snapshot trước/sau của toàn bộ rule set bằng action \texttt{FLAG\_RULES\_REPLACED}.
 
-\begin{enumerate}
-    \item Kiểm tra flag configuration tồn tại;
-    \item Kiểm tra feature flag chưa bị archive;
-    \item Kiểm tra project đang ở trạng thái hoạt động;
-    \item Validation dữ liệu theo từng loại rule;
-    \item Gán version mới cho cấu hình;
-    \item Ghi audit log.
-\end{enumerate}
+\subsection{API quản lý flag group và group kill switch}
 
-Response thành công.
-
-
-
-Rule mới không được phép có độ ưu tiên trùng với rule khác trong cùng một flag configuration. Nếu xảy ra xung đột, backend có thể tự động dịch chuyển các rule phía sau hoặc từ chối request bằng mã lỗi \texttt{409 Conflict}. Trong mini project, hệ thống tự động điều chỉnh thứ tự để giảm thao tác thủ công của người quản trị.
-
-\subsubsection{Cập nhật rule}
-\label{subsubsec:update-rule}
-
-Rule được cập nhật bằng endpoint.
-
-
-
-Request chỉ bao gồm các trường cần thay đổi.
-
-
-
-
-
-
-Backend không cho phép thay đổi loại của một rule đã tồn tại. Nếu muốn chuyển từ \texttt{ROLE\_TARGETING} sang \texttt{PERCENTAGE\_ROLLOUT}, người quản trị phải tạo rule mới và xóa rule cũ. Quy tắc này giúp đơn giản hóa quá trình validation và bảo toàn lịch sử thay đổi.
-
-Sau khi cập nhật thành công, backend:
-
-\begin{enumerate}
-    \item Kiểm tra dữ liệu mới;
-    \item Tăng version của flag configuration;
-    \item Ghi audit log;
-    \item Invalidate cache evaluation.
-\end{enumerate}
-
-Response trả về dữ liệu rule mới nhất.
-
-
-
-Việc cập nhật rule không thay đổi định danh của rule và không ảnh hưởng đến các rule khác nếu độ ưu tiên vẫn được giữ nguyên.
-
-\subsubsection{Xóa rule}
-\label{subsubsec:delete-rule}
-
-Rule được xóa thông qua endpoint.
-
-
-
-Sau khi xác nhận rule tồn tại, backend thực hiện:
-
-\begin{enumerate}
-    \item Xóa rule khỏi cơ sở dữ liệu;
-    \item Sắp xếp lại thứ tự ưu tiên của các rule còn lại;
-    \item Tăng version của flag configuration;
-    \item Ghi audit log;
-    \item Invalidate cache evaluation.
-\end{enumerate}
-
-Response thành công sử dụng mã trạng thái.
-
-
-
-Nếu rule không tồn tại, hệ thống trả về.
-
-
-
-Việc xóa rule chỉ ảnh hưởng đến một environment cụ thể vì mỗi environment sở hữu tập rule độc lập.
-
-\subsubsection{Thay đổi độ ưu tiên}
-\label{subsubsec:change-rule-priority}
-
-Rule Evaluation Engine đánh giá các rule theo thứ tự ưu tiên từ nhỏ đến lớn. Rule đầu tiên thỏa mãn điều kiện sẽ quyết định kết quả evaluation và các rule phía sau không còn được kiểm tra.
-
-Độ ưu tiên được cập nhật thông qua endpoint.
-
-
-
-
-
-
-Hoặc endpoint hỗ trợ thay đổi trực tiếp vị trí của rule.
-
-
-
-Ví dụ request.
-
-
-
-Backend cập nhật toàn bộ thứ tự trong cùng một transaction để tránh trạng thái trung gian.
-
-Sau khi cập nhật, các rule có thứ tự như sau:
-
-\begin{center}
-\begin{tabular}{cc}
-\toprule
-Rule & Priority \\
-\midrule
-Rule 3 & 1 \\
-Rule 1 & 2 \\
-Rule 2 & 3 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Việc thay đổi thứ tự có ảnh hưởng trực tiếp đến kết quả evaluation. Ví dụ, một rule allowlist đặt trước percentage rollout sẽ luôn được áp dụng trước khi hệ thống thực hiện phân phối theo phần trăm. Do đó dashboard cần hiển thị rõ thứ tự thực thi để người quản trị tránh cấu hình sai \cite{launchdarkly_targeting_rules}.
-
-\subsubsection{Validation tham số rule}
-\label{subsubsec:rule-parameter-validation}
-
-Mỗi loại rule có tập tham số và quy tắc validation riêng.
-
-Đối với \texttt{USER\_ALLOWLIST}, request phải chứa danh sách người dùng:
-
-
-
-Danh sách không được rỗng và không được chứa giá trị trùng lặp.
-
-Đối với \texttt{ROLE\_TARGETING}, request phải chứa ít nhất một role hợp lệ:
-
-
-
-Các role không được để trống và mỗi role chỉ xuất hiện một lần.
-
-Đối với \texttt{PERCENTAGE\_ROLLOUT}, request có dạng.
-
-
-
-Giá trị \texttt{percentage} phải nằm trong khoảng từ 0 đến 100.
-
-Ngoài validation theo từng loại rule, backend còn kiểm tra:
+Flag group là chức năng khuyến khích đã được triển khai để hỗ trợ kill switch theo nhóm. Các endpoint chính gồm:
 
 \begin{itemize}
-    \item kiểu dữ liệu của từng trường;
-    \item số lượng phần tử tối đa trong danh sách;
-    \item cấu trúc JSON hợp lệ;
-    \item không tồn tại thuộc tính không được định nghĩa trong DTO.
+    \item \texttt{GET /v1/projects/\{projectKey\}/groups}: danh sách group;
+    \item \texttt{POST /v1/projects/\{projectKey\}/groups}: tạo group;
+    \item \texttt{PATCH /v1/projects/\{projectKey\}/groups/\{groupKey\}}: đổi tên group;
+    \item \texttt{DELETE /v1/projects/\{projectKey\}/groups/\{groupKey\}}: xóa group;
+    \item \texttt{PUT /v1/projects/\{projectKey\}/groups/\{groupKey\}/config}: bật hoặc tắt kill switch của group trong một environment;
+    \item \texttt{PUT /v1/projects/\{projectKey\}/flags/\{flagKey\}/group}: gán flag vào group;
+    \item \texttt{DELETE /v1/projects/\{projectKey\}/flags/\{flagKey\}/group}: gỡ flag khỏi group.
 \end{itemize}
 
-Nếu request không hợp lệ, hệ thống trả về.
-
-
-
-Ví dụ response.
-
-
-
-Validation được thực hiện trước khi ghi dữ liệu xuống cơ sở dữ liệu nhằm ngăn các cấu hình không hợp lệ tham gia vào quá trình evaluation. Cách tiếp cận này giúp Rule Evaluation Engine luôn làm việc trên tập cấu hình hợp lệ, giảm khả năng phát sinh lỗi trong thời gian chạy và bảo đảm kết quả đánh giá nhất quán.
+Trạng thái kill switch của group được lưu trong \texttt{FlagGroupConfig} theo từng environment. Khi group kill switch bật, Evaluation Engine trả \texttt{enabled = false} với reason \texttt{GROUP\_KILL\_SWITCH} sau khi đã kiểm tra \texttt{FLAG\_ARCHIVED} và \texttt{FLAG\_DISABLED}, nhưng trước flag-level \texttt{KILL\_SWITCH}, \texttt{GLOBAL\_ON} và các rule targeting.
 
 \subsection{Evaluation API}
-\label{subsec:evaluation-api}
 
-Evaluation API là thành phần quan trọng nhất của nền tảng Feature Flag. API này được các ứng dụng khách gọi tại thời điểm chạy để xác định một feature có được bật hay không đối với một evaluation context cụ thể. Thiết kế API ưu tiên tính xác định, độ trễ thấp, khả năng mở rộng và hợp đồng dữ liệu ổn định nhằm đáp ứng yêu cầu tích hợp giữa nhiều ứng dụng khác nhau \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
-
-\subsubsection{Evaluation request contract}
-\label{subsubsec:evaluation-request-contract}
-
-Evaluation được thực hiện thông qua endpoint:
+Evaluation API là data-plane endpoint công khai của demo:
 
 \begin{lstlisting}
 POST /v1/evaluate
 \end{lstlisting}
 
-Request body bao gồm khóa project, khóa feature flag và evaluation context:
+Request body gồm project, flag, environment tùy chọn và evaluation context:
 
 \begin{lstlisting}
 {
-  "projectKey": "ecommerce-demo",
+  "projectKey": "demo-project",
   "environmentKey": "production",
   "flagKey": "new-checkout",
   "context": {
-    "targetingKey": "user-001",
+    "targetingKey": "demo-user-beta",
+    "userId": "demo-user-beta",
     "roles": ["beta-customer"]
   }
 }
 \end{lstlisting}
 
-Các trường có ý nghĩa như sau:
-
-\begin{itemize}
-    \item \texttt{projectKey}: xác định project chứa Feature Flag.
-    \item \texttt{environmentKey}: xác định environment cần đánh giá.
-    \item \texttt{flagKey}: khóa nghiệp vụ của Feature Flag.
-    \item \texttt{context}: tập thông tin mô tả người dùng hoặc request hiện tại.
-\end{itemize}
-
-Trong evaluation context:
-
-\begin{itemize}
-    \item \texttt{targetingKey} là khóa định danh ổn định được sử dụng cho percentage rollout.
-    \item \texttt{userId} phục vụ các rule theo người dùng.
-    \item \texttt{roles} phục vụ role targeting.
-    \item \texttt{attributes} là tập thuộc tính mở rộng để hỗ trợ các rule trong tương lai.
-\end{itemize}
-
-Trong ba loại rule được hỗ trợ của mini project:
-
-\begin{itemize}
-    \item \texttt{USER\_ALLOWLIST} sử dụng \texttt{userId};
-    \item \texttt{ROLE\_TARGETING} sử dụng \texttt{roles};
-    \item \texttt{PERCENTAGE\_ROLLOUT} sử dụng \texttt{targetingKey}.
-\end{itemize}
-
-Evaluation request không chứa thông tin cấu hình của Feature Flag. Toàn bộ cấu hình được truy xuất từ cơ sở dữ liệu dựa trên project, environment và flag tương ứng. Cách tách biệt này giúp ứng dụng khách chỉ cung cấp evaluation context, trong khi toàn bộ logic quyết định được quản lý tập trung trên nền tảng Feature Flag.
-
-Backend thực hiện validation request trước khi đánh giá:
-
-\begin{itemize}
-    \item các trường bắt buộc không được để trống;
-    \item project và flag key phải đúng định dạng;
-    \item context phải là đối tượng JSON hợp lệ;
-    \item \texttt{roles} phải là mảng chuỗi;
-    \item \texttt{attributes} phải là object JSON.
-\end{itemize}
-
-Sau khi validation thành công, Evaluation Engine tải snapshot cấu hình tương ứng và thực hiện đánh giá theo thứ tự ưu tiên đã thiết kế.
-
-\subsubsection{Evaluation response contract}
-\label{subsubsec:evaluation-response-contract}
-
-Response của Evaluation API trả về toàn bộ thông tin cần thiết để ứng dụng khách quyết định hành vi của tính năng.
-
-Ví dụ:
+Response luôn chứa \texttt{projectKey}, \texttt{flagKey}, \texttt{enabled}, \texttt{variant}, \texttt{reason} và \texttt{matchedRuleId}:
 
 \begin{lstlisting}
 {
-  "projectKey": "ecommerce-demo",
+  "projectKey": "demo-project",
   "flagKey": "new-checkout",
   "enabled": true,
   "variant": "on",
@@ -714,405 +144,48 @@ Ví dụ:
 }
 \end{lstlisting}
 
-Các trường của response gồm:
+Nếu project, environment, flag hoặc flag environment config không tồn tại, API trả evaluation-shaped response an toàn với \texttt{enabled = false}, \texttt{variant = off}, \texttt{reason = NOT\_FOUND}. Nếu percentage rollout được đánh giá nhưng thiếu \texttt{targetingKey}, API trả \texttt{INVALID\_CONTEXT}. Lỗi bất ngờ trong evaluation path được bắt lại và trả \texttt{ERROR} theo nguyên tắc fail-closed.
+
+Các reason code hiện tại gồm \texttt{GLOBAL\_ON}, \texttt{FLAG\_DISABLED}, \texttt{FLAG\_ARCHIVED}, \texttt{GROUP\_KILL\_SWITCH}, \texttt{KILL\_SWITCH}, \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_ROLLOUT}, \texttt{DEFAULT\_OFF}, \texttt{NOT\_FOUND}, \texttt{INVALID\_CONTEXT} và \texttt{ERROR}.
+
+\subsection{API audit log và lịch sử cấu hình}
+
+Audit log được truy vấn trong phạm vi project:
 
 \begin{itemize}
-    \item \texttt{projectKey}: project đã được đánh giá.
-    \item \texttt{flagKey}: feature flag tương ứng.
-    \item \texttt{enabled}: kết quả cuối cùng của evaluation.
-    \item \texttt{variant}: variant được chọn.
-    \item \texttt{reason}: nguyên nhân tạo ra kết quả.
-    \item \texttt{matchedRuleId}: rule đầu tiên khớp với evaluation context.
+    \item \texttt{GET /v1/projects/\{projectKey\}/audit-logs}: danh sách audit log;
+    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}/history}: lịch sử cấu hình tập trung của một flag.
 \end{itemize}
 
-Trong phạm vi mini project, hệ thống sử dụng hai variant mặc định:
+Audit log lưu \texttt{actor}, \texttt{action}, \texttt{targetType}, \texttt{targetId}, \texttt{targetKey}, \texttt{before}, \texttt{after}, \texttt{metadata}, \texttt{requestId} và thời điểm tạo. Các thao tác mutation quan trọng như tạo/cập nhật project, tạo/cập nhật/archive/restore/delete flag, replace rule, tạo/cập nhật group, bật/tắt group kill switch và gán/gỡ group đều ghi audit log cùng transaction với thay đổi nghiệp vụ.
 
-\begin{itemize}
-    \item \texttt{on};
-    \item \texttt{off}.
-\end{itemize}
-
-Thiết kế response vẫn giữ trường \texttt{variant} để hỗ trợ mở rộng sang nhiều biến thể trong tương lai mà không cần thay đổi hợp đồng API.
-
-Evaluation API luôn trả về một kết quả xác định đối với cùng một snapshot cấu hình và cùng một evaluation context. Điều này đặc biệt quan trọng đối với percentage rollout nhằm bảo đảm người dùng luôn nhận cùng một kết quả qua nhiều lần evaluation.
-
-\subsubsection{Xử lý environment mặc định}
-\label{subsubsec:default-environment-evaluation}
-
-Trường \texttt{environmentKey} là tùy chọn trong request.
-
-Nếu client truyền environment:
-
-
-
-Evaluation Engine sử dụng đúng cấu hình của environment đó.
-
-Nếu client không truyền:
-
-
-
-Backend tự động tìm environment mặc định của project và sử dụng cấu hình tương ứng.
-
-Quá trình xử lý gồm:
-
-\begin{enumerate}
-    \item tìm project theo project key;
-    \item kiểm tra request có environment hay không;
-    \item nếu không có, truy vấn environment mặc định;
-    \item tải flag configuration của environment đó;
-    \item thực hiện evaluation.
-\end{enumerate}
-
-Nếu project chưa cấu hình environment mặc định hoặc environment mặc định không tồn tại, Evaluation API trả về kết quả an toàn với trạng thái tắt thay vì cố gắng lựa chọn ngẫu nhiên một environment khác.
-
-Thiết kế này giúp các ứng dụng chỉ sử dụng một môi trường triển khai có thể gọi API đơn giản hơn, trong khi các hệ thống nhiều môi trường vẫn có thể chỉ định rõ environment mong muốn.
-
-\subsubsection{Reason code và matched rule}
-\label{subsubsec:reason-code-matched-rule}
-
-Ngoài kết quả bật hoặc tắt, Evaluation API trả về reason code để giải thích vì sao quyết định đó được đưa ra.
-
-Một số reason code chính gồm:
-
-\begin{center}
-\begin{tabular}{ll}
-\toprule
-Reason & Ý nghĩa \\
-\midrule
-GLOBAL\_ON & Bật toàn cục \\
-USER\_MATCH & Khớp allowlist người dùng \\
-ROLE\_MATCH & Khớp rule theo role \\
-PERCENTAGE\_MATCH & Khớp rollout phần trăm \\
-DEFAULT\_OFF & Không có rule phù hợp \\
-FLAG\_DISABLED & Flag bị disable \\
-FLAG\_ARCHIVED & Flag đã archive \\
-GROUP\_KILL\_SWITCH & Group kill switch kích hoạt \\
-KILL\_SWITCH & Kill switch của flag kích hoạt \\
-ERROR & Lỗi nội bộ hệ thống \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Nếu evaluation được quyết định bởi một rule cụ thể, response trả về định danh của rule.
-
-
-
-Nếu evaluation kết thúc trước khi xét rule, ví dụ:
-
-\begin{itemize}
-    \item flag bị disable;
-    \item kill switch được bật;
-    \item flag đã archive;
-\end{itemize}
-
-thì trường:
-
-
-
-Việc trả về reason code giúp dashboard, SDK và log dễ dàng giải thích nguyên nhân của kết quả evaluation, đồng thời hỗ trợ quá trình kiểm thử và gỡ lỗi.
-
-\subsubsection{Xử lý lỗi evaluation}
-\label{subsubsec:evaluation-error-handling}
-
-Evaluation API được thiết kế theo nguyên tắc fail-safe. Khi không thể xác định chắc chắn trạng thái của Feature Flag, hệ thống luôn ưu tiên trả về kết quả tắt.
-
-Nếu project hoặc feature flag không tồn tại:
-
-
-
-Nếu evaluation context không đủ thông tin cho một loại rule, Evaluation Engine bỏ qua rule đó và tiếp tục đánh giá các rule phía sau. Ví dụ, nếu request không có \texttt{roles}, các rule \texttt{ROLE\_TARGETING} sẽ không khớp.
-
-Khi xảy ra lỗi nội bộ như:
-
-\begin{itemize}
-    \item lỗi cơ sở dữ liệu;
-    \item lỗi cache;
-    \item lỗi Evaluation Engine;
-    \item exception chưa được xử lý;
-\end{itemize}
-
-API trả về.
-
-
-
-Đối với các lỗi do request không hợp lệ, API sử dụng HTTP status code phù hợp.
-
-
-
-
-Response:
-
-\begin{lstlisting}
-{
-  "code": "VALIDATION_ERROR",
-  "message": "Invalid evaluation request.",
-  "details": [
-    { "field": "projectKey", "message": "projectKey is required" }
-  ],
-  "requestId": "request-id"
-}
-\end{lstlisting}
-
-Thiết kế này giúp phân biệt rõ hai nhóm lỗi:
-
-\begin{itemize}
-    \item lỗi request của client sử dụng HTTP error;
-    \item lỗi trong quá trình đánh giá sử dụng response evaluation với trạng thái an toàn.
-\end{itemize}
-
-Cách xử lý trên giúp ứng dụng khách luôn nhận được kết quả có thể dự đoán được, đồng thời hạn chế nguy cơ bật nhầm tính năng khi xảy ra sự cố hệ thống \cite{openfeature_flag_evaluation,owasp_rest_security}.
-
-\subsection{API audit log}
-\label{subsec:audit-log-api}
-
-Audit Log API cung cấp khả năng truy vết toàn bộ các thay đổi cấu hình trong hệ thống Feature Flag. Mỗi thao tác tạo, cập nhật, archive, restore hoặc xóa dữ liệu đều sinh ra một bản ghi audit độc lập. Các bản ghi này có tính chất append-only, không được phép chỉnh sửa hoặc xóa nhằm bảo đảm khả năng kiểm toán và truy xuất lịch sử cấu hình \cite{owasp_logging}.
-
-Mỗi bản ghi audit lưu các thông tin chính gồm:
-
-\begin{itemize}
-    \item actor thực hiện thao tác;
-    \item thời điểm thực hiện;
-    \item loại tài nguyên bị thay đổi;
-    \item định danh tài nguyên;
-    \item hành động thực hiện;
-    \item snapshot trước thay đổi;
-    \item snapshot sau thay đổi;
-    \item request ID phục vụ truy vết.
-\end{itemize}
-
-Audit Log API chỉ hỗ trợ truy vấn dữ liệu, không cung cấp endpoint chỉnh sửa hoặc xóa audit log.
-
-\subsubsection{Truy vấn audit log}
-\label{subsubsec:query-audit-log}
-
-Danh sách audit log được truy vấn thông qua endpoint.
-
-
-
-Endpoint hỗ trợ phân trang.
-
-
-
-
-
-
-Danh sách mặc định được sắp xếp theo thời gian giảm dần để các thay đổi mới nhất xuất hiện trước.
-
-Thông tin chi tiết của một bản ghi được truy vấn bằng:
-
-
-
-Response bao gồm đầy đủ metadata cùng snapshot trước và sau thay đổi.
-
-Nếu audit log không tồn tại, hệ thống trả về.
-
-
-
-\subsubsection{Lọc theo actor và action}
-\label{subsubsec:filter-audit-actor-action}
-
-Audit log hỗ trợ lọc theo người thực hiện và loại hành động nhằm hỗ trợ kiểm tra lịch sử thao tác của từng quản trị viên.
-
-
-
-
-
-
-
-Hai điều kiện có thể kết hợp:
-
-
-
-Một số action phổ biến gồm:
-
-\begin{center}
-\begin{tabular}{ll}
-\toprule
-Action & Ý nghĩa \\
-\midrule
-PROJECT\_CREATED & Tạo project \\
-PROJECT\_UPDATED & Cập nhật project \\
-FEATURE\_FLAG\_CREATED & Tạo Feature Flag \\
-FEATURE\_FLAG\_UPDATED & Cập nhật Feature Flag \\
-FEATURE\_FLAG\_ARCHIVED & Archive Feature Flag \\
-FEATURE\_FLAG\_RESTORED & Restore Feature Flag \\
-FLAG\_CONFIG\_UPDATED & Cập nhật cấu hình \\
-FLAG\_RULE\_CREATED & Tạo rule \\
-FLAG\_RULE\_UPDATED & Cập nhật rule \\
-FLAG\_RULE\_DELETED & Xóa rule \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Việc lọc theo actor giúp xác định ai đã thực hiện một thay đổi cụ thể, trong khi lọc theo action hỗ trợ thống kê hoặc kiểm tra các loại thao tác trong hệ thống.
-
-\subsubsection{Lọc theo target và thời gian}
-\label{subsubsec:filter-audit-target-time}
-
-Audit log cũng hỗ trợ truy vấn theo tài nguyên bị thay đổi.
-
-
-
-
-
-
-
-Hai điều kiện có thể được kết hợp:
-
-
-
-API còn hỗ trợ lọc theo khoảng thời gian:
-
-
-
-Các điều kiện có thể sử dụng đồng thời:
-
-
-
-Backend chỉ áp dụng các điều kiện được cung cấp. Những tham số không xuất hiện trong request sẽ không tham gia vào truy vấn.
-
-Việc hỗ trợ nhiều điều kiện lọc giúp dashboard nhanh chóng tìm được bản ghi cần thiết ngay cả khi số lượng audit log tăng lên theo thời gian.
-
-\subsubsection{Truy vấn snapshot thay đổi}
-\label{subsubsec:audit-snapshot-query}
-
-Một bản ghi audit không chỉ lưu metadata mà còn lưu trạng thái của dữ liệu trước và sau khi thay đổi.
-
-Ví dụ response.
-
-
-
-Snapshot được lưu dưới dạng JSONB để có thể ghi nhận đầy đủ trạng thái của từng loại resource mà không phụ thuộc vào cấu trúc bảng dữ liệu \cite{postgresql_json_types}.
-
-Đối với thao tác tạo mới, trường \texttt{before} bằng \texttt{null}.
-
-
-
-
-Đối với thao tác xóa hoặc archive, trường \texttt{after} phản ánh trạng thái cuối cùng sau mutation, hoặc bằng \texttt{null} nếu tài nguyên bị loại bỏ khỏi cơ sở dữ liệu.
-
-Audit snapshot cho phép:
-
-\begin{itemize}
-    \item xác định chính xác dữ liệu đã thay đổi;
-    \item so sánh hai phiên bản cấu hình;
-    \item hỗ trợ điều tra sự cố;
-    \item phục vụ kiểm toán và truy vết lịch sử.
-\end{itemize}
-
-Các snapshot được ghi cùng transaction với mutation tương ứng. Nếu transaction thất bại, cả thay đổi cấu hình và audit log đều được rollback nhằm bảo đảm dữ liệu và lịch sử thay đổi luôn nhất quán. Theo nguyên tắc bảo mật, audit log chỉ lưu những thông tin cần thiết để truy vết và tránh ghi nhận dữ liệu nhạy cảm không cần thiết \cite{owasp_logging}.
+Endpoint history không tạo bảng version riêng. Nó là projection đọc từ \texttt{AuditLogEntry} cho flag, flag environment config và rule liên quan. Cách này đáp ứng yêu cầu lịch sử cấu hình mà không tạo hai nguồn sự thật song song.
 
 \subsection{API thống kê evaluation}
-\label{subsec:evaluation-statistics-api}
 
-Evaluation Statistics API cung cấp khả năng thống kê số lần Feature Flag được đánh giá trong quá trình hoạt động của hệ thống. Đây là chức năng thuộc mức khuyến khích của mini project, giúp người quản trị quan sát mức độ sử dụng của từng Feature Flag, đánh giá hiệu quả rollout và hỗ trợ phân tích sau triển khai.
-
-Trong phạm vi hệ thống, việc thống kê được thực hiện theo nguyên tắc best-effort. Quá trình ghi nhận thống kê không ảnh hưởng đến kết quả của Evaluation API. Nếu việc ghi thống kê thất bại, Evaluation Engine vẫn trả về kết quả evaluation bình thường nhằm bảo đảm độ sẵn sàng của hệ thống.
-
-\subsubsection{Ghi nhận evaluation event}
-\label{subsubsec:record-evaluation-event}
-
-Sau mỗi lần Evaluation API hoàn thành, backend tạo một evaluation event phục vụ thống kê.
-
-Thông tin được ghi nhận gồm:
+Thống kê evaluation là chức năng khuyến khích đã được triển khai bằng dữ liệu aggregate theo giờ UTC, không lưu raw evaluation context. Các endpoint hiện tại gồm:
 
 \begin{itemize}
-    \item project;
-    \item environment;
-    \item feature flag;
-    \item thời điểm evaluation;
-    \item trạng thái bật hoặc tắt;
-    \item reason code;
-    \item matched rule (nếu có).
+    \item \texttt{GET /v1/projects/\{projectKey\}/stats/flags}: tổng hợp theo các flag trong project;
+    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}/stats}: thống kê chi tiết một flag.
 \end{itemize}
 
-Ví dụ một evaluation event.
+Dữ liệu thống kê được nhóm theo \texttt{projectKey}, \texttt{environmentKey}, \texttt{flagKey}, \texttt{bucketStart}, \texttt{reason} và \texttt{enabled}. Hệ thống cố ý không lưu targeting key, user ID, role, attributes hay matched rule ID trong bảng metric. Việc ghi metric là best-effort; nếu ghi metric thất bại, Evaluation API vẫn trả kết quả cho client.
 
+\subsection{Validation và mô hình lỗi}
 
-
-Evaluation event chỉ phục vụ mục đích thống kê nên không lưu toàn bộ evaluation context nhằm hạn chế lưu trữ dữ liệu không cần thiết và giảm nguy cơ ghi nhận thông tin nhạy cảm \cite{owasp_logging}.
-
-Việc ghi nhận thống kê được thực hiện sau khi Evaluation Engine đã trả kết quả. Nếu quá trình ghi thống kê gặp lỗi, backend chỉ ghi log nội bộ và không thay đổi response của Evaluation API.
-
-\subsubsection{Thống kê theo Feature Flag}
-\label{subsubsec:statistics-by-feature-flag}
-
-Dashboard có thể truy vấn số lần evaluation của một Feature Flag thông qua endpoint:
+Backend sử dụng DTO, \texttt{class-validator}, \texttt{ValidationPipe} và global exception filter để chuẩn hóa validation và error response. Key nghiệp vụ tuân theo biểu thức chính quy:
 
 \begin{lstlisting}
-GET /v1/statistics/feature-flags/{flagId}
+^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$
 \end{lstlisting}
 
-Ví dụ response:
-
-\begin{lstlisting}
-{
-  "flagId": "flag-id",
-  "totalEvaluations": 15842,
-  "enabledCount": 12430,
-  "disabledCount": 3412,
-  "lastEvaluatedAt": "2026-07-03T15:05:18.000Z"
-}
-\end{lstlisting}
-
-Ngoài số lần evaluation, hệ thống có thể thống kê theo reason code:
-
-
-
-Các thống kê này giúp người quản trị đánh giá hiệu quả của từng chiến lược rollout và phát hiện những Feature Flag hầu như không còn được sử dụng.
-
-\subsubsection{Thống kê theo environment}
-\label{subsubsec:statistics-by-environment}
-
-Evaluation statistics cũng được tổng hợp theo từng environment.
-
-
-
-
-Ví dụ response.
-
-
-
-Trong trường hợp cần phân tích một Feature Flag trên một environment cụ thể, client có thể sử dụng:
-
-
-
-Thống kê theo environment giúp người quản trị so sánh mức độ sử dụng giữa development, staging và production, đồng thời phát hiện những cấu hình ít được truy cập hoặc không còn cần thiết.
-
-\subsubsection{Tổng hợp theo khoảng thời gian}
-\label{subsubsec:statistics-by-time-range}
-
-API hỗ trợ tổng hợp thống kê theo khoảng thời gian nhằm phục vụ dashboard và biểu đồ.
-
-
-
-
-
-
-
-Hệ thống cũng có thể tổng hợp dữ liệu theo ngày để hiển thị biểu đồ xu hướng:
-
-
-
-Các thống kê được xây dựng từ dữ liệu evaluation event đã ghi nhận trước đó. Đối với mini project, việc tổng hợp có thể được thực hiện trực tiếp từ cơ sở dữ liệu. Trong các hệ thống quy mô lớn, thống kê thường được tính toán định kỳ hoặc sử dụng dữ liệu đã tổng hợp trước để giảm tải cho Evaluation API và cơ sở dữ liệu chính.
-
-Evaluation statistics chỉ mang tính chất tham khảo và không tham gia vào quá trình quyết định kết quả evaluation. Việc tách biệt thống kê khỏi Evaluation Engine giúp duy trì độ trễ thấp, giảm phụ thuộc giữa các thành phần và bảo đảm rằng lỗi thống kê không ảnh hưởng đến hoạt động của Feature Flag.
-
-\subsection{Validation dữ liệu đầu vào}
-\label{subsec:input-validation}
-
-Validation dữ liệu đầu vào là tuyến phòng thủ đầu tiên của hệ thống nhằm ngăn chặn các request không hợp lệ trước khi truy cập cơ sở dữ liệu hoặc thực hiện các thao tác nghiệp vụ. Toàn bộ request đều được kiểm tra ở tầng API thông qua DTO và các ràng buộc validation. Chỉ những request hợp lệ mới được chuyển tới service layer để xử lý tiếp theo \cite{owasp_rest_security}.
-
-Nếu validation thất bại, hệ thống trả về mã trạng thái.
-
-
-
-Response có cấu trúc thống nhất:
+Điều này tương ứng với độ dài 3--64 ký tự, chỉ gồm chữ thường, chữ số và dấu gạch ngang, không bắt đầu hoặc kết thúc bằng dấu gạch ngang. Error response control-plane có dạng:
 
 \begin{lstlisting}
 {
   "code": "VALIDATION_ERROR",
-  "message": "Validation failed.",
+  "message": "Request validation failed.",
   "details": [
     { "field": "projectKey", "message": "Invalid key format" }
   ],
@@ -1120,417 +193,14 @@ Response có cấu trúc thống nhất:
 }
 \end{lstlisting}
 
-\subsubsection{Validation key}
-\label{subsubsec:validation-key}
-
-Các khóa nghiệp vụ như \texttt{projectKey}, \texttt{environmentKey} và \texttt{flagKey} được sử dụng trực tiếp trong Evaluation API và phải bảo đảm tính ổn định trong toàn bộ vòng đời của hệ thống.
-
-Các khóa này phải thỏa mãn biểu thức chính quy:
-
-
-
-Quy tắc trên bảo đảm:
-
-\begin{itemize}
-    \item chỉ sử dụng chữ thường;
-    \item chỉ cho phép chữ số và dấu gạch ngang;
-    \item không bắt đầu bằng dấu gạch ngang;
-    \item độ dài từ 3 đến 64 ký tự.
-\end{itemize}
-
-Ví dụ hợp lệ.
-
-
-
-Ví dụ không hợp lệ.
-
-
-
-Ngoài định dạng, backend còn kiểm tra tính duy nhất của project key trong toàn hệ thống, đồng thời kiểm tra environment key và flag key là duy nhất trong phạm vi project tương ứng.
-
-\subsubsection{Validation enum và trạng thái}
-\label{subsubsec:validation-enum}
-
-Các trường biểu diễn trạng thái hoặc kiểu dữ liệu nghiệp vụ chỉ được phép nhận các giá trị thuộc tập enum đã định nghĩa.
-
-
-
-
-
-
-
-
-
-
-Nếu client gửi giá trị ngoài tập enum:
-
-
-
-backend trả về lỗi validation thay vì tự động ánh xạ sang giá trị gần đúng.
-
-Ngoài kiểm tra enum, hệ thống còn kiểm tra tính hợp lệ của trạng thái nghiệp vụ. Ví dụ, không cho phép cập nhật cấu hình của một Feature Flag đã archive hoặc thêm rule vào một project không còn hoạt động.
-
-\subsubsection{Validation percentage rollout}
-\label{subsubsec:validation-percentage}
-
-Đối với rule \texttt{PERCENTAGE\_ROLLOUT}, trường:
-
-
-
-phải là số thực hoặc số nguyên nằm trong khoảng:
-
-
-
-Ví dụ hợp lệ.
-
-
-
-
-
-
-
-Ví dụ không hợp lệ.
-
-
-
-
-
-
-
-Backend cũng kiểm tra kiểu dữ liệu của trường này trước khi lưu xuống cơ sở dữ liệu. Giá trị rollout được sử dụng trực tiếp trong Rule Evaluation Engine, do đó mọi giá trị ngoài phạm vi cho phép đều bị từ chối ngay từ tầng API.
-
-\subsubsection{Validation evaluation context}
-\label{subsubsec:validation-evaluation-context}
-
-Evaluation context là dữ liệu do ứng dụng khách gửi tới Evaluation API.
-
-
-
-
-Backend kiểm tra:
-
-\begin{itemize}
-    \item \texttt{context} phải là object JSON;
-    \item \texttt{targetingKey} là chuỗi nếu được cung cấp;
-    \item \texttt{userId} là chuỗi;
-    \item \texttt{roles} là mảng chuỗi;
-    \item mỗi role không được rỗng;
-    \item \texttt{attributes} là object JSON hợp lệ.
-\end{itemize}
-
-Các trường trong evaluation context đều là tùy chọn. Nếu một trường không được cung cấp, Rule Evaluation Engine chỉ bỏ qua các rule cần trường đó và tiếp tục đánh giá các rule còn lại. Ví dụ, nếu request không có \texttt{roles}, các rule \texttt{ROLE\_TARGETING} sẽ không khớp nhưng percentage rollout vẫn có thể được thực hiện nếu tồn tại \texttt{targetingKey}.
-
-Việc kiểm tra kiểu dữ liệu ngay từ tầng API giúp giảm khả năng phát sinh lỗi trong quá trình evaluation và bảo đảm Evaluation Engine luôn làm việc với cấu trúc dữ liệu xác định \cite{openfeature_evaluation_context}.
-
-\subsubsection{Validation tham số phân trang}
-\label{subsubsec:validation-pagination}
-
-Các endpoint trả về danh sách resource hỗ trợ hai tham số phân trang.
-
-
-
-
-
-
-Backend kiểm tra:
-
-\begin{itemize}
-    \item \texttt{limit} là số nguyên;
-    \item \texttt{offset} là số nguyên;
-    \item \texttt{limit} lớn hơn 0;
-    \item \texttt{offset} lớn hơn hoặc bằng 0;
-    \item \texttt{limit} không vượt quá 100.
-\end{itemize}
-
-Nếu client không truyền tham số, hệ thống sử dụng:
-
-
-
-Ví dụ không hợp lệ.
-
-
-
-
-
-
-
-Trong các trường hợp trên, API trả về lỗi validation thay vì tự động điều chỉnh giá trị. Việc kiểm tra giới hạn phân trang giúp ngăn các request tải quá nhiều dữ liệu, giảm tải cho cơ sở dữ liệu và duy trì hiệu năng ổn định của các endpoint truy vấn.
-
-\subsection{Mô hình phản hồi lỗi}
-\label{subsec:error-response-model}
-
-Hệ thống sử dụng một mô hình phản hồi lỗi thống nhất cho toàn bộ REST API nhằm giúp ứng dụng khách xử lý lỗi một cách nhất quán. Mỗi phản hồi lỗi đều bao gồm mã lỗi nghiệp vụ, thông báo mô tả, danh sách chi tiết (nếu có) và request ID để hỗ trợ truy vết. Việc chuẩn hóa cấu trúc phản hồi giúp giảm sự phụ thuộc vào từng endpoint cụ thể và đơn giản hóa việc tích hợp SDK hoặc frontend dashboard \cite{owasp_rest_security}.
-
-\subsubsection{Cấu trúc lỗi thống nhất}
-\label{subsubsec:standard-error-response}
-
-Mọi lỗi đều sử dụng cùng một cấu trúc JSON.
-
-
-
-
-Ý nghĩa các trường:
-
-\begin{itemize}
-    \item \texttt{code}: mã lỗi nghiệp vụ.
-    \item \texttt{message}: mô tả ngắn gọn của lỗi.
-    \item \texttt{details}: danh sách lỗi chi tiết.
-    \item \texttt{requestId}: định danh duy nhất của request.
-\end{itemize}
-
-Các mã lỗi nghiệp vụ phổ biến gồm:
-
-\begin{center}
-\begin{tabular}{ll}
-\toprule
-Code & Ý nghĩa \\
-\midrule
-VALIDATION\_ERROR & Dữ liệu đầu vào không hợp lệ \\
-NOT\_FOUND & Không tìm thấy tài nguyên \\
-CONFLICT & Xung đột dữ liệu \\
-INTERNAL\_ERROR & Lỗi nội bộ hệ thống \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-HTTP status code được sử dụng để biểu diễn loại lỗi ở mức giao thức, trong khi trường \texttt{code} giúp client phân biệt chi tiết nguyên nhân xử lý.
-
-\subsubsection{Validation error}
-\label{subsubsec:validation-error}
-
-Nếu request không thỏa mãn các ràng buộc validation, API trả về.
-
-
-
-
-
-
-
-
-
-
-
-
-Trường \texttt{details} có thể chứa nhiều lỗi cùng lúc để client có thể hiển thị toàn bộ các trường cần sửa mà không phải gửi lại nhiều request liên tiếp.
-
-Validation được thực hiện trước khi truy cập cơ sở dữ liệu nhằm giảm tải cho hệ thống và ngăn chặn các thao tác nghiệp vụ trên dữ liệu không hợp lệ.
-
-\subsubsection{Not found và conflict}
-\label{subsubsec:not-found-conflict}
-
-Nếu tài nguyên được yêu cầu không tồn tại, hệ thống trả về.
-
-
-
-
-
-
-
-
-
-Đối với các trường hợp xung đột dữ liệu hoặc vi phạm ràng buộc duy nhất, hệ thống trả về.
-
-
-
-Ví dụ khi tạo project với project key đã tồn tại.
-
-
-
-Các tình huống thường dẫn đến lỗi \texttt{409 Conflict} gồm:
-
-\begin{itemize}
-    \item project key đã tồn tại;
-    \item environment key trùng trong cùng project;
-    \item flag key trùng trong cùng project;
-    \item cập nhật cấu hình với version cũ;
-    \item thao tác không phù hợp với trạng thái hiện tại của tài nguyên.
-\end{itemize}
-
-Việc phân biệt rõ giữa \texttt{404} và \texttt{409} giúp client có thể đưa ra hành vi xử lý phù hợp đối với từng loại lỗi.
-
-\subsubsection{Internal error}
-\label{subsubsec:internal-error}
-
-Các lỗi ngoài dự kiến trong quá trình xử lý được ánh xạ thành:
-
-
-
-
-
-
-Các nguyên nhân có thể gồm:
-
-\begin{itemize}
-    \item lỗi kết nối cơ sở dữ liệu;
-    \item lỗi cache;
-    \item exception chưa được xử lý;
-    \item lỗi trong quá trình thực thi transaction.
-\end{itemize}
-
-Response không trả về stack trace, câu lệnh SQL hoặc các thông tin nội bộ của hệ thống nhằm tránh làm lộ chi tiết triển khai. Thông tin kỹ thuật đầy đủ chỉ được ghi vào log phía máy chủ để phục vụ việc điều tra và khắc phục sự cố \cite{owasp_rest_security,owasp_logging}.
-
-Đối với Evaluation API, lỗi nội bộ không sử dụng phản hồi HTTP 500 nếu request đã hợp lệ. Thay vào đó, Evaluation Engine trả về kết quả an toàn với \texttt{enabled = false} và reason code \texttt{ERROR} như đã trình bày ở Mục~\ref{subsubsec:evaluation-error-handling}.
-
-\subsubsection{Request ID và khả năng truy vết}
-\label{subsubsec:request-id-traceability}
-
-Mỗi HTTP request được gán một định danh duy nhất gọi là request ID. Giá trị này được tạo ngay khi request đi vào hệ thống và được truyền xuyên suốt toàn bộ quá trình xử lý.
-
-Request ID được:
-
-\begin{itemize}
-    \item trả về trong mọi response lỗi;
-    \item ghi vào audit log;
-    \item ghi vào application log;
-    \item liên kết với các thao tác mutation trong cùng request.
-\end{itemize}
-
-
-
-
-Khi người dùng báo cáo lỗi, quản trị viên chỉ cần sử dụng request ID để tìm toàn bộ log liên quan trên máy chủ, bao gồm thông tin request, exception phát sinh và các audit log tương ứng. Cơ chế này giúp rút ngắn thời gian điều tra sự cố và tăng khả năng truy vết trong quá trình vận hành.
-
-Request ID được xem là metadata của request và không mang ý nghĩa nghiệp vụ. Giá trị này không được sử dụng để xác thực người dùng hoặc xác định tài nguyên trong hệ thống, mà chỉ phục vụ mục đích quan sát và chẩn đoán lỗi.
+Các mã lỗi hiện tại gồm \texttt{VALIDATION\_ERROR}, \texttt{UNAUTHORIZED}, \texttt{FORBIDDEN}, \texttt{NOT\_FOUND}, \texttt{CONFLICT} và \texttt{INTERNAL\_ERROR}. Request ID được lấy từ header \texttt{X-Request-Id} nếu có, hoặc được backend tạo tự động; giá trị này xuất hiện trong error response, audit log và log phía server để hỗ trợ truy vết \cite{owasp_rest_security,owasp_logging}.
 
 \subsection{Tài liệu hóa API}
-\label{subsec:api-documentation}
 
-Bên cạnh việc thiết kế API rõ ràng, hệ thống cung cấp tài liệu API tự động nhằm hỗ trợ phát triển, kiểm thử và tích hợp với các ứng dụng khách. Tài liệu được sinh trực tiếp từ mã nguồn backend thông qua chuẩn OpenAPI, giúp bảo đảm tính đồng nhất giữa tài liệu và triển khai thực tế.
-
-Trong quá trình phát triển, mọi thay đổi đối với DTO, endpoint hoặc response đều được phản ánh tự động trong tài liệu API, giảm nguy cơ tài liệu bị lỗi thời so với hệ thống đang triển khai.
-
-\subsubsection{OpenAPI và Swagger}
-\label{subsubsec:openapi-swagger}
-
-Hệ thống sử dụng chuẩn OpenAPI để mô tả toàn bộ REST API. Trên nền tảng này, Swagger UI được tích hợp nhằm cung cấp giao diện trực quan để xem tài liệu và thử nghiệm các endpoint.
-
-Sau khi backend khởi động, tài liệu API có thể được truy cập thông qua:
+Backend sinh tài liệu OpenAPI/Swagger từ controller và DTO. Sau khi backend khởi động, Swagger UI có tại:
 
 \begin{lstlisting}
-/api/docs
+/docs
 \end{lstlisting}
 
-Swagger UI hiển thị:
-
-\begin{itemize}
-    \item danh sách endpoint;
-    \item HTTP method;
-    \item request body;
-    \item response schema;
-    \item HTTP status code;
-    \item ví dụ request và response.
-\end{itemize}
-
-Các endpoint được nhóm theo chức năng, ví dụ:
-
-\begin{itemize}
-    \item Projects;
-    \item Environments;
-    \item Feature Flags;
-    \item Flag Configurations;
-    \item Rules;
-    \item Evaluation;
-    \item Audit Logs;
-    \item Statistics.
-\end{itemize}
-
-Việc nhóm endpoint theo tài nguyên giúp người phát triển dễ dàng tìm kiếm và hiểu cấu trúc API.
-
-OpenAPI cũng cho phép sinh SDK hoặc client code tự động cho nhiều ngôn ngữ lập trình, giảm công sức tích hợp giữa nền tảng Feature Flag và các ứng dụng khách.
-
-\subsubsection{Mô tả request và response schema}
-\label{subsubsec:request-response-schema}
-
-Mỗi endpoint đều định nghĩa rõ request schema và response schema.
-
-Ví dụ đối với Evaluation API.
-
-
-
-Request schema:
-
-\begin{lstlisting}
-{
-  "projectKey": "string",
-  "environmentKey": "string",
-  "flagKey": "string",
-  "context": { "targetingKey": "string", "roles": ["string"] }
-}
-\end{lstlisting}
-
-Response schema:
-
-\begin{lstlisting}
-{
-  "projectKey": "string",
-  "flagKey": "string",
-  "enabled": true,
-  "variant": "string",
-  "reason": "ROLE_MATCH",
-  "matchedRuleId": "string | null"
-}
-\end{lstlisting}
-
-Các schema đều mô tả:
-
-\begin{itemize}
-    \item kiểu dữ liệu;
-    \item trường bắt buộc;
-    \item trường tùy chọn;
-    \item giá trị enum nếu có;
-    \item mô tả ý nghĩa của từng trường.
-\end{itemize}
-
-Nhờ vậy, frontend, SDK và các ứng dụng tích hợp có thể hiểu chính xác hợp đồng dữ liệu mà không cần tham khảo mã nguồn backend.
-
-\subsubsection{Ví dụ request}
-\label{subsubsec:request-examples}
-
-Tài liệu API cung cấp ví dụ request cho từng endpoint.
-
-Ví dụ tạo Feature Flag.
-
-
-
-
-
-
-Ví dụ Evaluation API.
-
-
-
-
-
-
-Việc cung cấp request mẫu giúp người phát triển nhanh chóng hiểu cách sử dụng API và giảm sai sót trong quá trình tích hợp.
-
-\subsubsection{Ví dụ response và error}
-\label{subsubsec:response-error-examples}
-
-Bên cạnh request, tài liệu API cũng cung cấp response mẫu cho cả trường hợp thành công và thất bại.
-
-Ví dụ evaluation thành công.
-
-
-
-
-
-Ví dụ lỗi validation.
-
-
-
-
-
-Ví dụ không tìm thấy tài nguyên.
-
-
-
-
-
-Ví dụ lỗi nội bộ.
-
-
-
-
-
-Việc cung cấp đầy đủ các ví dụ request và response giúp giảm thời gian tích hợp, hỗ trợ kiểm thử API bằng Swagger UI hoặc các công cụ như Postman, đồng thời tạo ra một hợp đồng giao tiếp rõ ràng giữa backend và các ứng dụng khách. Các ví dụ được sinh trực tiếp từ DTO và metadata của OpenAPI nên luôn đồng bộ với phiên bản API đang triển khai.
+Swagger được cấu hình với bearer auth cho control-plane demo token và API key \texttt{X-Request-Id}. Các tag chính gồm Health, Projects, Feature Flags, Rules, Evaluation, Statistics, Sample Users và Audit Logs. Việc sinh tài liệu từ source code giúp báo cáo, frontend, SDK và kiểm thử bám sát hợp đồng triển khai thực tế.

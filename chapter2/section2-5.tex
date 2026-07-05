@@ -19,16 +19,20 @@ Mô hình dữ liệu gồm các thực thể chính sau:
 
     \item \textbf{FeatureFlag}: lưu định nghĩa ổn định của một flag, bao gồm khóa định danh, tên hiển thị, mô tả và trạng thái vòng đời. Thực thể này không trực tiếp lưu trạng thái bật hoặc tắt theo environment.
 
-    \item \textbf{FlagConfig}: lưu cấu hình runtime của một Feature Flag trong một environment cụ thể. Cấu hình bao gồm trạng thái bật hoặc tắt, chế độ phục vụ, kill switch và giá trị variant tương ứng.
+    \item \textbf{FlagEnvironmentConfig}: lưu cấu hình runtime của một Feature Flag trong một environment cụ thể. Cấu hình bao gồm trạng thái bật hoặc tắt, chế độ phục vụ, kill switch và thời điểm cập nhật.
 
     \item \textbf{FlagRule}: biểu diễn một rule targeting thuộc một cấu hình flag. Rule có loại, mức ưu tiên và tập tham số dùng để xác định đối tượng được bật tính năng.
 
-    \item \textbf{SampleUser}: lưu dữ liệu người dùng mẫu phục vụ việc kiểm thử và minh họa Evaluation API. Mỗi người dùng có targeting key, danh sách role và tập thuộc tính mở rộng.
+    \item \textbf{FlagGroup}: tập hợp các Feature Flag có liên quan trong cùng project. Mỗi flag có thể thuộc tối đa một group.
+
+    \item \textbf{FlagGroupConfig}: lưu trạng thái group kill switch theo từng environment, giúp cùng một group có thể có trạng thái khác nhau giữa production và staging.
+
+    \item \textbf{SampleUserContext}: lưu dữ liệu người dùng mẫu phục vụ việc kiểm thử và minh họa Evaluation API. Mỗi người dùng có targeting key, user ID tùy chọn, danh sách role và tập thuộc tính mở rộng.
 
     \item \textbf{AuditLogEntry}: ghi nhận lịch sử các thao tác thay đổi dữ liệu quản trị, bao gồm người thực hiện, hành động, đối tượng bị tác động và trạng thái trước, sau khi thay đổi.
 \end{itemize}
 
-Các thực thể \texttt{FlagRule}, \texttt{SampleUser} và \texttt{AuditLogEntry} sử dụng dữ liệu có cấu trúc linh hoạt như tham số rule, thuộc tính người dùng hoặc snapshot thay đổi. Những trường dữ liệu này được lưu bằng kiểu \texttt{JSONB} của PostgreSQL để vừa duy trì khả năng mở rộng, vừa hỗ trợ truy vấn và lập chỉ mục khi cần thiết \cite{postgresql_json_types}.
+Các thực thể \texttt{FlagRule}, \texttt{SampleUserContext} và \texttt{AuditLogEntry} sử dụng dữ liệu có cấu trúc linh hoạt như tham số rule, thuộc tính người dùng hoặc snapshot thay đổi. Những trường dữ liệu này được lưu bằng kiểu \texttt{JSONB} của PostgreSQL để vừa duy trì khả năng mở rộng, vừa hỗ trợ truy vấn và lập chỉ mục khi cần thiết \cite{postgresql_json_types}.
 
 \subsubsection{Quan hệ giữa các thực thể}
 \label{subsubsec:quan-he-giua-cac-thuc-the}
@@ -38,16 +42,22 @@ Các thực thể trong hệ thống có quan hệ như sau:
 \begin{itemize}
     \item Một \texttt{Project} có nhiều \texttt{Environment}.
     \item Một \texttt{Project} có nhiều \texttt{FeatureFlag}.
-    \item Một \texttt{Project} có nhiều \texttt{SampleUser}.
+    \item Một \texttt{Project} có nhiều \texttt{FlagGroup}.
+    \item Một \texttt{Project} có nhiều \texttt{FlagGroupConfig}.
+    \item Một \texttt{Project} có nhiều \texttt{SampleUserContext}.
     \item Một \texttt{Project} có nhiều \texttt{AuditLogEntry}.
-    \item Một \texttt{FeatureFlag} có nhiều \texttt{FlagConfig}.
-    \item Một \texttt{Environment} có nhiều \texttt{FlagConfig}.
-    \item Mỗi \texttt{FlagConfig} thuộc đúng một \texttt{FeatureFlag} và một \texttt{Environment}.
-    \item Một \texttt{FlagConfig} có thể có nhiều \texttt{FlagRule}.
-    \item Mỗi \texttt{FlagRule} chỉ thuộc một \texttt{FlagConfig}.
+    \item Một \texttt{FlagGroup} có nhiều \texttt{FeatureFlag}.
+    \item Một \texttt{FlagGroup} có nhiều \texttt{FlagGroupConfig}.
+    \item Một \texttt{FeatureFlag} có nhiều \texttt{FlagEnvironmentConfig}.
+    \item Một \texttt{Environment} có nhiều \texttt{FlagEnvironmentConfig}.
+    \item Một \texttt{Environment} có nhiều \texttt{FlagGroupConfig}.
+    \item Mỗi \texttt{FlagEnvironmentConfig} thuộc đúng một \texttt{FeatureFlag} và một \texttt{Environment}.
+    \item Một \texttt{FlagEnvironmentConfig} có thể có nhiều \texttt{FlagRule}.
+    \item Mỗi \texttt{FlagRule} chỉ thuộc một \texttt{FlagEnvironmentConfig}.
+    \item Mỗi \texttt{FlagGroupConfig} thuộc đúng một \texttt{FlagGroup} và một \texttt{Environment}.
 \end{itemize}
 
-Quan hệ giữa \texttt{FeatureFlag} và \texttt{Environment} là quan hệ nhiều--nhiều được triển khai thông qua thực thể trung gian \texttt{FlagConfig}. Nhờ đó, cùng một flag có thể được bật toàn cục trên môi trường staging nhưng chỉ rollout theo phần trăm người dùng trên môi trường production.
+Quan hệ giữa \texttt{FeatureFlag} và \texttt{Environment} là quan hệ nhiều--nhiều được triển khai thông qua thực thể trung gian \texttt{FlagEnvironmentConfig}. Nhờ đó, cùng một flag có thể được bật toàn cục trên môi trường staging nhưng chỉ rollout theo phần trăm người dùng trên môi trường production.
 
 Bảng \ref{tab:quan-he-thuc-the} tóm tắt các quan hệ chính trong mô hình dữ liệu.
 
@@ -73,23 +83,43 @@ Bảng \ref{tab:quan-he-thuc-the} tóm tắt các quan hệ chính trong mô hì
         Một--nhiều &
         Các flag được định danh và quản lý trong phạm vi project. \\
 
+        Project &
+        FlagGroup &
+        Một--nhiều &
+        Các group được định danh trong phạm vi project. \\
+
+        FlagGroup &
         FeatureFlag &
-        FlagConfig &
+        Một--nhiều &
+        Một group có thể chứa nhiều flag; mỗi flag thuộc tối đa một group. \\
+
+        FeatureFlag &
+        FlagEnvironmentConfig &
         Một--nhiều &
         Một flag có cấu hình riêng cho từng environment. \\
 
         Environment &
-        FlagConfig &
+        FlagEnvironmentConfig &
         Một--nhiều &
         Một environment chứa cấu hình runtime của nhiều flag. \\
 
-        FlagConfig &
+        Environment &
+        FlagGroupConfig &
+        Một--nhiều &
+        Một environment chứa trạng thái kill switch của nhiều group. \\
+
+        FlagGroup &
+        FlagGroupConfig &
+        Một--nhiều &
+        Một group có cấu hình kill switch riêng theo từng environment. \\
+
+        FlagEnvironmentConfig &
         FlagRule &
         Một--nhiều &
         Một cấu hình có thể chứa nhiều rule targeting theo thứ tự ưu tiên. \\
 
         Project &
-        SampleUser &
+        SampleUserContext &
         Một--nhiều &
         Người dùng mẫu được sử dụng để kiểm thử evaluation trong project. \\
 
@@ -107,7 +137,7 @@ Các khóa ngoại được sử dụng để bảo đảm tính toàn vẹn tha
 \subsubsection{Phân tách định nghĩa flag và cấu hình runtime}
 \label{subsubsec:phan-tach-flag-va-runtime-config}
 
-Một quyết định quan trọng trong thiết kế dữ liệu là tách thực thể \texttt{FeatureFlag} khỏi \texttt{FlagConfig}. Trong đó, \texttt{FeatureFlag} mô tả danh tính và vòng đời của flag, còn \texttt{FlagConfig} mô tả cách flag được phục vụ tại thời điểm chạy trong từng environment.
+Một quyết định quan trọng trong thiết kế dữ liệu là tách thực thể \texttt{FeatureFlag} khỏi \texttt{FlagEnvironmentConfig}. Trong đó, \texttt{FeatureFlag} mô tả danh tính và vòng đời của flag, còn \texttt{FlagEnvironmentConfig} mô tả cách flag được phục vụ tại thời điểm chạy trong từng environment.
 
 Thực thể \texttt{FeatureFlag} chứa các thông tin tương đối ổn định, bao gồm:
 
@@ -119,16 +149,14 @@ Thực thể \texttt{FeatureFlag} chứa các thông tin tương đối ổn đ�
     \item thời điểm tạo và cập nhật.
 \end{itemize}
 
-Ngược lại, \texttt{FlagConfig} chứa các thuộc tính có thể thay đổi thường xuyên trong quá trình phát hành:
+Ngược lại, \texttt{FlagEnvironmentConfig} chứa các thuộc tính có thể thay đổi thường xuyên trong quá trình phát hành:
 
 \begin{itemize}
     \item environment áp dụng;
     \item trạng thái \texttt{ENABLED} hoặc \texttt{DISABLED};
     \item chế độ \texttt{GLOBAL\_ON} hoặc \texttt{TARGETED};
     \item trạng thái kill switch;
-    \item giá trị variant khi flag bật hoặc tắt;
-    \item phiên bản cấu hình;
-    \item thời điểm cập nhật gần nhất.
+    \item thời điểm tạo và cập nhật gần nhất.
 \end{itemize}
 
 Việc phân tách này mang lại các lợi ích sau:
@@ -137,7 +165,7 @@ Việc phân tách này mang lại các lợi ích sau:
     \item Cho phép một flag được cấu hình độc lập trên nhiều environment mà không phải sao chép toàn bộ định nghĩa flag.
     \item Tránh trộn lẫn trạng thái vòng đời với trạng thái runtime. Một flag đang ở vòng đời \texttt{ACTIVE} vẫn có thể bị tắt trên một environment cụ thể.
     \item Cho phép thay đổi cấu hình production mà không ảnh hưởng đến development hoặc staging.
-    \item Tạo điều kiện thuận lợi cho việc versioning, cache invalidation và lưu lịch sử cấu hình.
+    \item Tạo điều kiện thuận lợi cho audit-backed history, cache invalidation và truy vết cấu hình.
     \item Giúp Evaluation API truy vấn trực tiếp cấu hình tương ứng với bộ ba \texttt{projectKey}, \texttt{environmentKey} và \texttt{flagKey}.
 \end{itemize}
 
@@ -151,16 +179,16 @@ Ví dụ, flag có khóa \texttt{new-checkout} chỉ được định nghĩa m�
     \item rollout cho 20\% người dùng trong environment production.
 \end{itemize}
 
-Nếu trạng thái bật, tắt và các rule được lưu trực tiếp trong bảng \texttt{FeatureFlag}, hệ thống sẽ khó biểu diễn các cấu hình khác nhau giữa các environment. Vì vậy, \texttt{FlagConfig} đóng vai trò là thực thể liên kết giữa định nghĩa flag và môi trường triển khai.
+Nếu trạng thái bật, tắt và các rule được lưu trực tiếp trong bảng \texttt{FeatureFlag}, hệ thống sẽ khó biểu diễn các cấu hình khác nhau giữa các environment. Vì vậy, \texttt{FlagEnvironmentConfig} đóng vai trò là thực thể liên kết giữa định nghĩa flag và môi trường triển khai.
 
 \subsubsection{Sơ đồ thực thể liên kết}
 \label{subsubsec:so-do-thuc-the-lien-ket}
 
-Sơ đồ thực thể liên kết của hệ thống được trình bày trong
-Hình~\ref{fig:feature-flag-er-diagram}. Sơ đồ thể hiện cấu trúc phân cấp
+Sơ đồ thực thể liên kết rút gọn của hệ thống được trình bày trong
+Hình~\ref{fig:feature-flag-er-diagram}. Sơ đồ tập trung vào luồng evaluation chính
 từ \texttt{Project} đến \texttt{Environment} và \texttt{FeatureFlag},
-cùng với thực thể trung gian \texttt{FlagConfig} và các rule targeting
-tương ứng.
+cùng với thực thể trung gian \texttt{FlagEnvironmentConfig} và các rule targeting
+tương ứng. Các quan hệ \texttt{FlagGroup} và \texttt{FlagGroupConfig} được mô tả chi tiết trong phần flag group để tránh làm hình quá dày.
 
 \begin{figure}[H]
     \centering
@@ -198,7 +226,7 @@ tương ứng.
         };
 
         \node[entity, below=3.0cm of project] (config) {
-            \textbf{FlagConfig}\\
+            \textbf{FlagEnvironmentConfig}\\
             \texttt{id, flagId, environmentId}
         };
 
@@ -208,7 +236,7 @@ tương ứng.
         };
 
         \node[entity, left=of config] (user) {
-            \textbf{SampleUser}\\
+            \textbf{SampleUserContext}\\
             \texttt{id, projectId, targetingKey}
         };
 
@@ -234,11 +262,11 @@ tương ứng.
     \label{fig:feature-flag-er-diagram}
 \end{figure}
 
-Trong sơ đồ, \texttt{FlagConfig} là trung tâm của dữ liệu phục vụ
+Trong sơ đồ, \texttt{FlagEnvironmentConfig} là trung tâm của dữ liệu phục vụ
 evaluation. Khi nhận một yêu cầu đánh giá, hệ thống xác định project,
 environment và flag tương ứng, sau đó truy xuất cấu hình runtime cùng
 danh sách rule được sắp xếp theo độ ưu tiên. Dữ liệu trong
-\texttt{SampleUser} không phải nguồn dữ liệu bắt buộc của Evaluation API
+\texttt{SampleUserContext} không phải nguồn dữ liệu bắt buộc của Evaluation API
 mà chủ yếu phục vụ demo, kiểm thử và mô phỏng các evaluation context
 khác nhau.
 
@@ -309,7 +337,7 @@ Project có các quan hệ một--nhiều với những thực thể sau:
 \begin{itemize}
     \item \texttt{Environment}: các môi trường triển khai thuộc project;
     \item \texttt{FeatureFlag}: các flag được định nghĩa trong project;
-    \item \texttt{SampleUser}: dữ liệu người dùng mẫu phục vụ demo và kiểm thử;
+    \item \texttt{SampleUserContext}: dữ liệu người dùng mẫu phục vụ demo và kiểm thử;
     \item \texttt{AuditLogEntry}: lịch sử thay đổi các tài nguyên thuộc project.
 \end{itemize}
 
@@ -380,7 +408,7 @@ Các thuộc tính chính của \texttt{Environment} được trình bày trong 
 
 Thuộc tính \texttt{projectId} xác định phạm vi sở hữu của environment. Khóa environment chỉ cần duy nhất trong cùng một project, vì vậy các project khác nhau có thể cùng sử dụng các khóa phổ biến như \texttt{development}, \texttt{staging} hoặc \texttt{production}.
 
-Mỗi environment có quan hệ một--nhiều với \texttt{FlagConfig}. Một cấu hình runtime chỉ có hiệu lực trong environment mà nó tham chiếu. Vì vậy, việc thay đổi trạng thái hoặc rule của flag trong staging không làm thay đổi cấu hình của cùng flag trong production.
+Mỗi environment có quan hệ một--nhiều với \texttt{FlagEnvironmentConfig}. Một cấu hình runtime chỉ có hiệu lực trong environment mà nó tham chiếu. Vì vậy, việc thay đổi trạng thái hoặc rule của flag trong staging không làm thay đổi cấu hình của cùng flag trong production.
 
 Ví dụ, cùng một flag \texttt{new-checkout} có thể có ba cấu hình độc lập:
 
@@ -431,7 +459,7 @@ Khi người quản trị chọn một environment mới làm mặc định, h�
     \item Mỗi environment phải thuộc đúng một project thông qua khóa ngoại \texttt{projectId}.
     \item Cặp giá trị \texttt{projectId} và \texttt{key} phải là duy nhất.
     \item Một project chỉ có tối đa một environment có \texttt{isDefault = true}.
-    \item Environment chỉ có thể được sử dụng để tạo \texttt{FlagConfig} cho các Feature Flag thuộc cùng project.
+    \item Environment chỉ có thể được sử dụng để tạo \texttt{FlagEnvironmentConfig} cho các Feature Flag thuộc cùng project.
     \item Khóa environment phải tuân theo quy tắc định dạng khóa của hệ thống.
     \item Không được xóa environment nếu thao tác đó làm mất dữ liệu cấu hình runtime ngoài ý muốn.
 \end{itemize}
@@ -440,9 +468,9 @@ Ràng buộc duy nhất trên \texttt{projectId} và \texttt{key} có thể đư
 
 
 
-Ngoài các ràng buộc trực tiếp trong bảng \texttt{Environment}, hệ thống cần kiểm tra tính đồng nhất giữa project của environment và project của Feature Flag khi tạo \texttt{FlagConfig}. Một cấu hình không được phép liên kết flag thuộc project này với environment thuộc project khác.
+Ngoài các ràng buộc trực tiếp trong bảng \texttt{Environment}, hệ thống cần kiểm tra tính đồng nhất giữa project của environment và project của Feature Flag khi tạo \texttt{FlagEnvironmentConfig}. Một cấu hình không được phép liên kết flag thuộc project này với environment thuộc project khác.
 
-Về mặt mô hình quan hệ, \texttt{FlagConfig} chứa hai khóa ngoại riêng biệt là \texttt{featureFlagId} và \texttt{environmentId}. Do cơ sở dữ liệu không thể suy ra trực tiếp hai bản ghi này phải thuộc cùng project chỉ từ hai khóa ngoại đơn, kiểm tra được thực hiện trong tầng dịch vụ trước khi ghi dữ liệu. Tất cả thao tác tạo hoặc cập nhật cấu hình đều phải xác nhận:
+Về mặt mô hình quan hệ, \texttt{FlagEnvironmentConfig} chứa hai khóa ngoại riêng biệt là \texttt{featureFlagId} và \texttt{environmentId}. Do cơ sở dữ liệu không thể suy ra trực tiếp hai bản ghi này phải thuộc cùng project chỉ từ hai khóa ngoại đơn, kiểm tra được thực hiện trong tầng dịch vụ trước khi ghi dữ liệu. Tất cả thao tác tạo hoặc cập nhật cấu hình đều phải xác nhận:
 
 \[
 \texttt{FeatureFlag.projectId}
@@ -457,7 +485,7 @@ Khi xóa một project, các environment thuộc project không còn ý nghĩa �
 \subsection{Feature Flag và cấu hình theo environment}
 \label{subsec:feature-flag-va-cau-hinh-theo-environment}
 
-Trong mô hình dữ liệu của hệ thống, định nghĩa Feature Flag được tách khỏi cấu hình runtime theo từng environment. Thực thể \texttt{FeatureFlag} lưu thông tin định danh và trạng thái vòng đời của flag, trong khi \texttt{FlagConfig} lưu cách flag được phục vụ trong một environment cụ thể. Thiết kế này cho phép cùng một flag có trạng thái và chiến lược rollout khác nhau giữa development, staging và production.
+Trong mô hình dữ liệu của hệ thống, định nghĩa Feature Flag được tách khỏi cấu hình runtime theo từng environment. Thực thể \texttt{FeatureFlag} lưu thông tin định danh và trạng thái vòng đời của flag, trong khi \texttt{FlagEnvironmentConfig} lưu cách flag được phục vụ trong một environment cụ thể. Thiết kế này cho phép cùng một flag có trạng thái và chiến lược rollout khác nhau giữa development, staging và production.
 
 \subsubsection{Thực thể FeatureFlag}
 \label{subsubsec:thuc-the-feature-flag}
@@ -567,7 +595,7 @@ Khi evaluation một flag đã archive, hệ thống trả về kết quả an t
 
         \texttt{ACTIVE} &
         Flag còn hiệu lực và có thể được cấu hình theo environment. &
-        Tiếp tục kiểm tra \texttt{FlagConfig}, kill switch, serving mode và các rule. \\
+        Tiếp tục kiểm tra \texttt{FlagEnvironmentConfig}, kill switch, serving mode và các rule. \\
 
         \texttt{ARCHIVED} &
         Flag đã được đưa ra khỏi vòng đời sử dụng thông thường. &
@@ -579,16 +607,16 @@ Khi evaluation một flag đã archive, hệ thống trả về kết quả an t
 
 Việc chuyển trạng thái giữa \texttt{ACTIVE} và \texttt{ARCHIVED} phải được ghi audit log, bao gồm actor, thời điểm, trạng thái trước và trạng thái sau. Hệ thống cũng cần giới hạn thao tác này cho người dùng có quyền quản trị phù hợp.
 
-\subsubsection{Thực thể FlagConfig}
+\subsubsection{Thực thể FlagEnvironmentConfig}
 \label{subsubsec:thuc-the-flag-config}
 
-Thực thể \texttt{FlagConfig} lưu cấu hình runtime của một Feature Flag trong một environment cụ thể. Đây là thực thể liên kết giữa \texttt{FeatureFlag} và \texttt{Environment}, đồng thời là nguồn dữ liệu trung tâm của Evaluation Engine.
+Thực thể \texttt{FlagEnvironmentConfig} lưu cấu hình runtime của một Feature Flag trong một environment cụ thể. Đây là thực thể liên kết giữa \texttt{FeatureFlag} và \texttt{Environment}, đồng thời là nguồn dữ liệu trung tâm của Evaluation Engine. Tên này khớp với model trong Prisma schema hiện tại; trong phần mô tả ngắn, báo cáo có thể gọi đây là cấu hình flag theo environment.
 
-Các thuộc tính chính của \texttt{FlagConfig} được trình bày trong Bảng~\ref{tab:flag-config-attributes}.
+Các thuộc tính chính của \texttt{FlagEnvironmentConfig} được trình bày trong Bảng~\ref{tab:flag-config-attributes}.
 
 \begin{table}[H]
     \centering
-    \caption{Các thuộc tính của thực thể FlagConfig}
+    \caption{Các thuộc tính của thực thể FlagEnvironmentConfig}
     \label{tab:flag-config-attributes}
     \begin{tabular}{p{0.20\textwidth} p{0.18\textwidth} p{0.17\textwidth} p{0.35\textwidth}}
         \toprule
@@ -628,11 +656,6 @@ Các thuộc tính chính của \texttt{FlagConfig} được trình bày trong B
         Mặc định là \texttt{false} &
         Cho phép tắt khẩn cấp flag trong environment. \\
 
-        \texttt{version} &
-        Số nguyên &
-        Bắt buộc &
-        Phiên bản cấu hình phục vụ versioning và cache invalidation. \\
-
         \texttt{createdAt} &
         Timestamp &
         Bắt buộc &
@@ -647,13 +670,13 @@ Các thuộc tính chính của \texttt{FlagConfig} được trình bày trong B
     \end{tabular}
 \end{table}
 
-Mỗi cặp \texttt{featureFlagId} và \texttt{environmentId} chỉ được phép có một bản ghi \texttt{FlagConfig}. Ràng buộc này bảo đảm Evaluation Engine luôn xác định được duy nhất một cấu hình runtime cho một flag trong một environment.
+Mỗi cặp \texttt{featureFlagId} và \texttt{environmentId} chỉ được phép có một bản ghi \texttt{FlagEnvironmentConfig}. Ràng buộc này bảo đảm Evaluation Engine luôn xác định được duy nhất một cấu hình runtime cho một flag trong một environment.
 
 
 
-Khi một Feature Flag mới được tạo, hệ thống có thể tự động khởi tạo một \texttt{FlagConfig} cho từng environment hiện có. Cấu hình mặc định nên sử dụng \texttt{DISABLED}, \texttt{TARGETED} và \texttt{killSwitch = false} để tránh vô tình phát hành tính năng khi chưa có cấu hình rõ ràng.
+Trong source code hiện tại, khi một Feature Flag mới được tạo, backend tìm environment mặc định của project và khởi tạo một \texttt{FlagEnvironmentConfig} an toàn cho environment đó với \texttt{DISABLED}, \texttt{TARGETED} và \texttt{killSwitch = false}. Việc chỉ tạo cấu hình mặc định phản ánh phạm vi hiện tại của Dashboard, nơi các form flag/rule tập trung vào default environment.
 
-Tương tự, khi một environment mới được tạo, hệ thống có thể tạo cấu hình mặc định cho tất cả Feature Flag đang hoạt động trong project. Thao tác này nên được thực hiện trong transaction để tránh trạng thái environment chỉ có cấu hình cho một phần các flag.
+Nếu hệ thống mở thêm controller CRUD environment trong tương lai, thao tác tạo environment mới nên bổ sung cấu hình mặc định cho các flag liên quan trong cùng transaction để tránh trạng thái environment chỉ có cấu hình cho một phần các flag.
 
 \subsubsection{Trạng thái cấu hình và serving mode}
 \label{subsubsec:trang-thai-cau-hinh-va-serving-mode}
@@ -697,7 +720,7 @@ Bảng~\ref{tab:flag-config-runtime-combinations} trình bày các tổ hợp ch
 
         \texttt{ENABLED} &
         \texttt{TARGETED} &
-        Evaluation Engine đánh giá các rule theo thứ tự ưu tiên. \\
+        Evaluation Engine đánh giá rule theo type precedence, rồi theo priority trong từng loại. \\
 
         \bottomrule
     \end{tabular}
@@ -708,7 +731,8 @@ Kill switch có mức ưu tiên cao hơn serving mode. Khi \texttt{killSwitch = 
 \begin{enumerate}
     \item trạng thái vòng đời \texttt{ARCHIVED};
     \item trạng thái cấu hình \texttt{DISABLED};
-    \item kill switch;
+    \item group kill switch nếu flag thuộc group;
+    \item flag-level kill switch;
     \item serving mode \texttt{GLOBAL\_ON};
     \item các rule trong chế độ \texttt{TARGETED};
     \item giá trị mặc định tắt.
@@ -766,7 +790,7 @@ Khi Evaluation API nhận request, hệ thống sử dụng bộ ba khóa:
 (\texttt{projectKey},\ \texttt{environmentKey},\ \texttt{flagKey})
 \]
 
-để truy xuất duy nhất \texttt{FlagConfig} tương ứng. Sau đó, hệ thống nạp các \texttt{FlagRule} thuộc cấu hình này và tạo evaluation snapshot phục vụ Rule Evaluation Engine.
+để truy xuất duy nhất \texttt{FlagEnvironmentConfig} tương ứng. Sau đó, hệ thống nạp các \texttt{FlagRule} thuộc cấu hình này và tạo evaluation snapshot phục vụ Rule Evaluation Engine.
 
 Việc lưu cấu hình theo environment mang lại các lợi ích chính sau:
 
@@ -779,17 +803,17 @@ Việc lưu cấu hình theo environment mang lại các lợi ích chính sau:
     \item duy trì một định nghĩa flag thống nhất trong toàn bộ project.
 \end{itemize}
 
-Mỗi thao tác thay đổi \texttt{status}, \texttt{servingMode}, \texttt{killSwitch} hoặc rule liên quan phải tăng phiên bản cấu hình và ghi một audit log. Phiên bản mới được sử dụng để làm mất hiệu lực cache cũ, trong khi audit log cho phép xác định ai đã thay đổi cấu hình, vào thời điểm nào và nội dung trước, sau thay đổi.
+Mỗi thao tác thay đổi \texttt{status}, \texttt{servingMode}, \texttt{killSwitch} hoặc rule liên quan phải ghi audit log và làm mất hiệu lực evaluation snapshot cache liên quan sau khi transaction thành công. Source code hiện tại không lưu trường \texttt{version} trên \texttt{FlagEnvironmentConfig}; lịch sử cấu hình được đọc lại từ \texttt{AuditLogEntry}.
 
 \subsection{Rule và tham số rule}
 \label{subsec:rule-va-tham-so-rule}
 
-Rule là thành phần mô tả điều kiện để một Feature Flag được bật trong chế độ \texttt{TARGETED}. Mỗi rule thuộc về một \texttt{FlagConfig}, có loại xác định, mức ưu tiên và tập tham số tương ứng. Khi evaluation, các rule được xét theo thứ tự ưu tiên cho đến khi tìm thấy rule đầu tiên khớp với evaluation context.
+Rule là thành phần mô tả điều kiện để một Feature Flag được bật trong chế độ \texttt{TARGETED}. Mỗi rule thuộc về một \texttt{FlagEnvironmentConfig}, có loại xác định, mức ưu tiên và tập tham số tương ứng. Khi evaluation, engine áp dụng type precedence cố định \texttt{USER\_ALLOWLIST} -> \texttt{ROLE\_TARGETING} -> \texttt{PERCENTAGE\_ROLLOUT}; trong từng loại, các rule đang enabled được xét theo \texttt{priority} tăng dần.
 
 \subsubsection{Thực thể FlagRule}
 \label{subsubsec:thuc-the-flag-rule}
 
-Thực thể \texttt{FlagRule} biểu diễn một điều kiện targeting cụ thể của Feature Flag trong một environment. Rule không gắn trực tiếp với \texttt{FeatureFlag} mà gắn với \texttt{FlagConfig}, vì cùng một flag có thể sử dụng tập rule khác nhau giữa các environment.
+Thực thể \texttt{FlagRule} biểu diễn một điều kiện targeting cụ thể của Feature Flag trong một environment. Rule không gắn trực tiếp với \texttt{FeatureFlag} mà gắn với \texttt{FlagEnvironmentConfig}, vì cùng một flag có thể sử dụng tập rule khác nhau giữa các environment.
 
 Các thuộc tính chính của \texttt{FlagRule} được trình bày trong Bảng~\ref{tab:flag-rule-attributes}.
 
@@ -844,7 +868,7 @@ Các thuộc tính chính của \texttt{FlagRule} được trình bày trong B�
     \end{tabular}
 \end{table}
 
-Mỗi \texttt{FlagRule} chỉ thuộc một \texttt{FlagConfig}. Khi cấu hình bị xóa, các rule liên quan không còn ý nghĩa độc lập và có thể được xóa theo cơ chế cascade. Mọi thao tác tạo, sửa hoặc xóa rule phải được ghi audit log để truy vết thay đổi cấu hình.
+Mỗi \texttt{FlagRule} chỉ thuộc một \texttt{FlagEnvironmentConfig}. Khi cấu hình bị xóa, các rule liên quan không còn ý nghĩa độc lập và có thể được xóa theo cơ chế cascade. Source code hiện tại không mở CRUD từng rule riêng lẻ; Dashboard thay thế toàn bộ rule set của flag bằng endpoint \texttt{PUT /v1/projects/\{projectKey\}/flags/\{flagKey\}/rules} và backend ghi audit log để truy vết thay đổi cấu hình.
 
 \subsubsection{Kiểu rule}
 \label{subsubsec:kieu-rule}
@@ -852,7 +876,7 @@ Mỗi \texttt{FlagRule} chỉ thuộc một \texttt{FlagConfig}. Khi cấu hình
 Trong phạm vi hệ thống, ba loại rule được hỗ trợ:
 
 \begin{itemize}
-    \item \texttt{USER\_ALLOWLIST}: bật flag cho một tập targeting key cụ thể.
+    \item \texttt{USER\_ALLOWLIST}: bật flag cho một tập \texttt{userId} cụ thể.
     \item \texttt{ROLE\_TARGETING}: bật flag nếu evaluation context chứa ít nhất một role được cấu hình.
     \item \texttt{PERCENTAGE\_ROLLOUT}: bật flag cho một tỷ lệ ổn định người dùng dựa trên hàm băm.
 \end{itemize}
@@ -871,7 +895,7 @@ Bảng~\ref{tab:flag-rule-types} mô tả ý nghĩa của từng loại rule.
         \midrule
 
         \texttt{USER\_ALLOWLIST} &
-        \texttt{targetingKey} nằm trong danh sách được cấu hình. &
+        \texttt{context.userId} nằm trong danh sách \texttt{userIds} được cấu hình. &
         Bật tính năng cho người dùng nội bộ, tester hoặc khách hàng cụ thể. \\
 
         \texttt{ROLE\_TARGETING} &
@@ -891,7 +915,7 @@ Các loại rule được mô hình hóa bằng enum thay vì chuỗi tự do nh
 \subsubsection{Thứ tự ưu tiên của rule}
 \label{subsubsec:thu-tu-uu-tien-cua-rule}
 
-Thuộc tính \texttt{priority} xác định thứ tự đánh giá các rule trong cùng một \texttt{FlagConfig}. Rule có giá trị priority nhỏ hơn được đánh giá trước. Evaluation Engine dừng tại rule đầu tiên khớp và trả về kết quả tương ứng.
+Thuộc tính \texttt{priority} xác định thứ tự đánh giá các rule trong cùng một loại rule của một \texttt{FlagEnvironmentConfig}. Source code hiện tại không dùng một danh sách rule trộn lẫn để xét tuần tự toàn bộ rule; engine luôn xét \texttt{USER\_ALLOWLIST} trước, sau đó \texttt{ROLE\_TARGETING} và cuối cùng \texttt{PERCENTAGE\_ROLLOUT}. Trong từng loại, rule có priority nhỏ hơn được đánh giá trước.
 
 Ví dụ, một cấu hình có thể sử dụng thứ tự sau:
 
@@ -901,13 +925,13 @@ Ví dụ, một cấu hình có thể sử dụng thứ tự sau:
     \item \texttt{PERCENTAGE\_ROLLOUT} với priority 30.
 \end{enumerate}
 
-Cách sắp xếp này cho phép các đối tượng cụ thể được ưu tiên trước các chiến lược rộng hơn. Người dùng nằm trong allowlist sẽ được bật tính năng ngay cả khi không có role phù hợp hoặc không thuộc bucket rollout.
+Cách sắp xếp này cho phép các đối tượng cụ thể được ưu tiên trước các chiến lược rộng hơn. Người dùng có \texttt{userId} nằm trong allowlist sẽ được bật tính năng ngay cả khi không có role phù hợp hoặc không thuộc bucket rollout. Một percentage rule có priority nhỏ hơn vẫn không vượt qua user allowlist hoặc role targeting vì type precedence là hợp đồng cố định của engine.
 
 Để tránh hai rule có cùng vị trí đánh giá trong một cấu hình, hệ thống áp dụng ràng buộc duy nhất trên cặp \texttt{flagConfigId} và \texttt{priority}:
 
 
 
-Khi truy xuất dữ liệu phục vụ evaluation, các rule phải được sắp xếp tăng dần theo \texttt{priority}. Không nên phụ thuộc vào thứ tự vật lý của bản ghi trong cơ sở dữ liệu.
+Khi truy xuất dữ liệu phục vụ evaluation, repository có thể tải rule theo \texttt{priority}, nhưng Rule Evaluation Engine vẫn chịu trách nhiệm áp dụng type precedence cố định và lọc các rule đang enabled. Không nên phụ thuộc vào thứ tự vật lý của bản ghi trong cơ sở dữ liệu.
 
 Nếu không có rule nào khớp, hệ thống trả về \texttt{enabled = false} với reason code \texttt{DEFAULT\_OFF}. Cơ chế này bảo đảm hành vi fail-closed trong chế độ targeted.
 
@@ -923,7 +947,7 @@ Ví dụ tham số của rule \texttt{USER\_ALLOWLIST}:
     label={lst:user-allowlist-parameters}
 ]
 {
-  "targetingKeys": [
+  "userIds": [
     "user-001",
     "user-017",
     "user-103"
@@ -976,11 +1000,11 @@ Hệ thống thực hiện validation dựa trên giá trị của \texttt{type}
 Đối với \texttt{USER\_ALLOWLIST}, tham số phải thỏa mãn:
 
 \begin{itemize}
-    \item có trường \texttt{targetingKeys};
-    \item \texttt{targetingKeys} là một mảng chuỗi;
+    \item có trường \texttt{userIds};
+    \item \texttt{userIds} là một mảng chuỗi;
     \item mảng không rỗng;
     \item mỗi giá trị không phải chuỗi rỗng;
-    \item các targeting key không bị trùng lặp.
+    \item các user ID không bị trùng lặp.
 \end{itemize}
 
 Đối với \texttt{ROLE\_TARGETING}, tham số phải thỏa mãn:
@@ -1016,7 +1040,7 @@ Bảng~\ref{tab:rule-parameter-validation} tóm tắt các quy tắc validation.
         \midrule
 
         \texttt{USER\_ALLOWLIST} &
-        \texttt{targetingKeys} &
+        \texttt{userIds} &
         Mảng chuỗi không rỗng, không có giá trị rỗng hoặc trùng lặp. \\
 
         \texttt{ROLE\_TARGETING} &
@@ -1035,36 +1059,35 @@ Nếu tham số không hợp lệ, API trả về lỗi \texttt{VALIDATION\_ERRO
 
 Ngoài validation khi tạo và cập nhật rule, Evaluation Engine vẫn phải xử lý phòng vệ đối với dữ liệu không hợp lệ. Nếu không thể đọc hoặc diễn giải tham số, rule được xem là không khớp và lỗi cần được ghi log phục vụ chẩn đoán. Cách xử lý này tránh việc một rule lỗi làm bật tính năng ngoài ý muốn.
 
-Sau mỗi thao tác thay đổi rule, hệ thống phải tăng phiên bản của \texttt{FlagConfig}, làm mất hiệu lực cache liên quan và ghi audit log chứa snapshot trước và sau thay đổi.
+Sau mỗi thao tác thay đổi rule, hệ thống ghi audit log dạng \texttt{FLAG\_RULES\_REPLACED}, làm mất hiệu lực cache snapshot liên quan và lưu snapshot trước/sau của ordered rule set.
 
 \subsection{User context mẫu}
 \label{subsec:user-context-mau}
 
 Hệ thống lưu một tập dữ liệu user context mẫu nhằm phục vụ demo, kiểm thử Evaluation API và minh họa các chiến lược targeting. Dữ liệu này không thay thế cơ sở dữ liệu người dùng của ứng dụng khách và không được xem là nguồn danh tính chính thức trong môi trường thực tế. Khi tích hợp, ứng dụng khách tự xây dựng evaluation context từ dữ liệu nghiệp vụ của mình và gửi đến nền tảng Feature Flag.
 
-Evaluation context có thể bao gồm targeting key, user ID, organization ID, danh sách role và các thuộc tính mở rộng. Trong đó, targeting key là định danh chính được sử dụng để đánh giá allowlist và percentage rollout, còn các trường còn lại cung cấp thêm thông tin cho các rule targeting hiện tại hoặc khả năng mở rộng trong tương lai \cite{openfeature_evaluation_context}.
+Evaluation context có thể bao gồm targeting key, user ID, organization ID, danh sách role và các thuộc tính mở rộng. Trong source code hiện tại, \texttt{targetingKey} là đầu vào của percentage rollout, \texttt{userId} được dùng cho user allowlist, còn \texttt{roles} phục vụ role targeting; các thuộc tính còn lại hỗ trợ demo và khả năng mở rộng trong tương lai \cite{openfeature_evaluation_context}.
 
 \subsubsection{Targeting key}
-\label{subsubsec:targeting-key}
 
 \texttt{targetingKey} là định danh ổn định đại diện cho đối tượng được evaluation. Đối tượng này thường là một người dùng, nhưng cũng có thể là một organization, thiết bị, tenant hoặc thực thể nghiệp vụ khác tùy theo cách ứng dụng khách xây dựng context.
 
 Targeting key có các vai trò chính sau:
 
 \begin{itemize}
-    \item đối chiếu với danh sách định danh trong rule \texttt{USER\_ALLOWLIST};
     \item làm đầu vào cho thuật toán băm ổn định của rule \texttt{PERCENTAGE\_ROLLOUT};
+    \item tách khóa rollout ổn định khỏi \texttt{userId} dùng cho rule \texttt{USER\_ALLOWLIST};
     \item giúp cùng một đối tượng nhận kết quả nhất quán giữa nhiều lần evaluation;
     \item tránh phụ thuộc trực tiếp vào khóa chính nội bộ của nền tảng Feature Flag.
 \end{itemize}
 
 Trong mô hình dữ liệu mẫu, targeting key phải duy nhất trong phạm vi project. Hai project có thể sử dụng cùng một targeting key vì dữ liệu người dùng của chúng được quản lý độc lập.
 
-Các thuộc tính chính của thực thể \texttt{SampleUser} được trình bày trong Bảng~\ref{tab:sample-user-attributes}.
+Các thuộc tính chính của thực thể \texttt{SampleUserContext} được trình bày trong Bảng~\ref{tab:sample-user-attributes}.
 
 \begin{table}[H]
     \centering
-    \caption{Các thuộc tính của thực thể SampleUser}
+    \caption{Các thuộc tính của thực thể SampleUserContext}
     \label{tab:sample-user-attributes}
     \begin{tabular}{p{0.20\textwidth} p{0.18\textwidth} p{0.17\textwidth} p{0.35\textwidth}}
         \toprule
@@ -1094,7 +1117,7 @@ Các thuộc tính chính của thực thể \texttt{SampleUser} được trình
         Có thể rỗng &
         Định danh người dùng trong hệ thống của ứng dụng khách. \\
 
-        \texttt{organizationId} &
+        \texttt{attributes.organizationId} &
         Chuỗi &
         Có thể rỗng &
         Định danh organization hoặc tenant của người dùng. \\
@@ -1141,13 +1164,13 @@ Ví dụ, ứng dụng có thể sử dụng:
     \item \texttt{targetingKey = customer-18452} làm định danh ổn định cho Feature Flag.
 \end{itemize}
 
-\texttt{organizationId} đại diện cho organization, tenant, doanh nghiệp hoặc nhóm mà người dùng thuộc về. Trường này hỗ trợ các trường hợp cần bật tính năng cho toàn bộ thành viên của một organization thay vì cấu hình riêng từng người dùng.
+\texttt{attributes.organizationId} đại diện cho organization, tenant, doanh nghiệp hoặc nhóm mà người dùng thuộc về. Trường này hỗ trợ các trường hợp cần bật tính năng cho toàn bộ thành viên của một organization thay vì cấu hình riêng từng người dùng.
 
 Ví dụ một evaluation context có thể được biểu diễn như sau.
 
 
 
-Trong phiên bản hiện tại, \texttt{userId} và \texttt{organizationId} chủ yếu được lưu để mô phỏng context và chuẩn bị cho khả năng mở rộng rule. Các rule bắt buộc của hệ thống chưa đánh giá trực tiếp hai trường này nếu chúng không được chọn làm targeting key.
+Trong phiên bản hiện tại, \texttt{userId} được đánh giá trực tiếp bởi user allowlist, còn \texttt{attributes.organizationId} chủ yếu phục vụ demo và khả năng mở rộng rule theo organization trong tương lai. Backend không tự suy luận organization từ user ID.
 
 Nền tảng Feature Flag không tự suy luận hoặc truy vấn thông tin organization từ user ID. Ứng dụng khách chịu trách nhiệm lấy dữ liệu từ cơ sở dữ liệu nghiệp vụ và truyền context phù hợp trong mỗi request evaluation.
 
@@ -1216,18 +1239,18 @@ Dữ liệu nhạy cảm như mật khẩu, token xác thực, số giấy tờ,
 \subsubsection{Phạm vi sử dụng dữ liệu mẫu}
 \label{subsubsec:pham-vi-su-dung-du-lieu-mau}
 
-Thực thể \texttt{SampleUser} được sử dụng trong các phạm vi sau:
+Thực thể \texttt{SampleUserContext} được sử dụng trong các phạm vi sau:
 
 \begin{itemize}
     \item cung cấp dữ liệu có sẵn cho demo app;
     \item kiểm thử rule theo targeting key;
     \item kiểm thử rule theo role;
     \item kiểm tra tính ổn định của percentage rollout;
-    \item minh họa user context trong dashboard quản trị;
-    \item hỗ trợ seed data và các kịch bản trình diễn.
+    \item cung cấp dữ liệu cho API \texttt{/sample-users} và seed data;
+    \item hỗ trợ các kịch bản trình diễn production/staging trong Demo Application.
 \end{itemize}
 
-Dữ liệu mẫu không tham gia bắt buộc vào luồng Evaluation API. Evaluation Engine đánh giá trực tiếp context được gửi trong request và không cần truy vấn \texttt{SampleUser} để lấy thông tin người dùng. Cách thiết kế này giữ Evaluation API độc lập với cơ sở dữ liệu người dùng của demo app và giảm một lần truy vấn trong luồng runtime.
+Dữ liệu mẫu không tham gia bắt buộc vào luồng Evaluation API. Evaluation Engine đánh giá trực tiếp context được gửi trong request và không cần truy vấn \texttt{SampleUserContext} để lấy thông tin người dùng. Cách thiết kế này giữ Evaluation API độc lập với cơ sở dữ liệu người dùng của demo app và giảm một lần truy vấn trong luồng runtime.
 
 Luồng xử lý được phân tách như sau:
 
@@ -1236,235 +1259,80 @@ Luồng xử lý được phân tách như sau:
     \item Demo app xây dựng evaluation context từ targeting key, user ID, organization ID, role và attributes.
     \item Evaluation context được gửi đến Evaluation API.
     \item Evaluation Engine sử dụng trực tiếp context để đánh giá rule.
-    \item Bảng \texttt{SampleUser} không được truy vấn lại trong quá trình evaluation.
+    \item Bảng \texttt{SampleUserContext} không được truy vấn lại trong quá trình evaluation.
 \end{enumerate}
 
-Trong môi trường thực tế, dữ liệu người dùng được quản lý bởi ứng dụng khách. Nền tảng Feature Flag chỉ nhận context cần thiết tại thời điểm evaluation. Vì vậy, \texttt{SampleUser} là thành phần phục vụ minh họa và kiểm thử, không phải chức năng quản lý danh tính hoặc hồ sơ khách hàng.
+Trong môi trường thực tế, dữ liệu người dùng được quản lý bởi ứng dụng khách. Nền tảng Feature Flag chỉ nhận context cần thiết tại thời điểm evaluation. Vì vậy, \texttt{SampleUserContext} là thành phần phục vụ minh họa và kiểm thử, không phải chức năng quản lý danh tính hoặc hồ sơ khách hàng.
 
 Việc giới hạn phạm vi này giúp tránh biến nền tảng Feature Flag thành một hệ thống quản lý người dùng, đồng thời duy trì ranh giới trách nhiệm rõ ràng giữa ứng dụng khách và dịch vụ evaluation.
 
+
 \subsection{Flag group và group kill switch}
-\label{subsec:flag-group-va-group-kill-switch}
 
-Flag group được sử dụng để tập hợp nhiều Feature Flag có liên quan về mặt nghiệp vụ hoặc vận hành. Mỗi group thuộc một project và có thể chứa nhiều flag. Bên cạnh mục đích tổ chức dữ liệu trên dashboard, group còn cung cấp cơ chế kill switch ở cấp nhóm, cho phép tắt nhanh toàn bộ các flag thành viên khi xảy ra sự cố.
+Flag group được sử dụng để tập hợp nhiều Feature Flag có liên quan về mặt nghiệp vụ hoặc vận hành. Mỗi group thuộc một project và được định danh bằng \texttt{key} duy nhất trong project. Bên cạnh mục đích tổ chức dữ liệu trên dashboard, group còn cung cấp cơ chế kill switch ở cấp nhóm để vô hiệu hóa nhanh nhiều flag thành viên trong một environment cụ thể.
 
-\subsubsection{Thực thể FlagGroup}
-\label{subsubsec:thuc-the-flag-group}
+\subsubsection{Thực thể FlagGroup và FlagGroupConfig}
 
-Thực thể \texttt{FlagGroup} đại diện cho một nhóm Feature Flag trong phạm vi project. Một group có thể tương ứng với một miền chức năng, một luồng nghiệp vụ, một đợt phát hành hoặc một tập tính năng cần được kiểm soát chung.
+Source code hiện tại tách định nghĩa group khỏi trạng thái kill switch của group. \texttt{FlagGroup} chỉ lưu thông tin ổn định gồm \texttt{id}, \texttt{projectId}, \texttt{key}, \texttt{name}, \texttt{createdAt} và \texttt{updatedAt}. Trạng thái kill switch không nằm trực tiếp trên \texttt{FlagGroup}; nó được lưu trong \texttt{FlagGroupConfig} theo từng cặp group--environment.
 
-Các thuộc tính chính của \texttt{FlagGroup} được trình bày trong Bảng~\ref{tab:flag-group-attributes}.
-
-\begin{table}[H]
-    \centering
-    \caption{Các thuộc tính của thực thể FlagGroup}
-    \label{tab:flag-group-attributes}
-    \begin{tabular}{p{0.20\textwidth} p{0.18\textwidth} p{0.17\textwidth} p{0.35\textwidth}}
-        \toprule
-        \textbf{Thuộc tính} &
-        \textbf{Kiểu dữ liệu} &
-        \textbf{Ràng buộc} &
-        \textbf{Ý nghĩa} \\
-        \midrule
-
-        \texttt{id} &
-        UUID &
-        Khóa chính &
-        Định danh nội bộ duy nhất của group. \\
-
-        \texttt{projectId} &
-        UUID &
-        Khóa ngoại &
-        Tham chiếu đến project sở hữu group. \\
-
-        \texttt{key} &
-        Chuỗi &
-        Bắt buộc &
-        Khóa ổn định dùng để định danh group trong phạm vi project. \\
-
-        \texttt{name} &
-        Chuỗi &
-        Bắt buộc &
-        Tên hiển thị của group trên dashboard quản trị. \\
-
-        \texttt{description} &
-        Chuỗi &
-        Có thể rỗng &
-        Mô tả phạm vi nghiệp vụ hoặc mục đích của group. \\
-
-        \texttt{killSwitch} &
-        Boolean &
-        Mặc định là \texttt{false} &
-        Xác định group kill switch có đang được kích hoạt hay không. \\
-
-        \texttt{createdAt} &
-        Timestamp &
-        Bắt buộc &
-        Thời điểm group được tạo. \\
-
-        \texttt{updatedAt} &
-        Timestamp &
-        Bắt buộc &
-        Thời điểm group được cập nhật gần nhất. \\
-
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-Khóa group chỉ cần duy nhất trong phạm vi project. Ràng buộc này có thể được biểu diễn như sau.
-
-
-
-Group không thay thế project hoặc environment. Project vẫn là phạm vi quản lý cấp cao nhất, còn environment vẫn xác định cấu hình runtime. Flag group chỉ bổ sung một lớp tổ chức và điều khiển vận hành đối với một tập flag có liên quan.
-
-Ví dụ, project thương mại điện tử có thể định nghĩa các group như:
+Các thuộc tính chính của \texttt{FlagGroupConfig} gồm:
 
 \begin{itemize}
-    \item \texttt{checkout-flow}: chứa các flag liên quan đến quy trình thanh toán;
-    \item \texttt{recommendation-system}: chứa các flag liên quan đến gợi ý sản phẩm;
-    \item \texttt{promotion-engine}: chứa các flag liên quan đến khuyến mãi;
-    \item \texttt{experimental-ui}: chứa các flag giao diện đang thử nghiệm.
+    \item \texttt{projectId}: project chứa group và environment;
+    \item \texttt{groupId}: group được cấu hình;
+    \item \texttt{environmentId}: environment áp dụng;
+    \item \texttt{killSwitch}: trạng thái tắt khẩn cấp của group trong environment đó;
+    \item \texttt{createdAt} và \texttt{updatedAt}: thời điểm tạo và cập nhật cấu hình.
 \end{itemize}
+
+Ràng buộc \texttt{unique(groupId, environmentId)} bảo đảm mỗi group chỉ có một cấu hình kill switch trong một environment. Khi tạo group mới, backend tạo sẵn \texttt{FlagGroupConfig} với \texttt{killSwitch = false} cho các environment hiện có của project, nhờ đó Evaluation Engine luôn có trạng thái group rõ ràng khi flag thuộc group và config của flag đang enabled.
 
 \subsubsection{Quan hệ giữa group và flag}
-\label{subsubsec:quan-he-giua-group-va-flag}
 
-Trong phạm vi mini project, một \texttt{FeatureFlag} có thể thuộc tối đa một \texttt{FlagGroup}, trong khi một \texttt{FlagGroup} có thể chứa nhiều Feature Flag. Quan hệ này được mô hình hóa theo dạng một--nhiều:
+Trong phạm vi mini project, một \texttt{FeatureFlag} có thể thuộc tối đa một \texttt{FlagGroup}, trong khi một \texttt{FlagGroup} có thể chứa nhiều Feature Flag. Quan hệ này được lưu bằng trường \texttt{FeatureFlag.groupId}. Prisma schema sử dụng relation theo cặp \texttt{projectId, groupId} để bảo đảm flag chỉ được gán vào group trong cùng project.
 
-\[
-\texttt{FlagGroup}
-\; 1
-\longrightarrow
-N
-\; \texttt{FeatureFlag}
-\]
-
-Thực thể \texttt{FeatureFlag} chứa khóa ngoại \texttt{groupId} có thể rỗng:
+Các ràng buộc nghiệp vụ khi gán flag vào group gồm:
 
 \begin{itemize}
-    \item nếu \texttt{groupId} có giá trị, flag thuộc group tương ứng;
-    \item nếu \texttt{groupId} là \texttt{NULL}, flag không thuộc group nào;
-    \item group và flag phải thuộc cùng một project.
+    \item project, flag và group phải tồn tại;
+    \item group và flag phải thuộc cùng project;
+    \item một flag chỉ được gán vào một group tại một thời điểm;
+    \item thao tác gán hoặc gỡ group phải ghi audit log;
+    \item cache snapshot của flag bị ảnh hưởng phải được invalidation sau khi transaction thành công.
 \end{itemize}
 
-Việc giới hạn mỗi flag chỉ thuộc một group giúp mô hình đơn giản, tránh xung đột khi nhiều group cùng bật kill switch và làm rõ phạm vi vận hành của từng flag. Thiết kế này phù hợp với mục tiêu của mini project, trong đó group chủ yếu được sử dụng để tổ chức flag và thực hiện thao tác tắt khẩn cấp theo nhóm.
+Khi xóa group, backend hiện tại từ chối thao tác nếu group vẫn còn flag thành viên. Người quản trị phải gỡ toàn bộ flag khỏi group trước; sau đó việc xóa group sẽ cascade-delete các \texttt{FlagGroupConfig} của group và ghi audit log với số lượng config bị cascade.
 
-Các ràng buộc cần được kiểm tra khi gán flag vào group gồm:
+\subsubsection{Trạng thái group kill switch theo environment}
 
-\begin{itemize}
-    \item group phải tồn tại;
-    \item flag phải tồn tại;
-    \item \texttt{FlagGroup.projectId} phải bằng \texttt{FeatureFlag.projectId};
-    \item flag không được gán đồng thời vào nhiều group;
-    \item flag đã archive không nên được gán mới vào group.
-\end{itemize}
+Group kill switch là trạng thái runtime nằm trong \texttt{FlagGroupConfig}. Vì \texttt{FlagGroupConfig} gắn với environment, cùng một group có thể bị tắt trong \texttt{production} nhưng không bị tắt trong \texttt{staging}. Endpoint cập nhật trạng thái này nhận \texttt{environmentKey} và \texttt{killSwitch}:
 
-Điều kiện đồng nhất project được biểu diễn như sau:
+\begin{center}
+\texttt{PUT /v1/projects/\{projectKey\}/groups/\{groupKey\}/config}
+\end{center}
 
-\[
-\texttt{FlagGroup.projectId}
-=
-\texttt{FeatureFlag.projectId}
-\]
-
-Do khóa ngoại \texttt{groupId} chỉ xác nhận group tồn tại mà không tự kiểm tra group và flag thuộc cùng project, tầng dịch vụ phải thực hiện validation trước khi cập nhật quan hệ.
-
-Khi một group bị xóa, hệ thống không nên xóa cascade các Feature Flag thành viên. Thay vào đó, trường \texttt{groupId} của các flag được đặt về \texttt{NULL}. Cách xử lý này bảo toàn định nghĩa flag và cấu hình runtime, vì group chỉ là lớp tổ chức bổ sung.
-
-\subsubsection{Trạng thái group kill switch}
-\label{subsubsec:trang-thai-group-kill-switch}
-
-Thuộc tính \texttt{killSwitch} trong \texttt{FlagGroup} biểu diễn trạng thái tắt khẩn cấp của toàn bộ group. Trạng thái này gồm hai giá trị:
-
-\begin{itemize}
-    \item \texttt{false}: group hoạt động bình thường; từng flag tiếp tục được đánh giá theo cấu hình riêng;
-    \item \texttt{true}: toàn bộ flag thuộc group bị tắt ở bước evaluation.
-\end{itemize}
-
-Group kill switch có mức ưu tiên cao hơn trạng thái cấu hình, serving mode và các rule của từng flag. Khi group kill switch được bật, Evaluation Engine không cần tiếp tục đánh giá \texttt{FlagConfig} hoặc \texttt{FlagRule} của flag thành viên.
-
-Thứ tự kiểm tra có thể được xác định như sau:
-
-\begin{enumerate}
-    \item kiểm tra trạng thái vòng đời của flag;
-    \item kiểm tra group kill switch;
-    \item kiểm tra trạng thái cấu hình của flag;
-    \item kiểm tra flag-level kill switch;
-    \item kiểm tra serving mode;
-    \item đánh giá các rule targeting;
-    \item trả về giá trị mặc định tắt.
-\end{enumerate}
-
-Nếu flag thuộc một group đang bật kill switch, Evaluation API trả về:
+Khi group kill switch bật trong environment đang đánh giá, Evaluation Engine trả về:
 
 \begin{itemize}
     \item \texttt{enabled = false};
-    \item variant tắt;
-    \item reason code \texttt{GROUP\_KILL\_SWITCH}.
+    \item \texttt{variant = off};
+    \item \texttt{reason = GROUP\_KILL\_SWITCH}.
 \end{itemize}
 
-Việc sử dụng reason code riêng giúp phân biệt trường hợp flag bị tắt do group với trường hợp bị tắt trực tiếp tại cấu hình flag. Điều này hỗ trợ dashboard, audit log và quá trình chẩn đoán sự cố.
+Thứ tự precedence của source code là archived flag, disabled flag environment config, group kill switch, flag-level kill switch, global on, các rule targeting và default off. Vì vậy, nếu flag vừa disabled vừa thuộc group đang bật kill switch, reason vẫn là \texttt{FLAG\_DISABLED}; group kill switch chỉ được xét sau khi config của flag còn enabled.
 
-Mỗi thao tác bật hoặc tắt group kill switch phải được ghi audit log với các thông tin:
+\subsubsection{Audit log và cache invalidation cho group}
 
-\begin{itemize}
-    \item actor thực hiện;
-    \item project và group bị tác động;
-    \item trạng thái trước và sau;
-    \item thời điểm thay đổi;
-    \item request ID;
-    \item lý do hoặc ghi chú nếu có.
-\end{itemize}
+Mỗi thao tác tạo group, đổi tên group, xóa group, gán/gỡ flag khỏi group hoặc bật/tắt group kill switch đều được ghi nhận trong \texttt{AuditLogEntry}. Riêng thao tác group kill switch lưu \texttt{environmentId}, \texttt{environmentKey}, snapshot trước/sau và metadata về số flag bị ảnh hưởng.
 
-\subsubsection{Phạm vi ảnh hưởng của group kill switch}
-\label{subsubsec:pham-vi-anh-huong-cua-group-kill-switch}
-
-Trong thiết kế hiện tại, group thuộc project nhưng không gắn trực tiếp với environment. Do đó, group kill switch có phạm vi toàn project và ảnh hưởng đến tất cả cấu hình environment của các flag thành viên.
-
-Ví dụ, group \texttt{checkout-flow} chứa ba flag:
-
-\begin{itemize}
-    \item \texttt{new-checkout};
-    \item \texttt{express-payment};
-    \item \texttt{smart-address-suggestion}.
-\end{itemize}
-
-Khi \texttt{checkout-flow.killSwitch = true}, cả ba flag đều bị tắt trong development, staging và production, bất kể cấu hình riêng của từng flag trong các environment này.
-
-Phạm vi toàn project phù hợp với mục tiêu của kill switch cấp nhóm là phản ứng nhanh trước sự cố nghiêm trọng. Người quản trị chỉ cần thực hiện một thao tác để vô hiệu hóa toàn bộ nhóm tính năng có liên quan, thay vì cập nhật từng flag riêng lẻ.
-
-Tuy nhiên, phạm vi này cũng đòi hỏi thao tác phải được kiểm soát chặt chẽ vì có thể ảnh hưởng đồng thời đến nhiều environment. Dashboard cần hiển thị rõ:
-
-\begin{itemize}
-    \item số lượng flag thuộc group;
-    \item danh sách environment chịu ảnh hưởng;
-    \item cảnh báo trước khi bật kill switch;
-    \item trạng thái group kill switch nổi bật;
-    \item thời điểm và người thực hiện thay đổi gần nhất.
-\end{itemize}
-
-Group kill switch không làm thay đổi dữ liệu cấu hình riêng của các flag. Các giá trị \texttt{status}, \texttt{servingMode}, flag-level \texttt{killSwitch} và danh sách rule vẫn được giữ nguyên. Khi group kill switch được tắt, các flag quay lại hành vi evaluation theo cấu hình trước đó.
-
-Điều này có thể được biểu diễn như sau:
-
-\[
-\texttt{effectiveEnabled}
-=
-\neg \texttt{group.killSwitch}
-\land
-\texttt{flagEvaluationResult}
-\]
-
-Trong đó, \texttt{flagEvaluationResult} là kết quả evaluation thông thường của flag sau khi xét trạng thái vòng đời, cấu hình, kill switch riêng và các rule.
-
-Sau khi trạng thái group kill switch thay đổi, hệ thống phải làm mất hiệu lực các cache evaluation liên quan đến toàn bộ flag thành viên. Nếu cache được tổ chức theo từng flag và environment, quá trình invalidation cần xác định tất cả cặp \texttt{flagId--environmentId} thuộc group để xóa hoặc tăng phiên bản tương ứng.
+Sau khi transaction cập nhật group kill switch commit thành công, backend invalidation evaluation snapshot cache của toàn bộ flag thành viên trong environment tương ứng. Source code thực hiện invalidation theo \texttt{projectKey}, danh sách \texttt{flagKey} và \texttt{environmentKey}; nếu thao tác idempotent hoặc group chưa có flag thành viên thì không cần xóa cache. Cơ chế này giữ dữ liệu cache gần với cấu hình mới mà không phải xóa cache của toàn bộ project.
 
 \subsection{Audit log và lịch sử cấu hình}
 \label{subsec:audit-log-va-lich-su-cau-hinh}
 
 Audit log được sử dụng để ghi nhận các thao tác làm thay đổi trạng thái hoặc cấu hình của hệ thống Feature Flag. Mỗi bản ghi audit mô tả ai đã thực hiện thay đổi, thay đổi được thực hiện trong request nào, đối tượng nào bị tác động và dữ liệu trước, sau khi cập nhật. Cơ chế này hỗ trợ truy vết sự cố, kiểm tra trách nhiệm và khôi phục lại diễn biến của quá trình thay đổi cấu hình \cite{owasp_logging}.
 
-Bên cạnh audit log, hệ thống sử dụng số phiên bản cấu hình để xác định mỗi lần thay đổi trạng thái runtime hoặc rule của flag. Hai cơ chế có vai trò bổ sung cho nhau: audit log lưu thông tin chi tiết phục vụ truy vết, trong khi versioning cung cấp định danh gọn cho trạng thái cấu hình tại một thời điểm.
+Trong source code hiện tại, \texttt{AuditLogEntry} là nguồn lịch sử cấu hình chính. Hệ thống không tạo bảng version riêng và không lưu trường \texttt{version} trên \texttt{FlagEnvironmentConfig}; thay vào đó, lịch sử được dựng lại từ các bản ghi audit append-only.
 
 \subsubsection{Cấu trúc AuditLogEntry}
 \label{subsubsec:cau-truc-audit-log-entry}
@@ -1710,94 +1578,20 @@ Cách tổ chức này tránh hai trạng thái không nhất quán:
 
 Tính chất append-only không đồng nghĩa với việc dữ liệu audit phải được lưu vô thời hạn. Trong hệ thống thực tế có thể áp dụng chính sách lưu trữ hoặc chuyển dữ liệu cũ sang kho lưu trữ riêng. Tuy nhiên, việc này nằm ngoài phạm vi của mini project.
 
-\subsubsection{Versioning cấu hình}
-\label{subsubsec:versioning-cau-hinh}
 
-Versioning được sử dụng để xác định phiên bản hiện tại của một \texttt{FlagConfig}. Thuộc tính \texttt{version} là số nguyên dương và được tăng sau mỗi thay đổi có thể ảnh hưởng đến kết quả evaluation.
+\subsubsection{Lịch sử cấu hình dựa trên audit log}
 
-Các thay đổi làm tăng phiên bản gồm:
+Yêu cầu khuyến khích về versioning hoặc lịch sử cấu hình được triển khai theo hướng audit-backed history. Thay vì lưu thêm bảng phiên bản cấu hình riêng, backend sử dụng các bản ghi \texttt{AuditLogEntry} append-only làm nguồn dữ liệu cho endpoint:
 
-\begin{itemize}
-    \item thay đổi \texttt{status};
-    \item thay đổi \texttt{servingMode};
-    \item bật hoặc tắt flag-level kill switch;
-    \item tạo rule mới;
-    \item cập nhật loại, priority hoặc tham số rule;
-    \item xóa rule;
-    \item thay đổi thứ tự ưu tiên của rule.
-\end{itemize}
+\begin{center}
+\texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}/history}
+\end{center}
 
-Giả sử cấu hình ban đầu có:
+Mỗi thao tác thay đổi project, feature flag, group, group kill switch hoặc rule đều lưu \texttt{before} và \texttt{after} snapshot, actor, action, request ID và timestamp. Khi dashboard cần xem lịch sử của một flag, backend truy vấn các audit entry liên quan đến flag, flag environment config và rule set của flag đó.
 
-\[
-\texttt{version} = 1
-\]
+Cách tiếp cận này có ba lợi ích. Thứ nhất, audit log và lịch sử cấu hình không bị tách thành hai nguồn sự thật khác nhau. Thứ hai, mọi bản ghi lịch sử đều gắn với actor và request ID nên phù hợp với mục tiêu truy vết. Thứ ba, thiết kế đơn giản hơn so với việc duy trì một bảng version riêng nhưng vẫn đáp ứng yêu cầu của mini project.
 
-Sau khi thay đổi serving mode, phiên bản được cập nhật thành:
-
-\[
-\texttt{version} = 2
-\]
-
-Nếu tiếp tục cập nhật percentage rollout, phiên bản mới là:
-
-\[
-\texttt{version} = 3
-\]
-
-Việc tăng phiên bản phải được thực hiện trong cùng transaction với thao tác cập nhật cấu hình hoặc rule. Điều này bảo đảm không tồn tại trường hợp dữ liệu đã thay đổi nhưng version vẫn giữ nguyên.
-
-Ví dụ câu lệnh cập nhật phiên bản.
-
-
-
-Version có thể được sử dụng cho các mục đích:
-
-\begin{itemize}
-    \item xác định cấu hình đã thay đổi kể từ lần đọc trước;
-    \item tạo cache key hoặc kiểm tra tính hợp lệ của cache;
-    \item hỗ trợ cache invalidation;
-    \item hiển thị lịch sử thay đổi trên dashboard;
-    \item phát hiện xung đột cập nhật đồng thời;
-    \item liên kết một evaluation snapshot với phiên bản cấu hình cụ thể.
-\end{itemize}
-
-Một cache key có thể bao gồm phiên bản cấu hình:
-
-\[
-\texttt{projectKey:environmentKey:flagKey:version}
-\]
-
-Khi version tăng, cache cũ không còn được sử dụng cho lần evaluation tiếp theo. Cách tiếp cận này giảm nguy cơ trả về kết quả từ cấu hình đã lỗi thời.
-
-Audit log và versioning không thay thế lẫn nhau. Version chỉ cho biết cấu hình đã thay đổi bao nhiêu lần hoặc trạng thái hiện tại thuộc phiên bản nào. Audit log cung cấp thông tin chi tiết về actor, request, action và snapshot dữ liệu.
-
-Quan hệ giữa hai cơ chế được trình bày trong Bảng~\ref{tab:audit-log-versioning-comparison}.
-
-\begin{table}[H]
-    \centering
-    \caption{Vai trò của audit log và versioning}
-    \label{tab:audit-log-versioning-comparison}
-    \begin{tabular}{p{0.22\textwidth} p{0.34\textwidth} p{0.34\textwidth}}
-        \toprule
-        \textbf{Cơ chế} &
-        \textbf{Mục đích chính} &
-        \textbf{Thông tin cung cấp} \\
-        \midrule
-
-        Audit log &
-        Truy vết và kiểm tra lịch sử thay đổi. &
-        Actor, request ID, action, thời điểm, snapshot trước và sau. \\
-
-        Versioning &
-        Xác định phiên bản hiện tại của cấu hình. &
-        Số phiên bản dùng cho consistency, cache và kiểm soát cập nhật. \\
-
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-Trong phạm vi mini project, hệ thống lưu phiên bản hiện tại trên \texttt{FlagConfig} và sử dụng \texttt{AuditLogEntry} làm lịch sử chi tiết. Thiết kế này tránh phải sao chép toàn bộ cấu hình thành một bảng phiên bản riêng, đồng thời vẫn đáp ứng yêu cầu truy vết và quản lý thay đổi.
+Cache invalidation không dựa vào số version. Sau khi mutation transaction hoàn tất, backend xóa evaluation snapshot cache liên quan theo project key, environment scope và flag key. TTL của cache đóng vai trò giới hạn phụ trợ nếu có lỗi invalidation, còn PostgreSQL và audit log vẫn là nguồn dữ liệu chính.
 
 \subsection{Ràng buộc toàn vẹn dữ liệu}
 \label{subsec:rang-buoc-toan-ven-du-lieu}
@@ -1838,7 +1632,11 @@ Bên cạnh khóa chính, các khóa nghiệp vụ cần được giới hạn t
         \texttt{projectId, key} &
         Khóa group là duy nhất trong từng project. \\
 
-        \texttt{FlagConfig} &
+        \texttt{FlagGroupConfig} &
+        \texttt{groupId, environmentId} &
+        Mỗi group chỉ có một cấu hình kill switch trong một environment. \\
+
+        \texttt{FlagEnvironmentConfig} &
         \texttt{featureFlagId, environmentId} &
         Mỗi flag chỉ có một cấu hình trong một environment. \\
 
@@ -1846,7 +1644,7 @@ Bên cạnh khóa chính, các khóa nghiệp vụ cần được giới hạn t
         \texttt{flagConfigId, priority} &
         Không có hai rule cùng priority trong một cấu hình. \\
 
-        \texttt{SampleUser} &
+        \texttt{SampleUserContext} &
         \texttt{projectId, targetingKey} &
         Targeting key là duy nhất trong phạm vi project. \\
 
@@ -1873,15 +1671,17 @@ Khóa ngoại được sử dụng để bảo đảm các thực thể con luô
     \item \texttt{Environment.projectId} tham chiếu đến \texttt{Project.id};
     \item \texttt{FeatureFlag.projectId} tham chiếu đến \texttt{Project.id};
     \item \texttt{FlagGroup.projectId} tham chiếu đến \texttt{Project.id};
-    \item \texttt{FeatureFlag.groupId} tham chiếu đến \texttt{FlagGroup.id};
-    \item \texttt{FlagConfig.featureFlagId} tham chiếu đến \texttt{FeatureFlag.id};
-    \item \texttt{FlagConfig.environmentId} tham chiếu đến \texttt{Environment.id};
-    \item \texttt{FlagRule.flagConfigId} tham chiếu đến \texttt{FlagConfig.id};
-    \item \texttt{SampleUser.projectId} tham chiếu đến \texttt{Project.id};
+    \item \texttt{FeatureFlag.groupId} tham chiếu đến \texttt{FlagGroup.id} trong cùng project;
+    \item \texttt{FlagGroupConfig.groupId} tham chiếu đến \texttt{FlagGroup.id};
+    \item \texttt{FlagGroupConfig.environmentId} tham chiếu đến \texttt{Environment.id};
+    \item \texttt{FlagEnvironmentConfig.featureFlagId} tham chiếu đến \texttt{FeatureFlag.id};
+    \item \texttt{FlagEnvironmentConfig.environmentId} tham chiếu đến \texttt{Environment.id};
+    \item \texttt{FlagRule.flagConfigId} tham chiếu đến \texttt{FlagEnvironmentConfig.id};
+    \item \texttt{SampleUserContext.projectId} tham chiếu đến \texttt{Project.id};
     \item \texttt{AuditLogEntry.projectId} tham chiếu đến \texttt{Project.id}.
 \end{itemize}
 
-Một số quy tắc nghiệp vụ không thể được bảo đảm hoàn toàn chỉ bằng khóa ngoại đơn. Ví dụ, khi tạo \texttt{FlagConfig}, Feature Flag và environment phải thuộc cùng một project:
+Một số quy tắc nghiệp vụ không thể được bảo đảm hoàn toàn chỉ bằng khóa ngoại đơn. Ví dụ, khi tạo \texttt{FlagEnvironmentConfig}, Feature Flag và environment phải thuộc cùng một project:
 
 \[
 \texttt{FeatureFlag.projectId}
@@ -1902,8 +1702,8 @@ Các điều kiện này được kiểm tra tại tầng dịch vụ trước k
 Chính sách xử lý khi thực thể cha bị xóa phụ thuộc vào ý nghĩa của quan hệ:
 
 \begin{itemize}
-    \item khi xóa \texttt{FlagConfig}, các \texttt{FlagRule} thuộc cấu hình có thể bị xóa cascade;
-    \item khi xóa \texttt{FlagGroup}, trường \texttt{groupId} của các flag thành viên được đặt thành \texttt{NULL};
+    \item khi xóa \texttt{FlagEnvironmentConfig}, các \texttt{FlagRule} thuộc cấu hình có thể bị xóa cascade;
+    \item khi xóa \texttt{FlagGroup}, backend từ chối nếu group vẫn còn flag thành viên; người quản trị phải gỡ flag khỏi group trước, sau đó các \texttt{FlagGroupConfig} của group được xóa cascade;
     \item Feature Flag và project không nên bị xóa vật lý trong luồng quản trị thông thường;
     \item audit log không bị xóa cascade cùng tài nguyên nghiệp vụ.
 \end{itemize}
@@ -2001,7 +1801,7 @@ Archive không xóa các dữ liệu liên quan gồm:
 
 \begin{itemize}
     \item định nghĩa Feature Flag;
-    \item các \texttt{FlagConfig} theo environment;
+    \item các \texttt{FlagEnvironmentConfig} theo environment;
     \item danh sách \texttt{FlagRule};
     \item quan hệ với Flag Group;
     \item audit log;

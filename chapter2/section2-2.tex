@@ -99,7 +99,7 @@ Strategy mặc định cho phép bật flag đối với toàn bộ context. Ngo
 
 Evaluation context trong Unleash chứa thông tin mô tả đối tượng đang yêu cầu đánh giá flag. Các trường phổ biến gồm \texttt{userId}, \texttt{sessionId}, \texttt{remoteAddress} và tập \texttt{properties} tùy chỉnh. Phần \texttt{properties} có thể chứa các thuộc tính như vai trò, organization ID, quốc gia, gói dịch vụ hoặc phiên bản ứng dụng.
 
-Ví dụ, một activation strategy có thể chỉ áp dụng khi thuộc tính \texttt{role} có giá trị \texttt{beta-customer}. Một strategy khác có thể giới hạn rollout cho những context có \texttt{organizationId} thuộc một tập được lựa chọn. Mô hình này tương đồng với khái niệm evaluation context trong các đặc tả Feature Flag chung, trong đó context cung cấp dữ liệu đầu vào để rule engine đưa ra quyết định \cite{openfeature_evaluation_context}.
+Ví dụ, một activation strategy có thể chỉ áp dụng khi thuộc tính \texttt{role} có giá trị \texttt{beta-customer}. Một strategy khác có thể giới hạn rollout cho những context có \texttt{attributes.organizationId} thuộc một tập được lựa chọn. Mô hình này tương đồng với khái niệm evaluation context trong các đặc tả Feature Flag chung, trong đó context cung cấp dữ liệu đầu vào để rule engine đưa ra quyết định \cite{openfeature_evaluation_context}.
 
 Đối với gradual rollout, Unleash sử dụng một giá trị ổn định từ context, chẳng hạn như \texttt{userId} hoặc \texttt{sessionId}, kết hợp với thông tin của flag để ánh xạ đối tượng vào một bucket. Bucket được so sánh với tỷ lệ rollout đã cấu hình. Nhờ phép ánh xạ có tính xác định, cùng một người dùng thường tiếp tục nhận cùng một kết quả khi tỷ lệ rollout chưa thay đổi.
 
@@ -467,7 +467,7 @@ Các chiến lược phát hành được lựa chọn gồm:
 
 Đối với percentage rollout, hệ thống sử dụng phép băm ổn định để ánh xạ targeting key vào một bucket xác định. Nhờ đó, cùng một đối tượng thường nhận cùng một kết quả giữa các lần đánh giá nếu cấu hình và targeting key không thay đổi. Cơ chế này được kế thừa từ cách tiếp cận stable assignment của các nền tảng Feature Flag hiện có \cite{launchdarkly_percentage_rollouts}.
 
-Hệ thống cũng kế thừa các cơ chế hỗ trợ quản trị gồm audit log, phân quyền, cache kết quả đánh giá, thống kê số lần evaluation và SDK JavaScript đơn giản. Audit log ghi nhận actor, hành động, thời điểm, đối tượng bị tác động và dữ liệu trước hoặc sau thay đổi. Việc lưu lịch sử cấu hình hỗ trợ kiểm tra trách nhiệm và điều tra sự cố khi một thay đổi flag ảnh hưởng đến ứng dụng \cite{owasp_logging}.
+Hệ thống cũng kế thừa các cơ chế hỗ trợ quản trị gồm audit log, phân quyền, cache snapshot cấu hình đánh giá, thống kê aggregate số lần evaluation và SDK JavaScript đơn giản. Audit log ghi nhận actor, hành động, thời điểm, đối tượng bị tác động và dữ liệu trước hoặc sau thay đổi. Việc lưu lịch sử cấu hình hỗ trợ kiểm tra trách nhiệm và điều tra sự cố khi một thay đổi flag ảnh hưởng đến ứng dụng \cite{owasp_logging}.
 
 \begin{table}[H]
     \centering
@@ -587,7 +587,7 @@ Cơ chế cache được triển khai ở mức phù hợp với một ứng d�
     \item không có điều kiện nào phù hợp và sử dụng trạng thái mặc định tắt.
 \end{enumerate}
 
-Mỗi kết quả evaluation không chỉ trả về trạng thái bật hoặc tắt mà còn cung cấp reason code như \texttt{FLAG\_ARCHIVED}, \texttt{FLAG\_DISABLED}, \texttt{GROUP\_KILL\_SWITCH}, \texttt{GLOBAL\_ON}, \texttt{USER\_MATCH}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_MATCH} hoặc \texttt{DEFAULT\_OFF}. Khi một rule cụ thể được sử dụng, kết quả có thể chứa thêm định danh của rule đã khớp.
+Mỗi kết quả evaluation không chỉ trả về trạng thái bật hoặc tắt mà còn cung cấp reason code như \texttt{FLAG\_ARCHIVED}, \texttt{FLAG\_DISABLED}, \texttt{GROUP\_KILL\_SWITCH}, \texttt{GLOBAL\_ON}, \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_ROLLOUT} hoặc \texttt{DEFAULT\_OFF}. Khi một rule cụ thể được sử dụng, kết quả có thể chứa thêm định danh của rule đã khớp.
 
 Cách thiết kế này giúp người sử dụng giải thích được vì sao một đối tượng nhận hoặc không nhận tính năng. Đây là yêu cầu quan trọng đối với quá trình kiểm thử, trình diễn và điều tra lỗi cấu hình. Mô hình kết quả chi tiết cũng tương đồng với định hướng của Flag Evaluation API, trong đó kết quả có thể bao gồm giá trị, lý do đánh giá và thông tin lỗi \cite{openfeature_flag_evaluation}.
 

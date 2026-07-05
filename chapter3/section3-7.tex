@@ -12,15 +12,15 @@ Ngoài việc mô tả quá trình thiết kế và triển khai, báo cáo còn
 
 \subsubsection{Backend API}
 
-Backend API đáp ứng đầy đủ các chức năng quản lý project, environment, Feature Flag, rule, group, sample user, audit log và Evaluation API theo yêu cầu của đề tài. Rule Evaluation Engine hỗ trợ các chiến lược bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout và group kill switch với thứ tự ưu tiên rõ ràng.
+Backend API đáp ứng đầy đủ các chức năng quản lý project, Feature Flag, rule, group, sample user context, audit log, statistics và Evaluation API theo yêu cầu của đề tài; environment được hỗ trợ trong mô hình dữ liệu và evaluation nhưng chưa có controller CRUD riêng. Rule Evaluation Engine hỗ trợ các chiến lược bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout và group kill switch với thứ tự ưu tiên rõ ràng.
 
 Bên cạnh các chức năng nghiệp vụ, hệ thống còn triển khai validation dữ liệu đầu vào, xử lý lỗi thống nhất, request ID, audit log, cache, thống kê evaluation và cơ chế phân quyền quản trị. Kiến trúc Backend được tổ chức theo hướng module hóa, giúp thuận lợi cho việc bảo trì và mở rộng trong tương lai.
 
 \subsubsection{Frontend Dashboard}
 
-Dashboard cung cấp đầy đủ các màn hình phục vụ quản trị Feature Flag, bao gồm quản lý project, environment, Feature Flag, rule, group, sample user, audit log và thống kê evaluation. Giao diện thể hiện rõ trạng thái lifecycle, runtime, serving mode, quyền của người dùng và các thao tác quản trị tương ứng.
+Dashboard cung cấp các màn hình phục vụ quản trị Feature Flag, bao gồm quản lý project, Feature Flag, rule, group, audit log, lịch sử cấu hình và thống kê evaluation. Các luồng environment và sample user context hiện được hỗ trợ ở backend/seed thay vì có màn hình CRUD riêng. Giao diện thể hiện rõ trạng thái lifecycle, runtime, serving mode, quyền của người dùng và các thao tác quản trị tương ứng.
 
-Việc tích hợp trực tiếp với Backend API giúp Dashboard phản ánh ngay các thay đổi cấu hình, đồng thời hỗ trợ theo dõi lịch sử thay đổi và thống kê số lần evaluation thông qua các biểu đồ trực quan.
+Việc tích hợp trực tiếp với Backend API giúp Dashboard phản ánh ngay các thay đổi cấu hình, đồng thời hỗ trợ theo dõi lịch sử thay đổi và thống kê aggregate số lần evaluation thông qua các biểu đồ trực quan.
 
 \subsubsection{Demo Application}
 
@@ -44,7 +44,7 @@ Hệ thống triển khai cơ chế cache nhằm giảm số lần truy cập c�
 
 Bên cạnh đó, một JavaScript SDK đơn giản được xây dựng để hỗ trợ Demo Application gọi Evaluation API và xử lý kết quả một cách thuận tiện. Việc bổ sung SDK giúp giảm sự phụ thuộc của ứng dụng khách vào chi tiết giao thức HTTP và phù hợp với cách các nền tảng Feature Flag thực tế cung cấp SDK cho nhiều môi trường phát triển khác nhau \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags,redis_client_side_caching}.
 
-\subsubsection{Unit test và versioning}
+\subsubsection{Unit test và audit-backed history}
 
 Rule Evaluation Engine được kiểm thử bằng các bộ unit test bao phủ các kịch bản quan trọng như precedence, user targeting, role targeting, percentage rollout và fallback. Việc kiểm thử ở mức đơn vị giúp phát hiện sớm các lỗi logic và bảo đảm tính đúng đắn của thuật toán evaluation trước khi tích hợp với các thành phần khác.
 
@@ -68,7 +68,7 @@ Rule Evaluation Engine là thành phần trung tâm của nền tảng Feature F
 
 \subsubsection{Tính đúng đắn}
 
-Rule Evaluation Engine được xây dựng với thứ tự ưu tiên rõ ràng giữa các trạng thái runtime, bao gồm lifecycle, trạng thái kích hoạt, group kill switch, Global On, các rule targeting và giá trị mặc định. Mỗi request evaluation đều được xử lý theo cùng một quy trình, bảo đảm kết quả phản ánh chính xác cấu hình hiện tại của Feature Flag.
+Rule Evaluation Engine được xây dựng với thứ tự ưu tiên rõ ràng giữa các trạng thái runtime, bao gồm lifecycle archived, cấu hình disabled, group kill switch, flag kill switch, Global On, các rule targeting và default off. Mỗi request evaluation đều được xử lý theo cùng một quy trình, bảo đảm kết quả phản ánh chính xác cấu hình hiện tại của Feature Flag.
 
 Kết quả kiểm thử cho thấy các chiến lược user targeting, role targeting và percentage rollout đều hoạt động đúng theo thiết kế. Các trường hợp Feature Flag không tồn tại, cấu hình không hợp lệ hoặc không có rule phù hợp đều được xử lý bằng cơ chế fallback an toàn, phù hợp với nguyên tắc triển khai Feature Flag trong các hệ thống thực tế \cite{fowler_feature_toggles,openfeature_flag_evaluation}.
 
@@ -96,7 +96,7 @@ Backend API là thành phần trung tâm kết nối Dashboard, Rule Evaluation 
 
 \subsubsection{Cấu trúc API}
 
-Các endpoint được tổ chức theo từng nhóm chức năng như project, environment, Feature Flag, rule, group, sample user, evaluation, audit log và statistics. Cách phân chia này giúp tách biệt rõ trách nhiệm của từng module, đồng thời thuận lợi cho việc mở rộng khi bổ sung các chức năng mới.
+Các endpoint được tổ chức theo từng nhóm chức năng như project, Feature Flag, rule, group, sample user, evaluation, audit log, history và statistics. Cách phân chia này giúp tách biệt rõ trách nhiệm của từng module, đồng thời thuận lợi cho việc mở rộng khi bổ sung các chức năng mới.
 
 Định dạng request và response được chuẩn hóa trên toàn bộ hệ thống, giúp Dashboard và Demo Application dễ dàng tích hợp với Backend API. Việc tách riêng Evaluation API khỏi các API quản trị cũng phù hợp với mô hình triển khai Feature Flag trong thực tế, nơi việc đánh giá Feature Flag và quản lý cấu hình thường được thực hiện bởi các thành phần độc lập \cite{launchdarkly_feature_flags,openfeature_flag_evaluation}.
 
@@ -124,7 +124,7 @@ Dashboard là giao diện quản trị trực tiếp của nền tảng Feature 
 
 \subsubsection{Khả năng sử dụng}
 
-Dashboard tổ chức các chức năng theo từng nhóm như project, environment, Feature Flag, rule, group, sample user, audit log và statistics. Cách bố trí này giúp người quản trị dễ dàng tìm kiếm và thực hiện các thao tác cần thiết mà không phải chuyển đổi qua nhiều giao diện khác nhau.
+Dashboard tổ chức các chức năng theo từng nhóm như project, Feature Flag, rule, group, audit log, history và statistics. Cách bố trí này giúp người quản trị dễ dàng tìm kiếm và thực hiện các thao tác cần thiết mà không phải chuyển đổi qua nhiều giao diện khác nhau.
 
 Các thao tác như tạo mới, chỉnh sửa, archive, khôi phục, bật hoặc tắt Feature Flag và cấu hình rule đều được thực hiện trực tiếp trên giao diện với quy trình thống nhất. Việc tích hợp chặt chẽ với Backend API giúp các thay đổi được cập nhật ngay sau khi thao tác hoàn tất.
 
@@ -188,7 +188,7 @@ Ngoài ra, hệ thống còn áp dụng nhiều thực hành phổ biến như t
 
 Để phù hợp với phạm vi của mini project, một số chức năng được triển khai ở mức đơn giản hơn so với các sản phẩm thương mại. Hệ thống chỉ hỗ trợ một tập chiến lược targeting cơ bản, sử dụng JavaScript SDK cho Demo Application và triển khai cache theo quy mô nhỏ thay vì hạ tầng phân tán.
 
-Bên cạnh đó, cơ chế versioning được thực hiện thông qua audit log và before/after snapshot thay vì quản lý nhiều phiên bản cấu hình hoặc hỗ trợ khôi phục tự động. Dashboard cũng tập trung vào các chức năng quản trị cốt lõi thay vì cung cấp các tính năng cộng tác hoặc quản lý tổ chức ở quy mô doanh nghiệp.
+Bên cạnh đó, lịch sử cấu hình được thực hiện thông qua audit log và before/after snapshot thay vì quản lý nhiều phiên bản cấu hình hoặc hỗ trợ khôi phục tự động. Dashboard cũng tập trung vào các chức năng quản trị cốt lõi thay vì cung cấp các tính năng cộng tác hoặc quản lý tổ chức ở quy mô doanh nghiệp.
 
 \subsubsection{Những chức năng chưa hỗ trợ}
 

@@ -8,7 +8,7 @@ Trong phạm vi mini project, hệ thống bao gồm sáu thành phần chính: 
 
 \subsubsection{Admin Dashboard}
 
-Admin Dashboard là giao diện web dành cho người quản trị, cho phép quản lý toàn bộ cấu hình của hệ thống Feature Flag. Thông qua Dashboard, người dùng có thể tạo project, environment, feature flag, cấu hình các rule targeting, bật hoặc tắt kill switch, theo dõi audit log và xem thống kê số lần evaluation.
+Admin Dashboard là giao diện web dành cho người quản trị, cho phép quản lý các luồng control-plane chính của hệ thống Feature Flag. Thông qua Dashboard, người dùng có thể tạo project, tạo/cập nhật/archive/restore/delete feature flag, cấu hình rule targeting, quản lý flag group, bật hoặc tắt kill switch, theo dõi audit log, xem lịch sử cấu hình và quan sát thống kê aggregate số lần evaluation. Trong source code hiện tại, environment được dùng trong mô hình dữ liệu, seed data, Evaluation API và Docker demo staging/production; Dashboard chưa có màn hình CRUD environment riêng.
 
 Dashboard không trực tiếp quyết định trạng thái của feature flag mà chỉ đóng vai trò gửi các yêu cầu quản trị đến Backend API. Mọi thay đổi cấu hình đều được lưu trữ trong cơ sở dữ liệu và ghi nhận vào audit log nhằm đảm bảo khả năng truy vết và kiểm toán \cite{owasp_logging}.
 
@@ -19,7 +19,7 @@ Việc tách riêng Dashboard khỏi hệ thống evaluation giúp các ứng d�
 Backend API là trung tâm của toàn bộ hệ thống, chịu trách nhiệm xử lý các yêu cầu từ Dashboard và các ứng dụng tích hợp Feature Flag. Hệ thống được xây dựng theo kiến trúc RESTful API với các nhóm chức năng chính gồm:
 
 \begin{itemize}
-    \item Quản lý project và environment.
+    \item Quản lý project và sử dụng environment nội bộ cho evaluation.
     \item Quản lý feature flag.
     \item Cấu hình các rule targeting.
     \item Đánh giá trạng thái feature flag thông qua Evaluation API.
@@ -39,9 +39,9 @@ Engine nhận Evaluation Context từ ứng dụng khách, tải cấu hình tư
 
 \subsubsection{Database và cache}
 
-Cơ sở dữ liệu lưu trữ toàn bộ thông tin của hệ thống, bao gồm project, environment, feature flag, cấu hình rule, dữ liệu người dùng mẫu, audit log và các thông tin thống kê. PostgreSQL được lựa chọn do hỗ trợ đầy đủ giao dịch, tính nhất quán dữ liệu và kiểu dữ liệu JSONB để lưu trữ linh hoạt các tham số của rule cũng như các bản ghi audit \cite{postgresql_json_types}.
+Cơ sở dữ liệu lưu trữ toàn bộ thông tin của hệ thống, bao gồm project, environment, feature flag, flag group, cấu hình theo environment, rule, sample user context, audit log và các thông tin thống kê aggregate. PostgreSQL được lựa chọn do hỗ trợ đầy đủ giao dịch, tính nhất quán dữ liệu và kiểu dữ liệu JSONB để lưu trữ linh hoạt các tham số của rule cũng như các bản ghi audit \cite{postgresql_json_types}.
 
-Để giảm độ trễ của Evaluation API, hệ thống bổ sung tầng cache cho các kết quả đánh giá hoặc cấu hình feature flag thường xuyên được truy cập. Khi cấu hình thay đổi, cache sẽ được làm mới nhằm bảo đảm tính nhất quán giữa dữ liệu lưu trong bộ nhớ và cơ sở dữ liệu. Cơ chế này phù hợp với các khuyến nghị về caching trong các hệ thống Feature Flag hiện đại \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
+Để giảm độ trễ của Evaluation API, hệ thống bổ sung tầng cache cho evaluation snapshot, tức tập cấu hình có thể tái sử dụng giữa nhiều request. Cache không lưu final decision theo từng người dùng và không lưu evaluation context, nhờ đó vẫn giữ được tính đúng đắn của các rule phụ thuộc context. Khi cấu hình thay đổi, snapshot liên quan được invalidation nhằm bảo đảm tính nhất quán giữa dữ liệu lưu trong bộ nhớ và cơ sở dữ liệu. Cơ chế này phù hợp với các khuyến nghị về caching trong các hệ thống Feature Flag hiện đại \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
 
 \subsubsection{JavaScript SDK}
 
@@ -63,17 +63,17 @@ Trong mini project, kiến trúc này được áp dụng bằng cách tách cá
 
 \subsubsection{Vai trò của control plane}
 
-Control plane là thành phần chịu trách nhiệm quản lý toàn bộ vòng đời của feature flag và các tài nguyên liên quan. Các thao tác như tạo project, environment, feature flag, cấu hình rule, bật hoặc tắt kill switch, thay đổi rollout, quản lý người dùng mẫu và ghi nhận audit log đều được thực hiện thông qua control plane.
+Control plane là thành phần chịu trách nhiệm quản lý vòng đời của project, feature flag và các tài nguyên liên quan. Các thao tác như tạo project, tạo/cập nhật feature flag, replace rule set, bật hoặc tắt kill switch, thay đổi rollout, quản lý flag group, quản lý sample user context qua API và ghi nhận audit log đều được thực hiện thông qua control plane. Environment là dữ liệu nền phục vụ cấu hình theo môi trường và evaluation, nhưng chưa được mở thành màn hình quản trị CRUD riêng.
 
 Các thay đổi cấu hình được lưu vào cơ sở dữ liệu và trở thành nguồn dữ liệu chính cho quá trình evaluation. Control plane không trực tiếp tham gia xử lý các request từ ứng dụng khách trong thời gian chạy mà chỉ cung cấp cơ chế quản trị và cập nhật cấu hình của hệ thống.
 
-Việc tập trung toàn bộ chức năng quản trị vào control plane giúp hệ thống dễ kiểm soát quyền truy cập, ghi nhận lịch sử thay đổi và mở rộng thêm các chức năng như versioning, RBAC hoặc approval workflow trong tương lai \cite{owasp_logging,launchdarkly_feature_flags}.
+Việc tập trung toàn bộ chức năng quản trị vào control plane giúp hệ thống dễ kiểm soát quyền truy cập, ghi nhận lịch sử thay đổi, áp dụng RBAC demo ở backend và tiếp tục mở rộng các chức năng như approval workflow trong tương lai \cite{owasp_logging,launchdarkly_feature_flags}.
 
 \subsubsection{Vai trò của data plane}
 
 Data plane chịu trách nhiệm xử lý các yêu cầu đánh giá feature flag từ các ứng dụng sử dụng hệ thống. Thành phần này bao gồm Evaluation API, Rule Evaluation Engine và các cơ chế hỗ trợ như cache nhằm bảo đảm thời gian phản hồi thấp và khả năng phục vụ số lượng lớn request đồng thời.
 
-Đối với mỗi yêu cầu đánh giá, data plane nhận Evaluation Context từ ứng dụng, tải cấu hình tương ứng, thực hiện đánh giá theo thứ tự ưu tiên của các rule và trả về kết quả bao gồm trạng thái feature flag cùng với lý do đánh giá. Toàn bộ quá trình này được thực hiện độc lập với Dashboard nhằm tránh ảnh hưởng đến hiệu năng của các ứng dụng đang hoạt động \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
+Đối với mỗi yêu cầu đánh giá, data plane nhận Evaluation Context từ ứng dụng, tải cấu hình tương ứng, thực hiện đánh giá theo thứ tự ưu tiên cố định của engine và trả về kết quả bao gồm trạng thái feature flag cùng với lý do đánh giá. Toàn bộ quá trình này được thực hiện độc lập với Dashboard nhằm tránh ảnh hưởng đến hiệu năng của các ứng dụng đang hoạt động \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
 
 Do Evaluation API thường có tần suất truy cập rất lớn, data plane được thiết kế theo hướng tối ưu độ trễ và hạn chế tối đa các xử lý không cần thiết trong quá trình evaluation.
 
@@ -105,7 +105,7 @@ Luồng quản trị Feature Flag mô tả toàn bộ quá trình từ khi ngư�
 
 \subsubsection{Tạo và chỉnh sửa Feature Flag}
 
-Quá trình quản trị bắt đầu khi người quản trị tạo một feature flag mới trên Admin Dashboard. Người dùng cần cung cấp các thông tin cơ bản như project, environment, khóa định danh (flag key), tên hiển thị và mô tả của feature flag. Backend API thực hiện kiểm tra dữ liệu đầu vào, xác minh tính duy nhất của khóa định danh trong phạm vi project và lưu thông tin vào cơ sở dữ liệu nếu hợp lệ.
+Quá trình quản trị bắt đầu khi người quản trị tạo một feature flag mới trên Admin Dashboard. Người dùng cần cung cấp các thông tin cơ bản như khóa định danh (flag key), tên hiển thị và mô tả của feature flag trong project đang chọn. Backend API thực hiện kiểm tra dữ liệu đầu vào, xác minh tính duy nhất của khóa định danh trong phạm vi project, tạo cấu hình mặc định cho default environment và lưu thông tin vào cơ sở dữ liệu nếu hợp lệ.
 
 Đối với các feature flag đã tồn tại, người quản trị có thể cập nhật thông tin mô tả hoặc thay đổi cấu hình theo nhu cầu triển khai. Các thao tác chỉnh sửa đều được thực hiện thông qua API quản trị và chỉ có hiệu lực sau khi dữ liệu được lưu thành công vào cơ sở dữ liệu.
 
@@ -125,7 +125,7 @@ Việc tách biệt trạng thái hoạt động và serving mode giúp người
 
 Khi feature flag hoạt động ở chế độ targeted, người quản trị có thể cấu hình một hoặc nhiều rule để xác định đối tượng được phép sử dụng tính năng.
 
-Trong phạm vi mini project, hệ thống hỗ trợ ba loại rule gồm targeting theo người dùng, targeting theo vai trò và rollout theo phần trăm người dùng. Mỗi rule được gán một giá trị ưu tiên (priority), từ đó Rule Evaluation Engine sẽ đánh giá lần lượt theo thứ tự đã cấu hình và dừng ngay khi tìm thấy rule đầu tiên thỏa mãn điều kiện.
+Trong phạm vi mini project, hệ thống hỗ trợ ba loại rule gồm user allowlist, role targeting và percentage rollout. Source code hiện tại dùng hai lớp thứ tự: engine luôn xét user allowlist trước, sau đó role targeting và cuối cùng percentage rollout; trong từng loại rule, các rule đang enabled được duyệt theo \texttt{priority} tăng dần. Thiết kế này làm allowlist trở thành cơ chế cụ thể nhất, còn percentage rollout là lớp mở rộng phạm vi sau cùng.
 
 Cách tổ chức này giúp người quản trị dễ dàng xây dựng các chiến lược rollout phức tạp bằng cách kết hợp nhiều rule khác nhau, đồng thời bảo đảm kết quả evaluation luôn xác định và nhất quán đối với cùng một Evaluation Context \cite{launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
 
@@ -153,7 +153,7 @@ Sau khi tiếp nhận request, Backend API thực hiện kiểm tra dữ liệu 
 
 Trước khi bắt đầu đánh giá, Rule Evaluation Engine truy xuất toàn bộ cấu hình cần thiết của feature flag dưới dạng một evaluation snapshot.
 
-Evaluation snapshot bao gồm các thông tin như trạng thái của feature flag, serving mode, kill switch, danh sách rule đã được sắp xếp theo thứ tự ưu tiên và các tham số phục vụ quá trình evaluation. Snapshot được xây dựng từ cơ sở dữ liệu hoặc tầng cache nếu dữ liệu đã tồn tại.
+Evaluation snapshot bao gồm các thông tin như trạng thái vòng đời của feature flag, cấu hình runtime theo environment, flag-level kill switch, group kill switch theo environment nếu có, danh sách rule cùng \texttt{priority} và các tham số phục vụ quá trình evaluation. Snapshot được xây dựng từ cơ sở dữ liệu hoặc tầng cache nếu dữ liệu đã tồn tại.
 
 Việc sử dụng evaluation snapshot giúp toàn bộ quá trình đánh giá sử dụng cùng một phiên bản cấu hình, tránh trường hợp dữ liệu thay đổi giữa chừng làm phát sinh kết quả không nhất quán. Đồng thời, snapshot cũng giảm số lần truy cập cơ sở dữ liệu trong một lần evaluation, góp phần cải thiện hiệu năng của hệ thống \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
 
@@ -163,11 +163,11 @@ Sau khi có evaluation snapshot, Rule Evaluation Engine tiến hành đánh giá
 
 Đầu tiên, hệ thống kiểm tra các điều kiện có mức ưu tiên cao như feature flag đã bị lưu trữ, bị vô hiệu hóa hoặc đang được tắt bởi kill switch. Nếu một trong các điều kiện này được thỏa mãn, quá trình evaluation kết thúc ngay và trả về kết quả tương ứng.
 
-Nếu feature flag vẫn hoạt động, Engine tiếp tục kiểm tra serving mode. Đối với chế độ bật toàn cục, hệ thống trả về kết quả bật mà không cần đánh giá các rule targeting. Đối với chế độ targeted, các rule được đánh giá tuần tự theo thứ tự ưu tiên, bao gồm targeting theo người dùng, targeting theo vai trò và rollout theo phần trăm người dùng.
+Nếu feature flag vẫn hoạt động, Engine tiếp tục kiểm tra serving mode. Đối với chế độ bật toàn cục, hệ thống trả về kết quả bật mà không cần đánh giá các rule targeting. Đối với chế độ targeted, các rule được đánh giá theo type precedence cố định gồm user allowlist, role targeting và percentage rollout; trong từng loại, \texttt{priority} quyết định thứ tự rule.
 
 Trong trường hợp rollout theo phần trăm, hệ thống sử dụng thuật toán băm ổn định để ánh xạ targeting key vào một bucket cố định. Cách tiếp cận này bảo đảm cùng một người dùng luôn nhận được cùng một kết quả evaluation giữa các request khác nhau, ngay cả khi hệ thống được triển khai trên nhiều máy chủ \cite{launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
 
-Nếu không có rule nào phù hợp, Rule Evaluation Engine sử dụng giá trị mặc định của feature flag để bảo đảm mọi request đều nhận được một kết quả xác định \cite{openfeature_flag_evaluation}.
+Nếu không có rule nào phù hợp, Rule Evaluation Engine trả về mặc định tắt với reason \texttt{DEFAULT\_OFF} để bảo đảm mọi request đều nhận được một kết quả xác định \cite{openfeature_flag_evaluation}.
 
 \subsubsection{Trả về kết quả và reason code}
 
@@ -181,7 +181,7 @@ Việc trả về reason code giúp tăng khả năng quan sát của hệ thố
 
 Sau khi trả về kết quả evaluation, hệ thống thực hiện ghi nhận các thông tin thống kê phục vụ việc giám sát và phân tích hoạt động của feature flag.
 
-Trong mini project, evaluation metric được sử dụng để thống kê số lần evaluation của từng feature flag theo từng environment, từ đó cung cấp dữ liệu cho Dashboard hiển thị biểu đồ và đánh giá mức độ sử dụng của các tính năng. Việc ghi nhận metric được thực hiện theo cơ chế bất đồng bộ hoặc best-effort nhằm tránh làm tăng độ trễ của Evaluation API.
+Trong mini project, evaluation metric được sử dụng để thống kê aggregate số lần evaluation của từng feature flag theo từng environment, từ đó cung cấp dữ liệu cho Dashboard hiển thị biểu đồ và đánh giá mức độ sử dụng của các tính năng. Việc ghi nhận metric được thực hiện theo cơ chế bất đồng bộ hoặc best-effort nhằm tránh làm tăng độ trễ của Evaluation API.
 
 Các metric này không tham gia vào quá trình quyết định kết quả evaluation mà chỉ phục vụ mục đích quan sát hệ thống, hỗ trợ phân tích hiệu năng, đánh giá hiệu quả rollout và đưa ra quyết định quản trị trong các lần cấu hình tiếp theo \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
 
@@ -227,9 +227,9 @@ Trong mini project, Demo Application minh họa các kịch bản như bật ho�
 
 Trong thực tế, Evaluation API có thể tạm thời không khả dụng do lỗi mạng, sự cố dịch vụ hoặc quá trình bảo trì. Để bảo đảm ứng dụng vẫn hoạt động ổn định, hệ thống cần có cơ chế xử lý lỗi phù hợp.
 
-Trong mini project, nếu Evaluation API không thể trả về kết quả hợp lệ hoặc xảy ra lỗi trong quá trình evaluation, ứng dụng sử dụng giá trị mặc định (default value) của feature flag và tiếp tục hoạt động theo nguyên tắc \textit{fail-closed}. Cách tiếp cận này giúp tránh việc vô tình kích hoạt các tính năng chưa sẵn sàng hoặc gây ảnh hưởng tới người dùng khi hệ thống gặp sự cố.
+Trong mini project, Evaluation API và JavaScript SDK đều áp dụng nguyên tắc \textit{fail-closed}. Nếu project, environment, flag hoặc cấu hình tương ứng không tồn tại, backend trả về response có cấu trúc với \texttt{enabled = false}, \texttt{variant = off} và reason phù hợp như \texttt{NOT\_FOUND}. Nếu lỗi xảy ra ở phía SDK như timeout, lỗi mạng, HTTP không thành công, JSON không hợp lệ hoặc response sai schema, SDK chuẩn hóa thành kết quả client fallback với \texttt{enabled = false}, \texttt{variant = off}, \texttt{reason = ERROR} và \texttt{errorSource = CLIENT}.
 
-Việc sử dụng default value và xử lý lỗi rõ ràng là một trong những nguyên tắc quan trọng của các hệ thống Feature Flag nhằm tăng tính sẵn sàng và độ tin cậy của ứng dụng \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
+Source code hiện tại không hỗ trợ default value tùy biến theo từng flag trong SDK. Việc luôn trả về kết quả tắt an toàn khi không có quyết định đáng tin cậy giúp tránh vô tình kích hoạt tính năng chưa sẵn sàng và vẫn giữ hợp đồng response rõ ràng cho ứng dụng tích hợp \cite{openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
 
 \subsection{Lựa chọn công nghệ}
 

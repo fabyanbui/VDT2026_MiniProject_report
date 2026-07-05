@@ -6,7 +6,7 @@ Màn hình quản lý project là điểm truy cập đầu tiên của người
 
 \subsubsection{Danh sách project}
 
-Danh sách project được hiển thị dưới dạng các thẻ (card), mỗi thẻ thể hiện các thông tin cơ bản gồm tên project, project key, số lượng environment và thời gian cập nhật gần nhất. Việc sử dụng card thay vì bảng dữ liệu giúp người dùng nhanh chóng nhận biết từng project và phù hợp với số lượng project không quá lớn trong phạm vi mini project.
+Danh sách project được hiển thị dưới dạng các thẻ (card), mỗi thẻ thể hiện các thông tin cơ bản gồm tên project, project key, mô tả nếu có và thời gian cập nhật gần nhất. Việc sử dụng card thay vì bảng dữ liệu giúp người dùng nhanh chóng nhận biết từng project và phù hợp với số lượng project không quá lớn trong phạm vi mini project.
 
 Người dùng có thể quan sát toàn bộ project hiện có, lựa chọn project cần thao tác hoặc thực hiện các hành động tạo và chỉnh sửa ngay trên giao diện. Mỗi project được định danh bằng một \textit{project key} duy nhất nhằm phục vụ cho Evaluation API khi ứng dụng khách gửi yêu cầu đánh giá Feature Flag.
 
@@ -18,16 +18,15 @@ Khi người dùng lưu thay đổi, giao diện gửi yêu cầu tới Manageme
 
 \subsubsection{Truy cập chi tiết project}
 
-Mỗi project trong danh sách đều có thể được mở để chuyển sang màn hình quản trị chi tiết. Sau khi lựa chọn project, Dashboard tải toàn bộ dữ liệu liên quan như Feature Flag, Flag Group, Environment, Audit Log và các thông tin thống kê tương ứng.
+Mỗi project trong danh sách đều có thể được mở để chuyển sang màn hình quản trị chi tiết. Sau khi lựa chọn project, Dashboard cho phép chuyển tới các màn hình Feature Flag, Flag Group, Audit Log và Statistics tương ứng.
 
 Việc tổ chức giao diện theo từng project giúp toàn bộ cấu hình được cô lập giữa các ứng dụng khác nhau. Đây cũng là mô hình được sử dụng phổ biến trong các nền tảng Feature Flag nhằm cho phép nhiều dự án cùng sử dụng chung một hệ thống quản lý nhưng vẫn đảm bảo tính độc lập về cấu hình \cite{launchdarkly_feature_flags,unleash_feature_flags}.
 
-\subsubsection{Hiển thị environment}
+\subsubsection{Phạm vi environment trong Dashboard hiện tại}
 
-Trong mỗi project, Dashboard hiển thị danh sách các environment đã được cấu hình, bao gồm tối thiểu \textit{Staging} và \textit{Production}. Environment đang được lựa chọn được hiển thị nổi bật để người dùng nhận biết phạm vi cấu hình hiện tại.
+Source code hiện tại chưa có màn hình quản trị environment riêng. Environment vẫn tồn tại trong mô hình dữ liệu và được dùng bởi Evaluation API, seed data, Docker demo production/staging và một số bộ lọc như statistics. Trên Dashboard, các form cấu hình Feature Flag và Rule tập trung vào default environment của project, trong luồng demo chính là production.
 
-Việc tách cấu hình theo environment cho phép cùng một Feature Flag có các trạng thái hoặc rule khác nhau giữa môi trường kiểm thử và môi trường triển khai thực tế. Nhờ đó nhóm phát triển có thể kiểm thử trên Staging trước khi áp dụng cấu hình tương tự cho Production mà không cần triển khai lại ứng dụng, phù hợp với nguyên tắc tách biệt giữa deploy và release của Feature Flag \cite{microsoft_devops,launchdarkly_feature_flags}.
-
+Cách giới hạn này giúp giao diện quản trị phù hợp với phạm vi mini project nhưng vẫn giữ nền tảng dữ liệu để mở rộng thành quản lý nhiều environment đầy đủ trong tương lai.
 \subsection{Màn hình quản lý Feature Flag}
 
 Màn hình quản lý Feature Flag là thành phần trung tâm của Dashboard, cho phép người quản trị theo dõi toàn bộ các Feature Flag thuộc một project và thực hiện các thao tác quản lý trong suốt vòng đời của chúng. Giao diện được thiết kế nhằm giúp người dùng nhanh chóng nhận biết trạng thái hiện tại của từng flag, tìm kiếm theo nhiều tiêu chí và thực hiện các thao tác như archive hoặc restore mà không ảnh hưởng đến dữ liệu lịch sử. Thiết kế này phù hợp với các nguyên tắc quản lý Feature Flag hiện đại và hạn chế phát sinh \textit{feature flag debt} thông qua việc quản lý vòng đời của flag \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
@@ -42,7 +41,7 @@ Bảng dữ liệu cho phép người quản trị quan sát đồng thời nhi�
 
 Dashboard cung cấp chức năng tìm kiếm theo tên hoặc flag key nhằm hỗ trợ người dùng nhanh chóng xác định Feature Flag cần quản lý khi số lượng flag tăng lên.
 
-Bên cạnh tìm kiếm, giao diện còn hỗ trợ lọc theo các tiêu chí như environment, lifecycle status, runtime status hoặc nhóm Feature Flag. Các điều kiện lọc có thể được kết hợp để thu hẹp phạm vi kết quả, giúp người quản trị dễ dàng xác định các Feature Flag đang hoạt động, đã archive hoặc thuộc một nhóm chức năng cụ thể.
+Bên cạnh tìm kiếm, giao diện còn hỗ trợ lọc theo các tiêu chí như lifecycle status, runtime status hoặc nhóm Feature Flag. Các điều kiện lọc có thể được kết hợp để thu hẹp phạm vi kết quả, giúp người quản trị dễ dàng xác định các Feature Flag đang hoạt động, đã archive hoặc thuộc một nhóm chức năng cụ thể.
 
 Việc tìm kiếm và lọc trực tiếp trên Dashboard giúp giảm thời gian thao tác và phù hợp với mô hình quản lý số lượng lớn Feature Flag trong các hệ thống thực tế \cite{launchdarkly_feature_flags}.
 
@@ -92,7 +91,7 @@ Màn hình cấu hình rule cho phép người quản trị xác định tập n
 
 \subsubsection{Cấu hình user allowlist}
 
-Dashboard hỗ trợ tạo các rule thuộc loại \textit{User Allowlist}, cho phép chỉ định trực tiếp các người dùng sẽ được bật Feature Flag. Người quản trị chỉ cần lựa chọn hoặc nhập các \textit{targeting key} tương ứng với những người dùng cần cấp quyền truy cập.
+Dashboard hỗ trợ tạo các rule thuộc loại \textit{User Allowlist}, cho phép chỉ định trực tiếp các người dùng sẽ được bật Feature Flag. Người quản trị nhập danh sách user ID tương ứng với những người dùng cần cấp quyền truy cập. Các giá trị này được lưu trong \texttt{parameters.userIds} và được so khớp với \texttt{context.userId}.
 
 User Allowlist thường được sử dụng trong các tình huống kiểm thử nội bộ, triển khai cho khách hàng chiến lược hoặc xác minh tính năng trước khi mở rộng phạm vi phát hành. Do chỉ áp dụng cho một tập nhỏ người dùng, đây là loại rule có mức ưu tiên cao nhằm đảm bảo các đối tượng được chỉ định luôn nhận được kết quả mong muốn \cite{launchdarkly_targeting_rules}.
 
@@ -112,7 +111,7 @@ Hệ thống sử dụng thuật toán băm ổn định để ánh xạ mỗi \
 
 Dashboard cho phép thay đổi thứ tự ưu tiên của các rule thông qua các thao tác trực quan. Sau khi điều chỉnh, hệ thống cập nhật lại giá trị ưu tiên và lưu cấu hình mới vào Backend API.
 
-Thứ tự ưu tiên quyết định trình tự đánh giá của Rule Evaluation Engine. Các rule có mức ưu tiên cao hơn sẽ được kiểm tra trước và quá trình evaluation sẽ kết thúc ngay khi tìm thấy rule đầu tiên thỏa mãn điều kiện. Cơ chế này giúp hành vi của hệ thống luôn xác định và dễ dự đoán khi tồn tại nhiều rule đồng thời \cite{launchdarkly_targeting_rules}.
+Trong source code hiện tại, priority quyết định thứ tự giữa các rule cùng loại. Engine vẫn áp dụng type precedence cố định: User Allowlist trước, Role Targeting sau và Percentage Rollout cuối cùng. Cơ chế này giúp hành vi của hệ thống luôn xác định và dễ dự đoán khi tồn tại nhiều rule đồng thời \cite{launchdarkly_targeting_rules}.
 
 \subsubsection{Hiển thị tác động của rule}
 
@@ -126,7 +125,7 @@ Màn hình quản lý Flag Group được xây dựng nhằm hỗ trợ quản l
 
 \subsubsection{Danh sách flag group}
 
-Dashboard hiển thị danh sách toàn bộ Flag Group thuộc project hiện tại dưới dạng các thẻ thông tin. Mỗi nhóm thể hiện tên nhóm, mô tả, số lượng Feature Flag đang quản lý và trạng thái của Group Kill Switch.
+Dashboard hiển thị danh sách toàn bộ Flag Group thuộc project hiện tại dưới dạng các thẻ thông tin. Mỗi nhóm thể hiện tên nhóm, group key, số lượng Feature Flag đang được gán, environment đang hiển thị và trạng thái của Group Kill Switch trong environment đó.
 
 Từ màn hình này, người quản trị có thể tạo mới, đổi tên hoặc lựa chọn một Flag Group để xem danh sách các Feature Flag thuộc nhóm. Việc tổng hợp thông tin theo từng nhóm giúp dễ dàng quản lý các tính năng liên quan đến cùng một nghiệp vụ hoặc cùng một đợt phát hành.
 
@@ -138,7 +137,7 @@ Một Feature Flag chỉ thuộc về một Flag Group trong phạm vi project, 
 
 \subsubsection{Kích hoạt group kill switch}
 
-Đối với mỗi Flag Group, Dashboard cung cấp công tắc bật hoặc tắt Group Kill Switch. Khi Kill Switch được kích hoạt, toàn bộ Feature Flag thuộc nhóm sẽ bị vô hiệu hóa trong quá trình evaluation mà không cần chỉnh sửa từng Feature Flag riêng lẻ.
+Đối với mỗi Flag Group, Dashboard cung cấp công tắc bật hoặc tắt Group Kill Switch. Khi Kill Switch được kích hoạt, toàn bộ Feature Flag thuộc nhóm sẽ bị vô hiệu hóa trong environment đang hiển thị mà không cần chỉnh sửa từng Feature Flag riêng lẻ.
 
 Cơ chế này đặc biệt hữu ích khi cần xử lý nhanh sự cố trên production. Thay vì thực hiện nhiều thao tác cấu hình độc lập, người quản trị chỉ cần kích hoạt Group Kill Switch để ngắt đồng thời toàn bộ các tính năng liên quan, từ đó rút ngắn thời gian phản ứng khi xảy ra lỗi \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
 
@@ -188,7 +187,7 @@ Ngoài giá trị tổng, giao diện còn cập nhật thời điểm thống k
 
 \subsubsection{Thống kê theo Feature Flag}
 
-Dashboard cung cấp bảng thống kê số lần evaluation của từng Feature Flag trong project. Mỗi dòng thể hiện tên Feature Flag cùng với số lượng yêu cầu evaluation tương ứng, cho phép người quản trị xác định những Feature Flag được sử dụng nhiều nhất.
+Dashboard cung cấp bảng thống kê aggregate số lần evaluation của từng Feature Flag trong project. Mỗi dòng thể hiện tên Feature Flag cùng với số lượng yêu cầu evaluation tương ứng, cho phép người quản trị xác định những Feature Flag được sử dụng nhiều nhất.
 
 Thông tin này giúp nhận biết các Feature Flag đóng vai trò quan trọng trong hệ thống, từ đó ưu tiên theo dõi, kiểm thử hoặc tối ưu cấu hình. Đồng thời, các Feature Flag ít hoặc không còn được sử dụng cũng có thể được xem xét archive nhằm giảm chi phí quản lý và hạn chế phát sinh \textit{feature flag debt} \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
 

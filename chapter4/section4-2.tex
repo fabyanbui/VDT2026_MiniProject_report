@@ -24,7 +24,7 @@ Bên cạnh đó, các yêu cầu về vận hành như cơ chế caching để 
 
 \subsubsection{Thiết kế kiến trúc control plane và data plane}
 
-Đề tài đề xuất kiến trúc hệ thống theo hướng tách biệt giữa \textit{control plane} và \textit{data plane}, phù hợp với cách tổ chức của nhiều nền tảng Feature Flag hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}. Trong đó, control plane bao gồm Dashboard quản trị và Management API, chịu trách nhiệm quản lý project, environment, feature flag, rule và audit log. Data plane bao gồm Evaluation API, Rule Evaluation Engine và lớp caching, chịu trách nhiệm đánh giá Feature Flag với độ trễ thấp trong thời gian chạy.
+Đề tài đề xuất kiến trúc hệ thống theo hướng tách biệt giữa \textit{control plane} và \textit{data plane}, phù hợp với cách tổ chức của nhiều nền tảng Feature Flag hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}. Trong đó, control plane bao gồm Dashboard quản trị và Management API, chịu trách nhiệm quản lý project, feature flag, rule, group, audit log và statistics; environment là dữ liệu nền cho evaluation. Data plane bao gồm Evaluation API, Rule Evaluation Engine và lớp caching, chịu trách nhiệm đánh giá Feature Flag với độ trễ thấp trong thời gian chạy.
 
 Việc phân tách hai mặt phẳng giúp giảm sự phụ thuộc giữa quá trình quản trị cấu hình và quá trình đánh giá Feature Flag, cho phép các thay đổi cấu hình được thực hiện độc lập với lưu lượng evaluation của ứng dụng khách. Kiến trúc này cũng tạo tiền đề cho việc mở rộng theo hướng triển khai nhiều instance của Evaluation API hoặc bổ sung cơ chế đồng bộ cấu hình trong tương lai.
 
@@ -52,7 +52,7 @@ Ngoài các chức năng bắt buộc của mini project, API còn được thi�
 
 Đề tài đã xây dựng một nền tảng quản lý Feature Flag hoàn chỉnh đáp ứng đầy đủ các yêu cầu bắt buộc của mini project. Hệ thống bao gồm Dashboard quản trị, Backend Management API, Rule Evaluation Engine, Evaluation API, cơ sở dữ liệu lưu trữ cấu hình và Demo Application minh họa việc sử dụng Feature Flag trong thực tế. Các thành phần được tổ chức theo kiến trúc thống nhất, cho phép quản lý toàn bộ vòng đời của Feature Flag từ khởi tạo, cấu hình, đánh giá đến lưu vết thay đổi.
 
-Sản phẩm hỗ trợ quản lý project, environment, feature flag, rule targeting, audit log và dữ liệu mẫu, đồng thời cung cấp giao diện trực quan để cấu hình và theo dõi trạng thái của từng Feature Flag. Việc triển khai đầy đủ các thành phần giúp minh họa tương đối đầy đủ quy trình quản trị Feature Flag trong một hệ thống phần mềm hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+Sản phẩm hỗ trợ quản lý project, feature flag, rule targeting, flag group, audit log, statistics và dữ liệu mẫu ở backend, đồng thời cung cấp giao diện trực quan để cấu hình và theo dõi trạng thái của từng Feature Flag. Việc triển khai đầy đủ các thành phần giúp minh họa tương đối đầy đủ quy trình quản trị Feature Flag trong một hệ thống phần mềm hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
 
 \subsubsection{Demo Application chứng minh giá trị thực tế}
 
@@ -62,7 +62,7 @@ Thông qua các kịch bản như bật hoặc tắt toàn cục, targeting theo
 
 \subsubsection{Các chức năng vượt mức MVP}
 
-Ngoài các chức năng bắt buộc theo yêu cầu của mini project, hệ thống còn triển khai nhiều chức năng thuộc mức khuyến khích nhằm nâng cao giá trị sử dụng và khả năng mở rộng của sản phẩm. Các chức năng này bao gồm cơ chế caching kết quả evaluation, JavaScript SDK hỗ trợ tích hợp với ứng dụng khách, phân quyền người dùng quản trị theo vai trò, thống kê số lần evaluation, versioning và audit log, group kill switch để vô hiệu hóa đồng thời nhiều Feature Flag, cùng với các bài kiểm thử cho Rule Evaluation Engine.
+Ngoài các chức năng bắt buộc theo yêu cầu của mini project, hệ thống còn triển khai nhiều chức năng thuộc mức khuyến khích nhằm nâng cao giá trị sử dụng và khả năng mở rộng của sản phẩm. Các chức năng này bao gồm cơ chế caching evaluation snapshot, JavaScript SDK hỗ trợ tích hợp với ứng dụng khách, phân quyền người dùng quản trị theo vai trò, thống kê aggregate số lần evaluation, lịch sử cấu hình dựa trên audit log, group kill switch để vô hiệu hóa đồng thời nhiều Feature Flag, cùng với các bài kiểm thử cho Rule Evaluation Engine.
 
 Việc triển khai các chức năng trên giúp hệ thống tiệm cận hơn với cách xây dựng của các nền tảng Feature Flag hiện đại, đồng thời chứng minh khả năng mở rộng vượt ngoài phạm vi MVP ban đầu. Các chức năng này cũng góp phần nâng cao hiệu năng, khả năng quản trị và tính an toàn trong quá trình vận hành hệ thống \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags,owasp_logging,redis_client_side_caching}.
 

@@ -12,7 +12,7 @@ Các điều kiện này có thể được biểu diễn dưới dạng tập l
 
 \subsection{Targeting theo organization}
 
-Trong nhiều hệ thống SaaS, Feature Flag thường được quản lý theo từng khách hàng hoặc từng tổ chức thay vì từng người dùng riêng lẻ. Do đó, một hướng phát triển quan trọng là bổ sung khả năng targeting dựa trên \texttt{organizationId} hoặc các thuộc tính của tổ chức.
+Trong nhiều hệ thống SaaS, Feature Flag thường được quản lý theo từng khách hàng hoặc từng tổ chức thay vì từng người dùng riêng lẻ. Do đó, một hướng phát triển quan trọng là bổ sung khả năng targeting dựa trên \texttt{attributes.organizationId} hoặc các thuộc tính của tổ chức.
 
 Khi đó, Evaluation Engine có thể kích hoạt hoặc vô hiệu hóa tính năng cho toàn bộ doanh nghiệp, nhóm khách hàng hoặc tenant cụ thể. Việc này giúp đơn giản hóa quá trình quản trị khi số lượng người dùng lớn, đồng thời hỗ trợ triển khai các gói tính năng khác nhau cho từng khách hàng doanh nghiệp mà vẫn sử dụng chung một hệ thống.
 
@@ -58,7 +58,7 @@ Việc hỗ trợ đầy đủ các khái niệm như Provider, Evaluation Conte
 
 \section{Mở rộng quản trị vòng đời flag}
 
-Trong phiên bản hiện tại, hệ thống đã hỗ trợ các trạng thái cơ bản của Feature Flag cùng khả năng lưu vết thay đổi thông qua audit log và versioning. Tuy nhiên, việc quản trị vòng đời của Feature Flag trong môi trường sản xuất còn bao gồm nhiều quy trình liên quan đến phê duyệt, lập lịch triển khai và quản lý các flag không còn sử dụng. Đây là những chức năng thường xuất hiện trong các nền tảng Feature Flag quy mô lớn nhằm giảm rủi ro vận hành và hạn chế phát sinh technical debt \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+Trong phiên bản hiện tại, hệ thống đã hỗ trợ các trạng thái cơ bản của Feature Flag cùng khả năng lưu vết thay đổi thông qua audit log và audit-backed history. Tuy nhiên, việc quản trị vòng đời của Feature Flag trong môi trường sản xuất còn bao gồm nhiều quy trình liên quan đến phê duyệt, lập lịch triển khai và quản lý các flag không còn sử dụng. Đây là những chức năng thường xuất hiện trong các nền tảng Feature Flag quy mô lớn nhằm giảm rủi ro vận hành và hạn chế phát sinh technical debt \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
 
 \subsection{Approval workflow}
 
