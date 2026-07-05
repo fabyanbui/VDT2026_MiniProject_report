@@ -143,15 +143,9 @@ LaunchDarkly và Unleash đều cung cấp các thành phần cốt lõi của m
 
 \subsubsection{So sánh mô hình triển khai}
 
-LaunchDarkly chủ yếu được cung cấp dưới dạng dịch vụ Feature Flag được quản lý. Nhà cung cấp chịu trách nhiệm vận hành hạ tầng, lưu trữ cấu hình, phân phối dữ liệu flag và duy trì tính sẵn sàng của control plane. Ứng dụng kết nối với nền tảng thông qua SDK và thông tin xác thực tương ứng với từng môi trường \cite{launchdarkly_feature_flags}.
+Về mô hình triển khai, điểm khác biệt chính nằm ở trách nhiệm vận hành. LaunchDarkly thiên về dịch vụ được quản lý, giúp đội phát triển giảm công việc hạ tầng nhưng phụ thuộc nhiều hơn vào nhà cung cấp \cite{launchdarkly_feature_flags}. Unleash cung cấp thêm lựa chọn mã nguồn mở/self-hosted, phù hợp khi tổ chức cần kiểm soát dữ liệu và hạ tầng nhưng phải tự chịu trách nhiệm về sao lưu, nâng cấp, giám sát và mở rộng \cite{unleash_feature_flags}.
 
-Mô hình này giúp tổ chức giảm khối lượng công việc liên quan đến triển khai, giám sát, sao lưu và nâng cấp hệ thống Feature Flag. Đội phát triển có thể tập trung vào cấu hình phát hành và tích hợp flag vào ứng dụng. Tuy nhiên, hệ thống phụ thuộc nhiều hơn vào hạ tầng, chính sách dữ liệu, cơ chế định giá và khả năng cung cấp dịch vụ của nhà cung cấp.
-
-Unleash cung cấp cả dịch vụ được quản lý và phiên bản mã nguồn mở có thể tự triển khai. Trong mô hình self-hosted, tổ chức tự vận hành Unleash Server, cơ sở dữ liệu và các thành phần phân phối cấu hình trên hạ tầng riêng \cite{unleash_feature_flags}.
-
-Khả năng tự triển khai giúp tổ chức chủ động kiểm soát dữ liệu, mạng nội bộ, chính sách bảo mật và vị trí đặt hệ thống. Đổi lại, đội vận hành phải chịu trách nhiệm về tính sẵn sàng, sao lưu, cập nhật phiên bản, giám sát và khả năng mở rộng của nền tảng.
-
-Cả hai giải pháp đều phân tách control plane khỏi quá trình đánh giá flag trong ứng dụng. Control plane chịu trách nhiệm quản lý cấu hình, trong khi SDK tải cấu hình và thực hiện evaluation cục bộ. Cách tiếp cận này hạn chế việc mỗi lần kiểm tra flag đều phải gửi một yêu cầu mạng đồng bộ tới máy chủ quản lý.
+Cả hai giải pháp đều tách control plane khỏi luồng evaluation trong ứng dụng: control plane quản lý cấu hình, còn SDK tải cấu hình và đánh giá cục bộ. Vì nội dung kiến trúc của từng nền tảng đã được mô tả ở trên, phần này chỉ tổng hợp các tiêu chí so sánh trực tiếp.
 
 \begin{table}[H]
     \centering
@@ -193,21 +187,9 @@ Cả hai giải pháp đều phân tách control plane khỏi quá trình đánh
 
 \subsubsection{So sánh khả năng targeting}
 
-LaunchDarkly biểu diễn logic targeting bằng các rule có thứ tự. Mỗi rule gồm một hoặc nhiều điều kiện dựa trên thuộc tính của evaluation context. Các rule được đánh giá lần lượt từ trên xuống dưới và rule đầu tiên thỏa mãn sẽ quyết định variation được trả về \cite{launchdarkly_targeting_rules}.
+Về targeting, LaunchDarkly nhấn mạnh ordered rule: các điều kiện được xét theo thứ tự và rule đầu tiên phù hợp quyết định variation \cite{launchdarkly_targeting_rules}. Unleash nhấn mạnh activation strategy: nhiều strategy trong cùng environment thường được kết hợp theo quan hệ OR và có thể bổ sung constraint theo context \cite{unleash_feature_flags}.
 
-Thứ tự rule cho phép người quản trị biểu diễn rõ ràng mức độ ưu tiên giữa các trường hợp. Ví dụ, một rule bật tính năng cho nhóm thử nghiệm nội bộ có thể được đặt trước rule rollout theo tỷ lệ cho người dùng thông thường. Nếu không có rule nào phù hợp, hệ thống sử dụng default rule của flag.
-
-LaunchDarkly còn hỗ trợ targeting trực tiếp tới context cụ thể và sử dụng segment để tái sử dụng cùng một tập đối tượng hoặc điều kiện trong nhiều flag. Evaluation context có thể biểu diễn người dùng, tổ chức, thiết bị hoặc một thực thể nghiệp vụ khác.
-
-Unleash sử dụng activation strategy để mô tả điều kiện kích hoạt flag. Một flag có thể có nhiều strategy trong cùng một môi trường. Các strategy thường được kết hợp theo quan hệ OR, nghĩa là flag được bật nếu có ít nhất một strategy phù hợp \cite{unleash_feature_flags}.
-
-Mỗi activation strategy có thể đi kèm các constraint để giới hạn phạm vi áp dụng theo thuộc tính của context. Ví dụ, gradual rollout có thể chỉ áp dụng đối với người dùng có vai trò \texttt{beta-customer}, thuộc một tổ chức cụ thể hoặc đang sử dụng một phiên bản ứng dụng nhất định.
-
-So với activation strategy của Unleash, ordered rule của LaunchDarkly thể hiện thứ tự ưu tiên trực tiếp hơn. Mô hình của Unleash có cấu trúc linh hoạt và thuận tiện cho việc kết hợp nhiều chiến lược kích hoạt, nhưng kết quả có thể khó giải thích hơn khi nhiều strategy đồng thời thỏa mãn.
-
-Cả hai nền tảng đều hỗ trợ rollout theo phần trăm bằng cơ chế phân nhóm có tính xác định. Một thuộc tính ổn định của context được sử dụng để ánh xạ đối tượng vào một bucket. Cùng một đối tượng thường tiếp tục nhận cùng một kết quả nếu khóa targeting và cấu hình flag không thay đổi \cite{launchdarkly_percentage_rollouts}.
-
-Cơ chế phân phối ổn định giúp hạn chế tình trạng người dùng liên tục chuyển đổi giữa phiên bản cũ và phiên bản mới. Tuy nhiên, độ ổn định phụ thuộc vào việc ứng dụng cung cấp một targeting key nhất quán trong evaluation context \cite{openfeature_evaluation_context}.
+Hai cách biểu diễn đều hỗ trợ targeting theo thuộc tính và rollout theo phần trăm ổn định. Khác biệt quan trọng là ordered rule thể hiện precedence trực tiếp hơn, còn activation strategy linh hoạt khi kết hợp nhiều chiến lược nhưng có thể khó giải thích hơn nếu nhiều strategy cùng thỏa mãn. Vì vậy, MiniProject chọn rule có thứ tự tường minh để ưu tiên khả năng kiểm thử và giải thích kết quả.
 
 \begin{table}[H]
     \centering
@@ -253,17 +235,9 @@ Cơ chế phân phối ổn định giúp hạn chế tình trạng người dù
 
 \subsubsection{So sánh SDK và khả năng tích hợp}
 
-LaunchDarkly và Unleash đều cung cấp SDK cho nhiều ngôn ngữ và nền tảng. SDK chịu trách nhiệm nhận cấu hình flag, duy trì trạng thái cục bộ, tiếp nhận evaluation context và trả về kết quả đánh giá cho ứng dụng.
+Cả LaunchDarkly và Unleash đều dùng SDK để đồng bộ cấu hình, đánh giá flag cục bộ và trả kết quả cho ứng dụng. Điểm khác biệt chủ yếu nằm ở hệ sinh thái SDK, cơ chế phân phối cấu hình cho frontend/mobile và mức độ tùy chỉnh khi tự triển khai.
 
-Đối với các SDK phía máy chủ, quá trình evaluation chủ yếu được thực hiện trong tiến trình ứng dụng. Cách tiếp cận này giảm độ trễ và tránh việc mỗi request nghiệp vụ phải phụ thuộc vào một lời gọi mạng tới control plane.
-
-LaunchDarkly cung cấp hệ sinh thái SDK rộng cho ứng dụng backend, trình duyệt, thiết bị di động và các môi trường thực thi khác. SDK hỗ trợ đánh giá flag Boolean hoặc đa biến, nhận cập nhật cấu hình và gửi event phục vụ thống kê hoặc phân tích việc sử dụng flag.
-
-Unleash SDK thường tải cấu hình từ Unleash Server hoặc một thành phần phân phối trung gian, sau đó áp dụng activation strategy tại ứng dụng. Đối với ứng dụng phía trình duyệt hoặc thiết bị di động, một lớp trung gian có thể được sử dụng để tránh cung cấp trực tiếp thông tin xác thực có quyền truy cập vào máy chủ quản trị.
-
-Cả hai nền tảng đều khuyến nghị ứng dụng xác định giá trị mặc định khi đánh giá flag. Giá trị mặc định được sử dụng khi flag không tồn tại, SDK chưa có cấu hình hoặc quá trình evaluation gặp lỗi. Đây là cơ chế fail-safe giúp giảm nguy cơ hệ thống Feature Flag trở thành điểm lỗi bắt buộc trong luồng nghiệp vụ \cite{unleash_feature_flag_best_practices}.
-
-Ngoài SDK, cả LaunchDarkly và Unleash đều cung cấp API quản trị để tích hợp với quy trình CI/CD hoặc công cụ nội bộ. API quản trị có thể được sử dụng để tạo flag, cập nhật cấu hình hoặc quản lý môi trường. Quyền quản trị cần được tách biệt với quyền chỉ dùng để đánh giá flag nhằm hạn chế việc ứng dụng có khả năng thay đổi cấu hình production.
+Điểm chung quan trọng hơn đối với MiniProject là SDK luôn cần giá trị mặc định để giữ hành vi fail-safe khi flag không tồn tại, SDK chưa có cấu hình hoặc quá trình evaluation lỗi \cite{unleash_feature_flag_best_practices}. API quản trị của hai nền tảng cũng phải tách khỏi quyền evaluation để ứng dụng khách không thể thay đổi cấu hình production.
 
 \begin{table}[H]
     \centering

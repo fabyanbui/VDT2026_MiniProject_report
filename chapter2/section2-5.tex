@@ -454,9 +454,7 @@ Khi người quản trị chọn một environment mới làm mặc định, h�
     \item Không được xóa environment nếu thao tác đó làm mất dữ liệu cấu hình runtime ngoài ý muốn.
 \end{itemize}
 
-Ràng buộc duy nhất trên \texttt{projectId} và \texttt{key} có thể được biểu diễn như sau.
-
-
+Ràng buộc duy nhất trên \texttt{projectId} và \texttt{key} bảo đảm mỗi project không có hai environment cùng khóa định danh.
 
 Ngoài các ràng buộc trực tiếp trong bảng \texttt{Environment}, hệ thống cần kiểm tra tính đồng nhất giữa project của environment và project của Feature Flag khi tạo \texttt{FlagEnvironmentConfig}. Một cấu hình không được phép liên kết flag thuộc project này với environment thuộc project khác.
 
@@ -1039,26 +1037,18 @@ Ngoài validation khi tạo và cập nhật rule, Evaluation Engine vẫn phả
 
 Sau mỗi thao tác thay đổi rule, hệ thống ghi audit log dạng \texttt{FLAG\_RULES\_REPLACED}, làm mất hiệu lực cache snapshot liên quan và lưu snapshot trước/sau của ordered rule set.
 
+
 \subsection{User context mẫu}
 
-Hệ thống lưu một tập dữ liệu user context mẫu nhằm phục vụ demo, kiểm thử Evaluation API và minh họa các chiến lược targeting. Dữ liệu này không thay thế cơ sở dữ liệu người dùng của ứng dụng khách và không được xem là nguồn danh tính chính thức trong môi trường thực tế. Khi tích hợp, ứng dụng khách tự xây dựng evaluation context từ dữ liệu nghiệp vụ của mình và gửi đến nền tảng Feature Flag.
+Hệ thống lưu một tập \texttt{SampleUserContext} để phục vụ demo, seed data và kiểm thử Evaluation API. Đây không phải cơ sở dữ liệu người dùng chính thức; trong môi trường thực tế, ứng dụng khách tự lấy dữ liệu nghiệp vụ và gửi evaluation context tương ứng tới nền tảng Feature Flag.
 
-Evaluation context có thể bao gồm targeting key, user ID, organization ID, danh sách role và các thuộc tính mở rộng. Trong source code hiện tại, \texttt{targetingKey} là đầu vào của percentage rollout, \texttt{userId} được dùng cho user allowlist, còn \texttt{roles} phục vụ role targeting; các thuộc tính còn lại hỗ trợ demo và khả năng mở rộng trong tương lai \cite{openfeature_evaluation_context}.
+Phần này chỉ mô tả cách dữ liệu mẫu được lưu trữ. Ý nghĩa runtime của từng trường, cách so khớp role và cơ chế stable rollout được trình bày tập trung trong phần thiết kế Rule Evaluation Engine để tránh lặp lại logic đánh giá.
 
 \subsubsection{Targeting key}
 
-\texttt{targetingKey} là định danh ổn định đại diện cho đối tượng được evaluation. Đối tượng này thường là một người dùng, nhưng cũng có thể là một organization, thiết bị, tenant hoặc thực thể nghiệp vụ khác tùy theo cách ứng dụng khách xây dựng context.
+\texttt{targetingKey} là định danh ổn định đại diện cho đối tượng được evaluation. Trong dữ liệu mẫu, trường này bắt buộc và duy nhất trong phạm vi project để phục vụ percentage rollout có tính xác định. Hai project vẫn có thể sử dụng cùng một targeting key vì dữ liệu mẫu của chúng được quản lý độc lập.
 
-Targeting key có các vai trò chính sau:
-
-\begin{itemize}
-    \item làm đầu vào cho thuật toán băm ổn định của rule \texttt{PERCENTAGE\_ROLLOUT};
-    \item tách khóa rollout ổn định khỏi \texttt{userId} dùng cho rule \texttt{USER\_ALLOWLIST};
-    \item giúp cùng một đối tượng nhận kết quả nhất quán giữa nhiều lần evaluation;
-    \item tránh phụ thuộc trực tiếp vào khóa chính nội bộ của nền tảng Feature Flag.
-\end{itemize}
-
-Trong mô hình dữ liệu mẫu, targeting key phải duy nhất trong phạm vi project. Hai project có thể sử dụng cùng một targeting key vì dữ liệu người dùng của chúng được quản lý độc lập.
+Targeting key nên được giữ ổn định trong suốt thời gian đối tượng tham gia rollout. Các giá trị thay đổi thường xuyên như session ID tạm thời, access token hoặc địa chỉ IP không phù hợp vì có thể làm người dùng bị chuyển sang cohort khác.
 
 Các thuộc tính chính của thực thể \texttt{SampleUserContext} được trình bày trong Bảng~\ref{tab:sample-user-attributes}.
 
@@ -1123,122 +1113,19 @@ Các thuộc tính chính của thực thể \texttt{SampleUserContext} được
     \end{tabular}
 \end{table}
 
-Ràng buộc duy nhất trên cặp \texttt{projectId} và \texttt{targetingKey} có thể được biểu diễn như sau.
+Ràng buộc quan trọng nhất của thực thể này là cặp \texttt{projectId} và \texttt{targetingKey} không được trùng lặp. Ràng buộc này đủ để dữ liệu demo mô phỏng nhiều project độc lập mà không biến nền tảng Feature Flag thành hệ thống quản lý danh tính.
 
+\subsubsection{Các trường nghiệp vụ và attributes}
 
+\texttt{userId}, \texttt{roles} và \texttt{attributes.organizationId} là dữ liệu nghiệp vụ do ứng dụng khách cung cấp. Trong demo, \texttt{userId} hỗ trợ user allowlist, \texttt{roles} hỗ trợ role targeting, còn \texttt{attributes.organizationId} minh họa khả năng mở rộng sang rule theo tổ chức hoặc tenant.
 
-Targeting key phải ổn định trong suốt thời gian đối tượng tham gia rollout. Nếu giá trị này thay đổi, kết quả băm phần trăm có thể thay đổi và người dùng có thể bị chuyển sang cohort khác.
-
-\subsubsection{User ID và organization ID}
-
-\texttt{userId} là định danh người dùng trong hệ thống của ứng dụng khách. Giá trị này có thể trùng với targeting key, nhưng không bắt buộc. Việc tách hai trường cho phép ứng dụng lựa chọn một định danh phù hợp hơn cho evaluation mà không làm thay đổi khóa nghiệp vụ gốc.
-
-Ví dụ, ứng dụng có thể sử dụng:
-
-\begin{itemize}
-    \item \texttt{userId = 18452} làm định danh nội bộ trong cơ sở dữ liệu;
-    \item \texttt{targetingKey = customer-18452} làm định danh ổn định cho Feature Flag.
-\end{itemize}
-
-\texttt{attributes.organizationId} đại diện cho organization, tenant, doanh nghiệp hoặc nhóm mà người dùng thuộc về. Trường này hỗ trợ các trường hợp cần bật tính năng cho toàn bộ thành viên của một organization thay vì cấu hình riêng từng người dùng.
-
-Ví dụ một evaluation context có thể được biểu diễn như sau.
-
-
-
-Trong phiên bản hiện tại, \texttt{userId} được đánh giá trực tiếp bởi user allowlist, còn \texttt{attributes.organizationId} chủ yếu phục vụ demo và khả năng mở rộng rule theo organization trong tương lai. Backend không tự suy luận organization từ user ID.
-
-Nền tảng Feature Flag không tự suy luận hoặc truy vấn thông tin organization từ user ID. Ứng dụng khách chịu trách nhiệm lấy dữ liệu từ cơ sở dữ liệu nghiệp vụ và truyền context phù hợp trong mỗi request evaluation.
-
-\subsubsection{Role của người dùng}
-
-Thuộc tính \texttt{roles} lưu danh sách vai trò nghiệp vụ của người dùng trong ứng dụng khách. Đây không phải role quản trị của nền tảng Feature Flag mà là role dùng để quyết định việc phát hành tính năng trong demo app.
-
-Ví dụ, ứng dụng thương mại điện tử có thể sử dụng các role:
-
-\begin{itemize}
-    \item \texttt{ADMIN};
-    \item \texttt{BETA\_CUSTOMER};
-    \item \texttt{REGULAR\_CUSTOMER}.
-\end{itemize}
-
-Một người dùng có thể có một hoặc nhiều role:
-
-
-
-Khi đánh giá rule \texttt{ROLE\_TARGETING}, hệ thống kiểm tra giao giữa danh sách role trong evaluation context và danh sách role được cấu hình trong rule. Rule được xem là khớp nếu tồn tại ít nhất một role chung.
-
-Biểu diễn điều kiện khớp như sau:
-
-\[
-\texttt{context.roles}
-\cap
-\texttt{rule.parameters.roles}
-\neq
-\varnothing
-\]
-
-Role phải được chuẩn hóa về cách viết, chẳng hạn sử dụng chữ hoa và dấu gạch dưới. Việc chuẩn hóa giúp tránh các trường hợp cùng một role nhưng được biểu diễn khác nhau như \texttt{beta-customer}, \texttt{BetaCustomer} hoặc \texttt{BETA\_CUSTOMER}.
-
-Danh sách role của dữ liệu mẫu phải thỏa mãn các điều kiện:
-
-\begin{itemize}
-    \item là một mảng chuỗi;
-    \item không chứa chuỗi rỗng;
-    \item không chứa giá trị trùng lặp;
-    \item mỗi giá trị tuân theo quy ước đặt tên của ứng dụng.
-\end{itemize}
-
-\subsubsection{Thuộc tính mở rộng}
-
-Thuộc tính \texttt{attributes} lưu các thông tin bổ sung của người dùng dưới dạng \texttt{JSONB}. Cấu trúc linh hoạt này cho phép dữ liệu mẫu biểu diễn nhiều loại context mà không cần thay đổi schema mỗi khi bổ sung một thuộc tính mới \cite{postgresql_json_types}.
-
-
-
-
-Các thuộc tính này có thể được sử dụng cho những loại rule mở rộng trong tương lai, chẳng hạn:
-
-\begin{itemize}
-    \item targeting theo quốc gia hoặc khu vực;
-    \item targeting theo loại thiết bị;
-    \item targeting theo gói dịch vụ;
-    \item targeting theo thời gian sử dụng tài khoản;
-    \item targeting theo thuộc tính nghiệp vụ tùy chỉnh.
-\end{itemize}
-
-Mặc dù sử dụng \texttt{JSONB}, hệ thống vẫn cần validation cơ bản để bảo đảm \texttt{attributes} là một object JSON hợp lệ. Các giá trị nên giới hạn ở kiểu dữ liệu đơn giản như chuỗi, số, boolean hoặc mảng giá trị nguyên thủy để Evaluation Engine có thể xử lý nhất quán.
-
-Dữ liệu nhạy cảm như mật khẩu, token xác thực, số giấy tờ, thông tin thanh toán hoặc dữ liệu cá nhân không cần thiết không được lưu trong attributes. Evaluation context chỉ nên chứa những thuộc tính tối thiểu cần thiết cho việc targeting, qua đó giảm rủi ro lộ dữ liệu và hạn chế việc ghi thông tin nhạy cảm vào log \cite{unleash_feature_flag_best_practices,owasp_logging}.
+Trường \texttt{attributes} được lưu dưới dạng \texttt{JSONB} để chứa các thuộc tính mở rộng như quốc gia, loại thiết bị, gói dịch vụ hoặc phiên bản ứng dụng \cite{postgresql_json_types}. Việc dùng JSONB giúp dữ liệu mẫu linh hoạt mà không cần bổ sung cột mới cho từng thuộc tính demo. Tuy nhiên, các giá trị nhạy cảm như mật khẩu, token xác thực, thông tin thanh toán hoặc dữ liệu cá nhân không cần thiết không nên được đưa vào context \cite{owasp_logging}.
 
 \subsubsection{Phạm vi sử dụng dữ liệu mẫu}
 
-Thực thể \texttt{SampleUserContext} được sử dụng trong các phạm vi sau:
+\texttt{SampleUserContext} được dùng để demo app chọn người dùng mẫu, xây dựng evaluation context và kiểm thử các kịch bản user targeting, role targeting, organization targeting dự kiến và percentage rollout. Evaluation Engine không truy vấn bảng này trong luồng runtime; engine chỉ đánh giá context đã được gửi trong request.
 
-\begin{itemize}
-    \item cung cấp dữ liệu có sẵn cho demo app;
-    \item kiểm thử rule theo targeting key;
-    \item kiểm thử rule theo role;
-    \item kiểm tra tính ổn định của percentage rollout;
-    \item cung cấp dữ liệu cho API \texttt{/sample-users} và seed data;
-    \item hỗ trợ các kịch bản trình diễn production/staging trong Demo Application.
-\end{itemize}
-
-Dữ liệu mẫu không tham gia bắt buộc vào luồng Evaluation API. Evaluation Engine đánh giá trực tiếp context được gửi trong request và không cần truy vấn \texttt{SampleUserContext} để lấy thông tin người dùng. Cách thiết kế này giữ Evaluation API độc lập với cơ sở dữ liệu người dùng của demo app và giảm một lần truy vấn trong luồng runtime.
-
-Luồng xử lý được phân tách như sau:
-
-\begin{enumerate}
-    \item Demo app lựa chọn hoặc đọc một người dùng mẫu.
-    \item Demo app xây dựng evaluation context từ targeting key, user ID, organization ID, role và attributes.
-    \item Evaluation context được gửi đến Evaluation API.
-    \item Evaluation Engine sử dụng trực tiếp context để đánh giá rule.
-    \item Bảng \texttt{SampleUserContext} không được truy vấn lại trong quá trình evaluation.
-\end{enumerate}
-
-Trong môi trường thực tế, dữ liệu người dùng được quản lý bởi ứng dụng khách. Nền tảng Feature Flag chỉ nhận context cần thiết tại thời điểm evaluation. Vì vậy, \texttt{SampleUserContext} là thành phần phục vụ minh họa và kiểm thử, không phải chức năng quản lý danh tính hoặc hồ sơ khách hàng.
-
-Việc giới hạn phạm vi này giúp tránh biến nền tảng Feature Flag thành một hệ thống quản lý người dùng, đồng thời duy trì ranh giới trách nhiệm rõ ràng giữa ứng dụng khách và dịch vụ evaluation.
-
+Cách phân tách này giữ Evaluation API độc lập với cơ sở dữ liệu người dùng của demo app, giảm một lần truy vấn trong đường xử lý runtime và phản ánh đúng cách tích hợp thực tế: nền tảng Feature Flag nhận context tối thiểu cần thiết, còn ứng dụng khách chịu trách nhiệm quản lý hồ sơ người dùng.
 
 \subsection{Flag group và group kill switch}
 

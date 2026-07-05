@@ -30,23 +30,12 @@ Một Feature Flag thường bao gồm các thành phần cơ bản sau:
 
 Trong một nền tảng quản lý Feature Flag, các thành phần trên thường được tổ chức theo project và environment. Cùng một flag có thể tồn tại trên nhiều môi trường như development, staging và production, nhưng có cấu hình và quy tắc khác nhau. Cách tổ chức này cho phép đội phát triển kiểm thử tính năng ở môi trường nội bộ trước khi mở rộng phạm vi phát hành trên môi trường production \cite{launchdarkly_feature_flags}.
 
+
 \subsubsection{Cơ chế quyết định hành vi tại thời điểm chạy}
 
-Feature Flag điều khiển hành vi của phần mềm thông qua quá trình đánh giá tại thời điểm chạy. Khi ứng dụng cần thực hiện một chức năng được kiểm soát bởi flag, ứng dụng gửi khóa của flag cùng với ngữ cảnh người dùng đến bộ máy đánh giá. Bộ máy này tải cấu hình hiện tại của flag, kiểm tra trạng thái tổng quát và lần lượt đối chiếu ngữ cảnh với các quy tắc đã được thiết lập.
+Feature Flag điều khiển hành vi của phần mềm bằng cách để ứng dụng hỏi một lớp evaluation tại thời điểm chạy. Ứng dụng chỉ cần truyền khóa flag và ngữ cảnh cần thiết; việc flag đang bật, tắt hoặc chỉ bật cho một nhóm người dùng được quyết định bởi cấu hình hiện tại thay vì bởi một lần deploy mới.
 
-Quá trình đánh giá có thể được biểu diễn khái quát như sau:
-
-\begin{enumerate}
-    \item Xác định flag theo project, environment và khóa định danh.
-    \item Kiểm tra flag có tồn tại và có đang ở trạng thái cho phép phục vụ hay không.
-    \item Kiểm tra các cơ chế vô hiệu hóa ưu tiên cao như trạng thái tắt hoặc kill switch.
-    \item Nếu flag được bật toàn cục, trả về kết quả bật mà không cần đánh giá thêm.
-    \item Nếu flag sử dụng chế độ nhắm mục tiêu, lần lượt đánh giá các quy tắc theo thứ tự ưu tiên.
-    \item Nếu một quy tắc phù hợp, trả về giá trị được cấu hình cho quy tắc đó.
-    \item Nếu không có quy tắc nào phù hợp, trả về giá trị mặc định của flag.
-\end{enumerate}
-
-Ví dụ, một tính năng có thể được cấu hình bật cho người dùng có vai trò \texttt{beta-customer}. Khi người dùng gửi yêu cầu, ứng dụng cung cấp vai trò này trong ngữ cảnh đánh giá. Nếu quy tắc vai trò được thỏa mãn, hệ thống trả về trạng thái bật và ứng dụng thực thi nhánh xử lý mới. Ngược lại, ứng dụng tiếp tục sử dụng hành vi cũ.
+Ở mức khái niệm, quá trình này gồm ba bước: định danh đúng flag trong project và environment, áp dụng các cơ chế an toàn như trạng thái tắt hoặc kill switch, sau đó đối chiếu context với các rule targeting nếu flag không bật toàn cục. Thứ tự ưu tiên chi tiết, stable hashing và reason code được trình bày ở phần thiết kế Rule Evaluation Engine, nên mục này chỉ nhấn mạnh vai trò runtime của Feature Flag.
 
 \begin{lstlisting}[
     caption={Điều khiển hành vi ứng dụng bằng Feature Flag},
@@ -64,9 +53,7 @@ if (result.enabled) {
 return showCurrentCheckout();
 \end{lstlisting}
 
-Đối với rollout theo phần trăm, hệ thống thường sử dụng hàm băm ổn định trên khóa định danh của đối tượng và khóa của flag để gán đối tượng vào một nhóm cố định. Cơ chế này giúp cùng một người dùng nhận được kết quả nhất quán giữa nhiều lần truy cập, đồng thời cho phép đội phát triển tăng hoặc giảm tỷ lệ rollout mà không cần lưu trạng thái riêng cho từng người dùng \cite{launchdarkly_percentage_rollouts}.
-
-Như vậy, Feature Flag không thay đổi mã nguồn tại thời điểm chạy mà thay đổi nhánh xử lý được lựa chọn trong mã nguồn đã triển khai. Hiệu quả của kỹ thuật này phụ thuộc vào việc thiết kế quy tắc rõ ràng, xác định thứ tự ưu tiên nhất quán và cung cấp giá trị mặc định an toàn khi quá trình đánh giá xảy ra lỗi.
+Như vậy, Feature Flag không thay đổi mã nguồn tại thời điểm chạy mà thay đổi nhánh xử lý được lựa chọn trong mã nguồn đã triển khai. Hiệu quả của kỹ thuật này phụ thuộc vào cấu hình rõ ràng, thứ tự đánh giá nhất quán và giá trị mặc định an toàn khi không thể đánh giá đầy đủ context.
 
 \subsection{Deploy và Release}
 

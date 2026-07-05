@@ -319,9 +319,7 @@ Kill switch không thay thế trạng thái disabled. Disabled phù hợp với 
 
 Nếu flag đang active, config đang enabled và không có kill switch nào được kích hoạt, engine kiểm tra serving mode. Khi \texttt{servingMode = GLOBAL\_ON}, feature flag được bật cho mọi evaluation request trong environment hiện tại.
 
-Kết quả trả về là.
-
-
+Kết quả trả về có \texttt{enabled = true}, \texttt{variant = on} và \texttt{reason = GLOBAL\_ON}.
 
 Ở chế độ global on, evaluation context không bắt buộc phải chứa targeting key, user ID hoặc role. Engine không tiếp tục kiểm tra user allowlist, role targeting hoặc percentage rollout vì trạng thái bật đã được quyết định ở mức toàn cục.
 
@@ -389,112 +387,12 @@ Default off thể hiện nguyên tắc fail-closed của hệ thống. Feature f
 
 Mã lý do \texttt{DEFAULT\_OFF} khác với \texttt{FLAG\_DISABLED}, \texttt{FLAG\_ARCHIVED} và \texttt{KILL\_SWITCH}. Nó cho biết flag vẫn hợp lệ và có thể được đánh giá, nhưng evaluation context hiện tại không thỏa mãn điều kiện bật nào.
 
+
 \subsection{Đánh giá trạng thái toàn cục}
 
-Trước khi đánh giá các rule targeting, Rule Evaluation Engine phải xác định trạng thái toàn cục của feature flag trong environment hiện tại. Bước này dựa trên hai nhóm thông tin chính gồm trạng thái cấu hình và serving mode.
+Sau các điều kiện terminal như archive và kill switch, engine kiểm tra trạng thái cấu hình và serving mode của flag trong environment hiện tại. Hai thuộc tính này trả lời hai câu hỏi khác nhau: cấu hình có được phép phục vụ hay không, và nếu được phép thì tính năng được mở toàn cục hay cần đánh giá rule targeting.
 
-Trạng thái cấu hình xác định feature flag có được phép tham gia evaluation hay không. Serving mode xác định cách feature flag được cung cấp khi cấu hình đang hoạt động. Việc tách hai khái niệm này giúp phân biệt rõ giữa quyết định tắt hoàn toàn một flag và quyết định bật flag theo toàn bộ người dùng hoặc theo điều kiện targeting.
-
-Trong hệ thống đề xuất, cấu hình của một feature flag có thể được mô hình hóa như sau.
-
-
-
-Quá trình đánh giá trạng thái toàn cục được thực hiện sau khi kiểm tra trạng thái archive và các kill switch có mức ưu tiên cao hơn. Nếu trạng thái toàn cục đã xác định được kết quả, engine không tiếp tục đánh giá các rule phía sau.
-
-\subsubsection{Trạng thái disabled}
-
-Trạng thái \texttt{DISABLED} biểu thị rằng cấu hình feature flag đã bị vô hiệu hóa trong một environment cụ thể. Khi trạng thái này được thiết lập, feature flag phải trả về kết quả tắt bất kể serving mode hoặc các rule targeting đang được cấu hình như thế nào.
-
-Điều kiện đánh giá được biểu diễn như sau:
-
-\begin{equation}
-    config.status = \texttt{DISABLED}
-    \Rightarrow enabled = false
-\end{equation}
-
-Kết quả trả về có cấu trúc.
-
-
-
-Khi gặp trạng thái disabled, engine không cần kiểm tra serving mode. Một cấu hình có \texttt{status = DISABLED} và \texttt{servingMode = GLOBAL\_ON} vẫn phải trả về trạng thái tắt vì status có mức ưu tiên cao hơn serving mode.
-
-Trạng thái disabled thường được sử dụng trong các trường hợp sau:
-
-\begin{itemize}
-    \item feature flag chưa sẵn sàng để được sử dụng trong environment;
-    \item đội phát triển muốn tạm dừng một chiến lược rollout;
-    \item cấu hình cần được giữ lại để chỉnh sửa nhưng chưa được phép phục vụ;
-    \item tính năng đã kết thúc giai đoạn thử nghiệm nhưng chưa được archive.
-\end{itemize}
-
-Disabled không làm mất các rule đã cấu hình. Khi flag được chuyển lại sang trạng thái \texttt{ENABLED}, các rule và serving mode trước đó có thể tiếp tục được sử dụng. Việc này khác với archive, vốn thể hiện thay đổi ở cấp vòng đời của feature flag.
-
-\subsubsection{Serving mode global on}
-
-Serving mode \texttt{GLOBAL\_ON} biểu thị rằng feature flag được bật cho mọi đối tượng trong environment hiện tại. Chế độ này chỉ có hiệu lực khi config đang ở trạng thái \texttt{ENABLED} và không có kill switch nào được kích hoạt.
-
-Điều kiện đánh giá có thể biểu diễn như sau:
-
-\begin{equation}
-    config.status = \texttt{ENABLED}
-    \land
-    config.servingMode = \texttt{GLOBAL\_ON}
-    \Rightarrow enabled = true
-\end{equation}
-
-Kết quả evaluation được trả về với mã lý do \texttt{GLOBAL\_ON}.
-
-
-
-Trong chế độ global on, evaluation context không ảnh hưởng đến kết quả. Request không bắt buộc phải chứa user ID, role, organization ID hoặc targeting key. Engine cũng không cần duyệt danh sách rule vì tính năng đã được phát hành cho toàn bộ phạm vi environment.
-
-Global on phù hợp với các trường hợp:
-
-\begin{itemize}
-    \item tính năng đã hoàn tất rollout và được mở cho toàn bộ người dùng;
-    \item tính năng cần được bật mặc định trong một environment nội bộ;
-    \item đội phát triển muốn bỏ qua tạm thời toàn bộ rule targeting;
-    \item feature flag được sử dụng như một công tắc bật hoặc tắt toàn cục.
-\end{itemize}
-
-Việc hỗ trợ trạng thái bật toàn cục là một trong những khả năng cơ bản của hệ thống feature flag, cho phép thay đổi hành vi runtime mà không cần triển khai lại mã nguồn \cite{fowler_feature_toggles}.
-
-\subsubsection{Serving mode targeted}
-
-Serving mode \texttt{TARGETED} biểu thị rằng feature flag không được bật mặc định cho toàn bộ người dùng. Thay vào đó, kết quả phụ thuộc vào evaluation context và các rule đã được cấu hình.
-
-Điều kiện để engine chuyển sang bước đánh giá rule là:
-
-\begin{equation}
-    config.status = \texttt{ENABLED}
-    \land
-    config.servingMode = \texttt{TARGETED}
-\end{equation}
-
-Khi đó, engine lần lượt kiểm tra các rule như user allowlist, role targeting và percentage rollout theo thứ tự ưu tiên. Nếu một rule khớp, feature flag được bật. Nếu không có rule nào khớp, engine trả về default off.
-
-Luồng xử lý được mô tả như sau.
-
-
-
-Chế độ targeted hỗ trợ các chiến lược phát hành có kiểm soát, chẳng hạn như:
-
-\begin{itemize}
-    \item bật tính năng cho một nhóm người dùng thử nghiệm;
-    \item bật theo role hoặc organization;
-    \item rollout dần theo tỷ lệ phần trăm;
-    \item kết hợp nhiều nhóm đối tượng theo thứ tự rule.
-\end{itemize}
-
-Cách tiếp cận targeting theo context cho phép hệ thống kiểm soát phạm vi phát hành mà không cần thay đổi logic ứng dụng khách. Các nền tảng feature flag thường sử dụng evaluation context và targeting rule để đưa ra quyết định runtime cho từng đối tượng cụ thể \cite{openfeature_evaluation_context,launchdarkly_targeting_rules}.
-
-Trong chế độ targeted, việc thiếu context không được xem là lỗi trong mọi trường hợp. Engine chỉ coi các rule phụ thuộc vào trường bị thiếu là không khớp. Nếu không có rule nào có thể quyết định trạng thái bật, kết quả cuối cùng là \texttt{DEFAULT\_OFF}.
-
-\subsubsection{Tương tác giữa trạng thái và serving mode}
-
-Trạng thái và serving mode có vai trò khác nhau trong quá trình evaluation. Trạng thái xác định cấu hình có đang hoạt động hay không, trong khi serving mode xác định cách tính năng được cung cấp khi cấu hình đang hoạt động.
-
-Quan hệ giữa hai thuộc tính được tổng hợp trong Bảng~\ref{tab:status-serving-mode-interaction}.
+Các trường hợp chính được tổng hợp trong Bảng~\ref{tab:status-serving-mode-interaction}.
 
 \begin{table}[H]
     \centering
@@ -532,28 +430,13 @@ Quan hệ giữa hai thuộc tính được tổng hợp trong Bảng~\ref{tab:s
     \end{tabular}
 \end{table}
 
-Từ bảng trên, có thể xác định quy tắc ưu tiên tổng quát:
+Từ bảng trên, quy tắc ưu tiên có thể tóm tắt là:
 
 \begin{equation}
     status > servingMode > targetingRules
 \end{equation}
 
-Điều này có nghĩa là status được đánh giá trước serving mode, còn serving mode được đánh giá trước các rule targeting. Một cấu hình disabled không thể được bật bởi global on hoặc bởi rule. Ngược lại, một cấu hình enabled và global on không cần dựa vào bất kỳ rule nào.
-
-Ngoài status và serving mode, các kill switch vẫn có mức ưu tiên cao hơn global on và targeted. Do đó, điều kiện đầy đủ để global on trả về trạng thái bật là:
-
-\begin{equation}
-\begin{split}
-    & lifecycleStatus = \texttt{ACTIVE} \\
-    & \land\ config.status = \texttt{ENABLED} \\
-    & \land\ groupKillSwitch = false \\
-    & \land\ flagKillSwitch = false \\
-    & \land\ servingMode = \texttt{GLOBAL\_ON}
-\end{split}
-\end{equation}
-
-Việc mô hình hóa riêng status và serving mode giúp giao diện quản trị thể hiện rõ ý nghĩa của từng thao tác. Người quản trị có thể vô hiệu hóa tạm thời toàn bộ cấu hình bằng status hoặc giữ config ở trạng thái enabled và chuyển đổi giữa global on với targeted tùy theo giai đoạn phát hành.
-
+Nói cách khác, \texttt{DISABLED} luôn trả về \texttt{FLAG\_DISABLED}; \texttt{GLOBAL\_ON} chỉ bật tính năng khi flag đang active, config enabled và không có kill switch; còn \texttt{TARGETED} mới chuyển sang đánh giá user allowlist, role targeting và percentage rollout. Cách tóm tắt này tránh lặp lại chi tiết precedence đã trình bày ở mục trước nhưng vẫn làm rõ ý nghĩa của status và serving mode đối với giao diện quản trị.
 
 \subsection{Targeting theo người dùng}
 
@@ -690,10 +573,6 @@ Khi context không có role, role targeting rule được xem là không khớp:
     \Rightarrow
     roleMatched = false
 \end{equation}
-
-Đoạn mã xử lý có thể được biểu diễn như sau.
-
-
 
 Engine không tự gán role mặc định và không suy diễn role từ user ID, organization ID hoặc targeting key. Việc suy diễn như vậy có thể làm kết quả phụ thuộc vào dữ liệu ngoài snapshot và phá vỡ tính thuần túy của Rule Evaluation Engine.
 
@@ -1392,9 +1271,7 @@ Tuy nhiên, fail-closed không đồng nghĩa với việc mọi loại flag tro
 
 Flag không tồn tại là trường hợp repository không tìm thấy project, environment, feature flag hoặc flag environment config tương ứng với evaluation request. Hệ thống không tự động tạo cấu hình hoặc giả định flag đang bật.
 
-Kết quả trả về là.
-
-
+Kết quả trả về có \texttt{enabled = false}, \texttt{variant = off} và \texttt{reason = NOT\_FOUND}.
 
 \texttt{NOT\_FOUND} có thể phát sinh trong các trường hợp:
 
@@ -1500,190 +1377,19 @@ Lỗi nội bộ khác với rule không đủ context. Thiếu context là trư
 
 Thông tin lỗi chi tiết chỉ nên được ghi trong log nội bộ. Evaluation response không được chứa stack trace, câu lệnh SQL hoặc dữ liệu nhạy cảm. Việc xử lý lỗi REST cần giới hạn thông tin trả về và duy trì response contract ổn định \cite{owasp_rest_security,owasp_logging}.
 
+
 \subsection{Khả năng mở rộng Rule Evaluation Engine}
 
-Rule Evaluation Engine trong hệ thống đề xuất được thiết kế theo hướng tách biệt giữa dữ liệu cấu hình, evaluation context và logic thực thi từng loại rule. Cách tổ chức này cho phép bổ sung chiến lược targeting mới mà không phải thay đổi toàn bộ luồng evaluation hoặc phá vỡ API contract hiện có.
+Rule Evaluation Engine được thiết kế theo hướng tách biệt dữ liệu cấu hình, evaluation context và logic đánh giá từng loại rule. Vì vậy, hệ thống có thể bổ sung rule mới mà không phải thay đổi contract chính của Evaluation API hoặc làm ảnh hưởng đến các rule đã ổn định.
 
-Các hướng mở rộng chính gồm rule dựa trên thuộc tính, targeting theo organization, rule theo thời gian và vị trí, hỗ trợ nhiều variant và tách logic đánh giá theo Strategy Pattern. Những mở rộng này phù hợp với mô hình evaluation context linh hoạt, trong đó context có thể chứa targeting key và các thuộc tính tùy chỉnh phục vụ quyết định runtime \cite{openfeature_evaluation_context}.
-
-\subsubsection{Rule dựa trên thuộc tính}
-
-Rule dựa trên thuộc tính cho phép engine đánh giá feature flag dựa trên các giá trị trong trường \texttt{attributes} của evaluation context. Các thuộc tính có thể mô tả quốc gia, loại thiết bị, phiên bản ứng dụng, gói dịch vụ, ngôn ngữ hoặc các thông tin nghiệp vụ khác.
-
-Một rule dựa trên thuộc tính có cấu trúc khái quát như sau.
-
-
-
-Để hỗ trợ nhiều kiểu điều kiện, hệ thống có thể định nghĩa các toán tử như:
+Các hướng mở rộng quan trọng gồm:
 
 \begin{itemize}
-    \item \texttt{EQUALS}: bằng chính xác;
-    \item \texttt{NOT\_EQUALS}: khác giá trị;
-    \item \texttt{IN}: thuộc một tập giá trị;
-    \item \texttt{NOT\_IN}: không thuộc một tập giá trị;
-    \item \texttt{GREATER\_THAN}: lớn hơn;
-    \item \texttt{LESS\_THAN}: nhỏ hơn;
-    \item \texttt{CONTAINS}: chuỗi hoặc mảng chứa giá trị;
-    \item \texttt{STARTS\_WITH}: chuỗi bắt đầu bằng tiền tố;
-    \item \texttt{VERSION\_GREATER\_THAN}: so sánh phiên bản.
+    \item \textbf{Rule dựa trên thuộc tính:} sử dụng các giá trị trong \texttt{attributes} để nhắm mục tiêu theo quốc gia, thiết bị, gói dịch vụ, phiên bản ứng dụng hoặc thuộc tính nghiệp vụ khác.
+    \item \textbf{Rule theo organization:} bật tính năng cho toàn bộ người dùng thuộc một tenant hoặc khách hàng doanh nghiệp, với điều kiện organization ID phải đến từ nguồn dữ liệu đáng tin cậy của ứng dụng khách.
+    \item \textbf{Rule theo thời gian hoặc vị trí:} hỗ trợ các chiến dịch có thời hạn hoặc giới hạn theo thị trường, nhưng nên chuẩn hóa thời gian và vị trí ở tầng ứng dụng để giữ engine dễ kiểm thử.
+    \item \textbf{Nhiều variant:} mở rộng kết quả từ bật/tắt sang nhiều biến thể có trọng số nhằm phục vụ A/B testing hoặc phân phối cấu hình khác nhau.
+    \item \textbf{Strategy Pattern:} tách mỗi loại rule thành một evaluator độc lập, giúp bổ sung rule mới thông qua đăng ký strategy thay vì thêm nhiều nhánh điều kiện trong hàm evaluation chính.
 \end{itemize}
 
-Quá trình đánh giá được biểu diễn như sau.
-
-
-
-Khi thuộc tính cần thiết không tồn tại, rule được xem là không khớp. Engine không tự suy diễn giá trị mặc định trừ khi rule contract quy định rõ.
-
-Rule dựa trên thuộc tính làm tăng đáng kể khả năng biểu đạt của engine, nhưng cũng yêu cầu validation chặt chẽ về kiểu dữ liệu. Ví dụ, toán tử so sánh số không được áp dụng cho chuỗi, còn toán tử version phải sử dụng quy tắc so sánh phiên bản thay vì so sánh từ điển.
-
-Các nền tảng feature flag thường sử dụng targeting rule dựa trên thuộc tính để kiểm soát tính năng theo nhiều đặc điểm của đối tượng đánh giá \cite{launchdarkly_targeting_rules}.
-
-\subsubsection{Rule theo organization}
-
-Rule theo organization cho phép bật feature flag cho toàn bộ người dùng thuộc một tổ chức, doanh nghiệp hoặc tenant cụ thể. Cơ chế này đặc biệt phù hợp với ứng dụng B2B hoặc hệ thống đa tenant, trong đó một tính năng thường được phát hành theo khách hàng doanh nghiệp thay vì theo từng người dùng.
-
-Evaluation context có thể chứa:
-
-
-
-Rule targeting theo organization có thể được biểu diễn như sau.
-
-
-
-Điều kiện khớp là:
-
-\begin{equation}
-    context.attributes.organizationId
-    \in
-    rule.parameters.organizationIds
-\end{equation}
-
-Đoạn mã đánh giá có thể được biểu diễn như sau.
-
-
-
-Về thứ tự ưu tiên, organization targeting có thể được đặt sau user allowlist nhưng trước role targeting hoặc percentage rollout:
-
-\begin{equation}
-\begin{split}
-    USER\_ALLOWLIST
-    >
-    ORGANIZATION\_TARGETING
-    >
-    ROLE\_TARGETING \\
-    >
-    PERCENTAGE\_ROLLOUT
-\end{split}
-\end{equation}
-
-Thứ tự này phản ánh mức độ cụ thể giảm dần từ một người dùng, một tổ chức, một nhóm role đến một tập phần trăm tổng quát.
-
-Organization ID phải được lấy từ nguồn đáng tin cậy của ứng dụng khách. Nếu giá trị được gửi trực tiếp từ trình duyệt mà không được xác minh, người dùng có thể giả mạo organization để nhận tính năng không được phép. Vì vậy, các quyết định có ảnh hưởng đến quyền hoặc hợp đồng nên được thực hiện ở backend của ứng dụng tích hợp.
-
-\subsubsection{Rule theo thời gian và vị trí}
-
-Rule theo thời gian cho phép feature flag chỉ hoạt động trong một khoảng thời gian xác định. Ví dụ, hệ thống có thể bật tính năng từ thời điểm bắt đầu chiến dịch và tự động ngừng sau thời điểm kết thúc.
-
-Một time window rule có thể được cấu hình như sau.
-
-
-
-Rule khớp khi thời điểm evaluation nằm trong khoảng:
-
-\begin{equation}
-    startAt \leq now < endAt
-\end{equation}
-
-Đoạn mã khái quát:
-
-
-
-Hệ thống nên sử dụng UTC để lưu trữ và đánh giá thời gian nhằm tránh sai lệch do múi giờ. Thời điểm \texttt{now} nên được truyền vào engine như một dependency thay vì gọi trực tiếp đồng hồ hệ thống trong từng evaluator. Cách này giúp unit test có thể kiểm soát thời gian đầu vào.
-
-Rule theo vị trí cho phép bật tính năng dựa trên quốc gia, khu vực hoặc thị trường. Vị trí có thể được truyền qua thuộc tính như \texttt{country} hoặc \texttt{region}:
-
-
-
-Điều kiện khớp là:
-
-\begin{equation}
-    context.attributes.country
-    \in
-    rule.parameters.countries
-\end{equation}
-
-Vị trí không nên được suy diễn trực tiếp trong Rule Evaluation Engine từ địa chỉ IP. Việc xác định vị trí nên được thực hiện bởi tầng ứng dụng hoặc một dịch vụ chuyên biệt, sau đó truyền giá trị đã chuẩn hóa vào evaluation context. Điều này giữ engine độc lập với network I/O và giúp kết quả dễ kiểm thử hơn.
-
-\subsubsection{Hỗ trợ nhiều variant}
-
-Hệ thống hiện tại sử dụng hai variant \texttt{on} và \texttt{off}. Trong tương lai, engine có thể được mở rộng để hỗ trợ nhiều variant nhằm phục vụ A/B testing, thử nghiệm giao diện hoặc phân phối nhiều cấu hình khác nhau.
-
-Ví dụ, một feature flag có thể định nghĩa ba variant.
-
-
-
-Tổng trọng số phải bằng $100$:
-
-\begin{equation}
-    \sum_{i=1}^{n} weight_i = 100
-\end{equation}
-
-Stable hashing tiếp tục được sử dụng để tạo bucket. Bucket sau đó được ánh xạ vào các khoảng trọng số tích lũy:
-
-\begin{equation}
-    variant(b) =
-    \begin{cases}
-        v_1, & 0 \leq b < w_1, \\
-        v_2, & w_1 \leq b < w_1 + w_2, \\
-        \cdots \\
-        v_n, & \sum_{i=1}^{n-1} w_i \leq b < 100.
-    \end{cases}
-\end{equation}
-
-Ví dụ:
-
-\begin{itemize}
-    \item bucket từ $0$ đến nhỏ hơn $50$ nhận variant \texttt{control};
-    \item bucket từ $50$ đến nhỏ hơn $80$ nhận variant \texttt{blue-layout};
-    \item bucket từ $80$ đến nhỏ hơn $100$ nhận variant \texttt{compact-layout}.
-\end{itemize}
-
-EvaluationResult có thể được mở rộng như sau.
-
-
-
-Hỗ trợ nhiều variant giúp cùng một feature flag trả về nhiều cấu hình khác nhau thay vì chỉ quyết định bật hoặc tắt. Tuy nhiên, hệ thống cần bổ sung validation tổng trọng số, stable assignment theo variant và metadata phục vụ phân tích thử nghiệm \cite{launchdarkly_feature_flags,launchdarkly_percentage_rollouts}.
-
-\subsubsection{Tách rule evaluator theo Strategy Pattern}
-
-Khi số lượng loại rule tăng lên, việc xử lý tất cả rule trong một hàm lớn với nhiều câu lệnh \texttt{if} hoặc \texttt{switch} sẽ làm engine khó bảo trì và khó kiểm thử. Strategy Pattern cho phép tách logic của từng loại rule thành một evaluator độc lập có cùng interface.
-
-Interface chung có thể được định nghĩa như sau.
-
-
-
-Mỗi loại rule có một implementation riêng:
-
-
-
-Engine duy trì một registry của các evaluator:
-
-
-
-Luồng thực thi rule sau khi áp dụng Strategy Pattern:
-
-
-
-Strategy Pattern mang lại các lợi ích sau:
-
-\begin{itemize}
-    \item mỗi evaluator chỉ chịu trách nhiệm cho một loại rule;
-    \item dễ bổ sung rule mới mà không sửa logic của các evaluator hiện có;
-    \item unit test có thể kiểm tra từng strategy độc lập;
-    \item giảm độ phức tạp của hàm evaluation chính;
-    \item hỗ trợ dependency injection cho các thành phần như clock hoặc hashing service.
-\end{itemize}
-
-Thiết kế này tuân theo nguyên tắc mở rộng mà hạn chế sửa đổi. Khi bổ sung rule theo organization, thời gian hoặc thuộc tính, hệ thống chỉ cần triển khai evaluator mới, đăng ký vào registry và cập nhật validation contract.
-
-Rule Evaluation Engine chính vẫn chịu trách nhiệm cho các bước chung gồm kiểm tra precedence toàn cục, sắp xếp rule, tìm evaluator phù hợp, dừng tại rule đầu tiên khớp và tạo EvaluationResult. Logic đặc thù của từng loại rule được đóng gói trong các strategy riêng biệt, giúp cấu trúc hệ thống rõ ràng và dễ mở rộng.
+Điểm cần giữ ổn định khi mở rộng là thứ tự precedence toàn cục, nguyên tắc fail-closed, validation tham số rule và khả năng giải thích kết quả bằng reason code. Nhờ đó, engine có thể tăng khả năng biểu đạt nhưng vẫn duy trì tính xác định và khả năng kiểm thử của nền tảng Feature Flag.

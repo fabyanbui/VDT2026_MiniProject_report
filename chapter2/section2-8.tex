@@ -242,30 +242,19 @@ Bên cạnh việc kiểm tra quyền tại backend, Dashboard cũng cần phả
 
 Tuy nhiên, việc ẩn nút chức năng trên giao diện chỉ mang ý nghĩa hỗ trợ người dùng và không thay thế cho cơ chế kiểm tra quyền tại Backend API. Mọi thao tác thay đổi cấu hình vẫn phải được xác thực và phân quyền ở phía server để đảm bảo an toàn cho hệ thống.
 
+
 \subsection{Auditability và truy vết thay đổi}
 
-Một trong những yêu cầu quan trọng của hệ thống Feature Flag là mọi thay đổi cấu hình đều phải có khả năng truy vết. Khi xảy ra sự cố trên môi trường thực tế, đội phát triển cần xác định ai đã thực hiện thay đổi, thay đổi những gì và thay đổi vào thời điểm nào. Vì vậy, hệ thống cần xây dựng cơ chế audit log đầy đủ, đảm bảo mọi thao tác quản trị đều được ghi nhận và không thể bị chỉnh sửa sau khi lưu trữ. Điều này không chỉ hỗ trợ điều tra sự cố mà còn tăng tính minh bạch và trách nhiệm trong quá trình quản trị hệ thống \cite{owasp_logging}.
+Thiết kế dữ liệu đã mô tả cấu trúc \texttt{AuditLogEntry} và snapshot trước/sau của từng mutation. Trong phần hiệu năng và bảo mật, yêu cầu chính là bảo đảm audit log được tạo từ nguồn actor đáng tin cậy, không chứa dữ liệu nhạy cảm không cần thiết và không thể bị chỉnh sửa sau khi ghi \cite{owasp_logging}.
 
-\subsubsection{Ghi nhận actor}
+Các nguyên tắc vận hành được áp dụng gồm:
 
-Mỗi bản ghi audit log cần xác định rõ actor là người thực hiện thao tác. Actor thường bao gồm định danh người dùng đã được xác thực và có thể kèm theo các thông tin bổ sung như tên hiển thị hoặc vai trò tại thời điểm thực hiện thao tác.
+\begin{itemize}
+    \item actor phải được phân giải ở Backend API từ bearer token demo, không tin header actor do client tự khai báo;
+    \item mỗi mutation gắn với request ID để liên kết log ứng dụng, phản hồi API và bản ghi audit;
+    \item snapshot trước/sau chỉ lưu dữ liệu cấu hình cần thiết cho truy vết, tránh ghi token hoặc dữ liệu cá nhân không phục vụ quyết định feature flag;
+    \item audit log theo mô hình append-only, không cung cấp API cập nhật hoặc xóa bản ghi sau khi đã tạo;
+    \item việc ghi audit log phải nằm cùng transaction với mutation để tránh trường hợp cấu hình đã đổi nhưng lịch sử thay đổi bị thiếu.
+\end{itemize}
 
-Việc ghi nhận actor giúp xác định trách nhiệm đối với từng thay đổi cấu hình và hỗ trợ quá trình kiểm tra khi có sự cố hoặc thay đổi ngoài mong muốn. Trong hệ thống được đề xuất, mọi mutation endpoint đều yêu cầu actor hợp lệ trước khi thực hiện thay đổi dữ liệu. Nếu không xác định được actor, request sẽ bị từ chối thay vì tạo bản ghi audit log không đầy đủ.
-
-\subsubsection{Ghi nhận request ID}
-
-Bên cạnh actor, mỗi thao tác quản trị cũng được gắn với một request ID duy nhất. Request ID được tạo khi request đi vào hệ thống và được truyền xuyên suốt qua các thành phần của backend như controller, service, repository và audit log.
-
-Việc lưu request ID giúp liên kết các bản ghi log của cùng một request, hỗ trợ quá trình truy vết khi phân tích lỗi hoặc điều tra sự cố. Khi kết hợp với log của ứng dụng và cơ sở dữ liệu, request ID giúp tái hiện toàn bộ luồng xử lý của một thao tác quản trị mà không cần suy luận từ thời gian thực hiện.
-
-\subsubsection{Snapshot trước và sau thay đổi}
-
-Để biết chính xác nội dung đã được chỉnh sửa, audit log không chỉ ghi nhận loại thao tác mà còn lưu snapshot của dữ liệu trước và sau khi thay đổi. Snapshot có thể bao gồm các thông tin như trạng thái feature flag, serving mode, danh sách rule hoặc các thuộc tính cấu hình khác tùy theo đối tượng được cập nhật.
-
-Việc lưu cả hai phiên bản dữ liệu giúp dễ dàng xác định các trường đã thay đổi, hỗ trợ khôi phục cấu hình khi cần thiết và phục vụ quá trình kiểm tra lịch sử thay đổi. Trong hệ thống được đề xuất, snapshot được lưu dưới dạng dữ liệu JSON nhằm biểu diễn đầy đủ cấu trúc của từng đối tượng mà không phụ thuộc vào số lượng thuộc tính của từng bảng dữ liệu \cite{postgresql_json_types}.
-
-\subsubsection{Bảo vệ tính toàn vẹn audit log}
-
-Audit log chỉ có giá trị khi các bản ghi không thể bị chỉnh sửa hoặc xóa sau khi đã được tạo. Nếu lịch sử thay đổi có thể bị sửa đổi, hệ thống sẽ mất khả năng truy vết và không còn đáp ứng yêu cầu về tính minh bạch của quá trình quản trị.
-
-Trong phạm vi mini project, audit log được thiết kế theo mô hình append-only. Sau khi một bản ghi được tạo, hệ thống không cung cấp API cập nhật hoặc xóa dữ liệu. Đồng thời, cơ sở dữ liệu có thể áp dụng các ràng buộc hoặc trigger để ngăn chặn thao tác \texttt{UPDATE} và \texttt{DELETE} trên bảng audit log. Cách tiếp cận này giúp bảo vệ tính toàn vẹn của lịch sử thay đổi và đảm bảo mọi thao tác quản trị đều có thể được truy vết về sau \cite{owasp_logging}.
+Cách tiếp cận này giảm lặp lại giữa phần thiết kế dữ liệu và phần bảo mật: mô hình bảng trả lời câu hỏi ``lưu gì'', còn các nguyên tắc trên trả lời câu hỏi ``ghi và bảo vệ lịch sử thay đổi như thế nào''.
