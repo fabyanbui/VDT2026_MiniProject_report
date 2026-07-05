@@ -1,124 +1,136 @@
-
 \section{Thiết kế API}
 
-\subsection{Nguyên tắc thiết kế API}
+API của hệ thống được thiết kế theo REST, dùng JSON, đặt dưới tiền tố \texttt{/v1} và dùng quy ước \texttt{camelCase}. Backend NestJS sinh Swagger/OpenAPI từ controller và DTO; khi chạy, Swagger UI có tại \texttt{/docs} và đặc tả JSON có tại \texttt{/docs/json}. Thiết kế API tách \textit{control plane} cho quản trị cấu hình, \textit{data plane} cho runtime evaluation và \textit{monitoring} cho audit/statistics; các endpoint dùng khóa nghiệp vụ ổn định như \texttt{projectKey}, \texttt{flagKey}, \texttt{groupKey} và request ID \texttt{X-Request-Id} để hỗ trợ truy vết.
 
-API của hệ thống được tổ chức theo kiến trúc REST, sử dụng JSON, tiền tố phiên bản \texttt{/v1} và quy ước trường dữ liệu dạng \texttt{camelCase}. Thiết kế hiện tại tách rõ hai nhóm endpoint:
+\subsection{Control plane API}
 
-\begin{itemize}
-    \item \textbf{Control plane}: các endpoint quản trị project, feature flag, rule, group, sample user, audit log, lịch sử cấu hình và thống kê. Nhóm này yêu cầu bearer token demo và được kiểm tra quyền ở backend.
-    \item \textbf{Data plane}: endpoint \texttt{POST /v1/evaluate}. Endpoint này phục vụ runtime evaluation cho demo app và SDK, không yêu cầu bearer token quản trị.
-\end{itemize}
+Control plane quản lý project, flag, rule, group và sample user. Nhóm endpoint này yêu cầu bearer token demo \texttt{demoBearer}; backend resolve actor theo token, kiểm tra quyền theo vai trò \texttt{ADMIN}/\texttt{DEVELOPER}/\texttt{VIEWER}, chuẩn hóa pagination bằng \texttt{items}/\texttt{page}, và ghi audit log cho các mutation quan trọng. Environment chưa có CRUD riêng; dữ liệu environment được dùng qua seed/model và được tham chiếu bằng \texttt{environmentKey} trong evaluation, group config và statistics.
 
-Các endpoint quản trị dùng khóa nghiệp vụ ổn định như \texttt{projectKey}, \texttt{flagKey} và \texttt{groupKey} trên URL thay vì yêu cầu frontend phải biết định danh nội bộ. Cách này khớp với source code hiện tại trong các controller NestJS và thuận tiện cho demo, vì người trình bày có thể đọc URL theo đúng ngữ nghĩa nghiệp vụ.
+\subsubsection{Project API}
 
-\subsubsection{Versioning đường dẫn API}
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Project API}
+    \label{tab:api-projects}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.34\textwidth} p{0.19\textwidth} p{0.26\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        GET & \path|/v1/projects| & \texttt{CONTROL\_PLANE\_READ} & Liệt kê project, trả \texttt{items} và \texttt{page}. Query kế thừa pagination. \\
+        POST & \path|/v1/projects| & \texttt{PROJECT\_MANAGE} & Tạo project với \texttt{key}, \texttt{name}, \texttt{description}. Trả \texttt{201 Created}. \\
+        GET & \path|/v1/projects/{projectKey}| & \texttt{CONTROL\_PLANE\_READ} & Xem chi tiết project theo khóa nghiệp vụ. \\
+        PATCH & \path|/v1/projects/{projectKey}| & \texttt{PROJECT\_MANAGE} & Cập nhật \texttt{name} hoặc \texttt{description}; \texttt{key} là bất biến. \\
+        DELETE & \path|/v1/projects/{projectKey}| & \texttt{PROJECT\_MANAGE} & Xóa project ở mức quản trị, trả \texttt{204 No Content}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Toàn bộ REST API được đặt dưới tiền tố \texttt{/v1}. Một số endpoint chính trong source code hiện tại gồm:
+\subsubsection{Feature Flag API}
 
-\begin{lstlisting}
-POST /v1/evaluate
-GET  /v1/projects
-GET  /v1/projects/{projectKey}/flags
-GET  /v1/projects/{projectKey}/groups
-GET  /v1/projects/{projectKey}/audit-logs
-GET  /v1/projects/{projectKey}/stats/flags
-\end{lstlisting}
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Feature Flag API}
+    \label{tab:api-feature-flags}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.38\textwidth} p{0.17\textwidth} p{0.24\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        GET & \path|/v1/projects/{projectKey}/flags| & \texttt{CONTROL\_PLANE\_READ} & Liệt kê flag chưa soft-delete. Query hỗ trợ \texttt{search}, \texttt{status}, \texttt{lifecycleStatus} và pagination. \\
+        GET & \path|/v1/projects/{projectKey}/flags/deleted| & \texttt{CONTROL\_PLANE\_READ} & Liệt kê flag đã soft-delete để có thể khôi phục khi cần. \\
+        POST & \path|/v1/projects/{projectKey}/flags| & \texttt{FLAG\_MANAGE} & Tạo flag với \texttt{key}, \texttt{name}, \texttt{description}; backend tạo config mặc định cho environment mặc định. \\
+        GET & \path|/v1/projects/{projectKey}/flags/{flagKey}| & \texttt{CONTROL\_PLANE\_READ} & Xem chi tiết một flag, gồm group summary nếu flag đang được gán group. \\
+        PATCH & \path|/v1/projects/{projectKey}/flags/{flagKey}| & \texttt{FLAG\_MANAGE} & Cập nhật metadata và config runtime: \texttt{name}, \texttt{description}, \texttt{status}, \texttt{servingMode}, \texttt{killSwitch}. \\
+        POST & \path|/v1/projects/{projectKey}/flags/{flagKey}/archive| & \texttt{FLAG\_LIFECYCLE\_MANAGE} & Archive flag; data plane sẽ trả tắt với reason \texttt{FLAG\_ARCHIVED}. \\
+        POST & \path|/v1/projects/{projectKey}/flags/{flagKey}/restore| & \texttt{FLAG\_LIFECYCLE\_MANAGE} & Khôi phục flag đã archive về vòng đời active. \\
+        DELETE & \path|/v1/projects/{projectKey}/flags/{flagKey}| & \texttt{FLAG\_LIFECYCLE\_MANAGE} & Soft-delete flag, trả \texttt{204 No Content}. \\
+        POST & \path|/v1/projects/{projectKey}/flags/{flagKey}/restore-deleted| & \texttt{FLAG\_LIFECYCLE\_MANAGE} & Khôi phục flag đã soft-delete. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Trong phạm vi mini project, chỉ có phiên bản \texttt{v1}. Nếu sau này cần thay đổi không tương thích ngược về request hoặc response, hệ thống có thể bổ sung \texttt{/v2} mà không phá vỡ client đang dùng \texttt{/v1}.
+\subsubsection{Rule API}
 
-\subsubsection{Phân trang, lọc và sắp xếp}
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Rule API}
+    \label{tab:api-rules}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.38\textwidth} p{0.18\textwidth} p{0.23\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        GET & \path|/v1/projects/{projectKey}/flags/{flagKey}/rules| & \texttt{CONTROL\_PLANE\_READ} & Liệt kê rule của flag. Query hỗ trợ \texttt{type} và pagination. \\
+        PUT & \path|/v1/projects/{projectKey}/flags/{flagKey}/rules| & \texttt{RULE\_MANAGE} & Thay thế toàn bộ rule set bằng mảng \texttt{rules}. Mỗi rule gồm \texttt{type}, \texttt{priority}, \texttt{enabled}, \texttt{parameters}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Các endpoint trả về danh sách sử dụng offset pagination với \texttt{limit} và \texttt{offset}. Giá trị mặc định là \texttt{limit = 20}, \texttt{offset = 0}; \texttt{limit} không vượt quá 100. Response danh sách trong backend hiện tại có dạng:
+\subsubsection{Flag Group API}
 
-\begin{lstlisting}
-{
-  "items": [],
-  "page": {
-    "limit": 20,
-    "offset": 0,
-    "total": 42,
-    "hasNext": true
-  }
-}
-\end{lstlisting}
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Flag Group API}
+    \label{tab:api-flag-groups}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.38\textwidth} p{0.18\textwidth} p{0.23\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        GET & \path|/v1/projects/{projectKey}/groups| & \texttt{CONTROL\_PLANE\_READ} & Liệt kê group. Query hỗ trợ \texttt{search}, \texttt{environmentKey} và pagination. \\
+        POST & \path|/v1/projects/{projectKey}/groups| & \texttt{GROUP\_MANAGE} & Tạo group với \texttt{key} và \texttt{name}. \texttt{key} là bất biến trong project. \\
+        PATCH & \path|/v1/projects/{projectKey}/groups/{groupKey}| & \texttt{GROUP\_MANAGE} & Đổi \texttt{name} của group. \\
+        DELETE & \path|/v1/projects/{projectKey}/groups/{groupKey}| & \texttt{GROUP\_MANAGE} & Xóa group, trả \texttt{204 No Content}. \\
+        PUT & \path|/v1/projects/{projectKey}/groups/{groupKey}/config| & \texttt{GROUP\_KILL\_SWITCH} & Cập nhật \texttt{killSwitch} cho một \texttt{environmentKey}. \\
+        PUT & \path|/v1/projects/{projectKey}/flags/{flagKey}/group| & \texttt{GROUP\_ASSIGN} & Gán flag vào group bằng body \texttt{groupKey}; trả lại flag response mới. \\
+        DELETE & \path|/v1/projects/{projectKey}/flags/{flagKey}/group| & \texttt{GROUP\_ASSIGN} & Gỡ flag khỏi group; trả lại flag response mới. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Các query filter phụ thuộc từng endpoint. Ví dụ, danh sách flag hỗ trợ \texttt{search}, \texttt{status} và \texttt{lifecycleStatus}; rule hỗ trợ lọc theo \texttt{type}; audit log hỗ trợ lọc theo \texttt{targetType}, \texttt{targetKey}, \texttt{actor}, \texttt{action}, \texttt{from} và \texttt{to}; statistics hỗ trợ \texttt{environmentKey}, khoảng thời gian và sort theo tổng số lượt evaluation.
+\subsubsection{Sample User API}
 
-\subsection{API quản lý project và environment}
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Sample User API}
+    \label{tab:api-sample-users}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.36\textwidth} p{0.20\textwidth} p{0.23\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        GET & \path|/v1/projects/{projectKey}/sample-users| & \texttt{CONTROL\_PLANE\_READ} & Liệt kê sample user. Query hỗ trợ \texttt{search}, \texttt{role} và pagination. \\
+        POST & \path|/v1/projects/{projectKey}/sample-users| & \texttt{SAMPLE\_USER\_MANAGE} & Tạo sample user với \texttt{displayName}, \texttt{targetingKey}, \texttt{userId}, \texttt{roles}, \texttt{attributes}. \\
+        DELETE & \path|/v1/projects/{projectKey}/sample-users/{targetingKey}| & \texttt{SAMPLE\_USER\_MANAGE} & Xóa sample user theo \texttt{targetingKey}, trả \texttt{204 No Content}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Project là phạm vi quản lý cấp cao nhất. Source code hiện tại triển khai các endpoint project sau:
+\subsection{Data plane API}
 
-\begin{itemize}
-    \item \texttt{GET /v1/projects}: danh sách project;
-    \item \texttt{POST /v1/projects}: tạo project;
-    \item \texttt{GET /v1/projects/\{projectKey\}}: xem chi tiết project;
-    \item \texttt{PATCH /v1/projects/\{projectKey\}}: cập nhật metadata;
-    \item \texttt{DELETE /v1/projects/\{projectKey\}}: soft delete project.
-\end{itemize}
+Data plane chỉ có một endpoint chính: \texttt{POST /v1/evaluate}. Endpoint này được đánh dấu public trong controller, không dùng bearer token quản trị, và được tối ưu cho tính xác định, fail-closed và an toàn khi thiếu cấu hình. Đây là API mà Demo Application gọi thông qua \texttt{@ffp/js-sdk} để quyết định có hiển thị một tính năng hay không.
 
-Endpoint quản lý environment riêng chưa được mở ra trong phiên bản hiện tại. Environment vẫn là một phần của mô hình dữ liệu và seed data, gồm các môi trường như \texttt{production}, \texttt{staging} và \texttt{development}. Evaluation API có thể nhận \texttt{environmentKey}; nếu client không truyền trường này, backend dùng environment mặc định của project. Nhờ đó, hệ thống vẫn chứng minh được khả năng cấu hình theo môi trường mà không làm dashboard phức tạp quá mức.
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Evaluation API}
+    \label{tab:api-evaluation}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.24\textwidth} p{0.20\textwidth} p{0.35\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        POST & \path|/v1/evaluate| & Public & Trả quyết định runtime cho một \texttt{projectKey}, \texttt{flagKey}, \texttt{environmentKey} tùy chọn và \texttt{context}. Response luôn có dạng evaluation result với \texttt{enabled}, \texttt{variant}, \texttt{reason}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsection{API quản lý Feature Flag}
+Request body của Evaluation API gồm khóa cấu hình và context runtime:
 
-Feature Flag được quản lý theo phạm vi project và được định danh bằng \texttt{flagKey}. Các endpoint hiện tại gồm:
-
-\begin{itemize}
-    \item \texttt{GET /v1/projects/\{projectKey\}/flags}: danh sách flag đang hoạt động;
-    \item \texttt{GET /v1/projects/\{projectKey\}/flags/deleted}: danh sách flag đã soft delete;
-    \item \texttt{POST /v1/projects/\{projectKey\}/flags}: tạo flag;
-    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}}: xem chi tiết flag;
-    \item \texttt{PATCH /v1/projects/\{projectKey\}/flags/\{flagKey\}}: cập nhật metadata và cấu hình runtime của default environment;
-    \item \texttt{POST /v1/projects/\{projectKey\}/flags/\{flagKey\}/archive}: archive flag;
-    \item \texttt{POST /v1/projects/\{projectKey\}/flags/\{flagKey\}/restore}: restore flag đã archive;
-    \item \texttt{DELETE /v1/projects/\{projectKey\}/flags/\{flagKey\}}: soft delete flag;
-    \item \texttt{POST /v1/projects/\{projectKey\}/flags/\{flagKey\}/restore-deleted}: khôi phục flag đã soft delete.
-\end{itemize}
-
-Khi tạo flag, backend tạo cấu hình \texttt{FlagEnvironmentConfig} mặc định với \texttt{status = DISABLED}, \texttt{servingMode = TARGETED} và \texttt{killSwitch = false}. Khi cập nhật \texttt{status}, \texttt{servingMode} hoặc \texttt{killSwitch}, backend ghi audit log trong cùng transaction và invalidation evaluation snapshot cache của flag liên quan.
-
-Cần phân biệt \texttt{lifecycleStatus} của flag với trạng thái runtime. \texttt{ACTIVE} hoặc \texttt{ARCHIVED} mô tả vòng đời của flag; còn \texttt{enabled} trong Evaluation API là kết quả On/Off tại runtime.
-
-\subsection{API quản lý rule}
-
-Source code hiện tại không dùng endpoint CRUD từng rule riêng lẻ. Dashboard gửi toàn bộ danh sách rule mong muốn cho một flag bằng endpoint replace:
-
-\begin{itemize}
-    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}/rules}: xem rule hiện tại;
-    \item \texttt{PUT /v1/projects/\{projectKey\}/flags/\{flagKey\}/rules}: thay thế toàn bộ ordered rule set.
-\end{itemize}
-
-Request \texttt{PUT} chứa mảng \texttt{rules}; mỗi rule có \texttt{type}, \texttt{priority}, \texttt{enabled} và \texttt{parameters}. Ba loại rule được hỗ trợ là \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_TARGETING} và \texttt{PERCENTAGE\_ROLLOUT}. Với source code hiện tại, user allowlist dùng \texttt{parameters.userIds}; role targeting dùng \texttt{parameters.roles}; percentage rollout dùng \texttt{parameters.percentage}. Rule bị disable được bỏ qua khi evaluation.
-
-Việc replace toàn bộ danh sách rule giúp UI dễ lưu thứ tự hiện tại và giúp audit log ghi được snapshot trước/sau của toàn bộ rule set bằng action \texttt{FLAG\_RULES\_REPLACED}.
-
-\subsection{API quản lý flag group và group kill switch}
-
-Flag group là chức năng khuyến khích đã được triển khai để hỗ trợ kill switch theo nhóm. Các endpoint chính gồm:
-
-\begin{itemize}
-    \item \texttt{GET /v1/projects/\{projectKey\}/groups}: danh sách group;
-    \item \texttt{POST /v1/projects/\{projectKey\}/groups}: tạo group;
-    \item \texttt{PATCH /v1/projects/\{projectKey\}/groups/\{groupKey\}}: đổi tên group;
-    \item \texttt{DELETE /v1/projects/\{projectKey\}/groups/\{groupKey\}}: xóa group;
-    \item \texttt{PUT /v1/projects/\{projectKey\}/groups/\{groupKey\}/config}: bật hoặc tắt kill switch của group trong một environment;
-    \item \texttt{PUT /v1/projects/\{projectKey\}/flags/\{flagKey\}/group}: gán flag vào group;
-    \item \texttt{DELETE /v1/projects/\{projectKey\}/flags/\{flagKey\}/group}: gỡ flag khỏi group.
-\end{itemize}
-
-Trạng thái kill switch của group được lưu trong \texttt{FlagGroupConfig} theo từng environment. Khi group kill switch bật, Evaluation Engine trả \texttt{enabled = false} với reason \texttt{GROUP\_KILL\_SWITCH} sau khi đã kiểm tra \texttt{FLAG\_ARCHIVED} và \texttt{FLAG\_DISABLED}, nhưng trước flag-level \texttt{KILL\_SWITCH}, \texttt{GLOBAL\_ON} và các rule targeting.
-
-\subsection{Evaluation API}
-
-Evaluation API là data-plane endpoint công khai của demo:
-
-\begin{lstlisting}
-POST /v1/evaluate
-\end{lstlisting}
-
-Request body gồm project, flag, environment tùy chọn và evaluation context:
-
-\begin{lstlisting}
+\begin{lstlisting}[
+    caption={Ví dụ request Evaluation API},
+    label={lst:evaluation-api-request}
+]
 {
   "projectKey": "demo-project",
   "environmentKey": "production",
@@ -126,81 +138,103 @@ Request body gồm project, flag, environment tùy chọn và evaluation context
   "context": {
     "targetingKey": "demo-user-beta",
     "userId": "demo-user-beta",
-    "roles": ["beta-customer"]
+    "roles": ["beta-tester"],
+    "attributes": {
+      "plan": "pro",
+      "country": "VN"
+    }
   }
 }
 \end{lstlisting}
 
-Response luôn chứa \texttt{projectKey}, \texttt{flagKey}, \texttt{enabled}, \texttt{variant}, \texttt{reason} và \texttt{matchedRuleId}:
+Response body trả lại quyết định đã được giải thích bằng reason code:
 
-\begin{lstlisting}
+\begin{lstlisting}[
+    caption={Ví dụ response Evaluation API},
+    label={lst:evaluation-api-response}
+]
 {
   "projectKey": "demo-project",
   "flagKey": "new-checkout",
   "enabled": true,
   "variant": "on",
   "reason": "ROLE_MATCH",
-  "matchedRuleId": "rule-id"
+  "matchedRuleId": "rule_123"
 }
 \end{lstlisting}
 
-Nếu project, environment, flag hoặc flag environment config không tồn tại, API trả evaluation-shaped response an toàn với \texttt{enabled = false}, \texttt{variant = off}, \texttt{reason = NOT\_FOUND}. Nếu percentage rollout được đánh giá nhưng thiếu \texttt{targetingKey}, API trả \texttt{INVALID\_CONTEXT}. Lỗi bất ngờ trong evaluation path được bắt lại và trả \texttt{ERROR} theo nguyên tắc fail-closed.
+Nếu project, environment, flag hoặc config theo environment không tồn tại, API không trả lỗi \texttt{404} kiểu control plane mà trả kết quả an toàn: \texttt{enabled = false}, \texttt{variant = "off"}, \texttt{reason = "NOT\_FOUND"}. Nếu request hợp lệ nhưng thiếu context cần thiết cho percentage rollout, engine trả \texttt{INVALID\_CONTEXT}. Nếu có lỗi bất ngờ trong đường evaluate, service bắt lỗi và trả \texttt{ERROR} theo nguyên tắc fail-closed. Các reason code hiện có gồm \texttt{GLOBAL\_ON}, \texttt{FLAG\_DISABLED}, \texttt{FLAG\_ARCHIVED}, \texttt{GROUP\_KILL\_SWITCH}, \texttt{KILL\_SWITCH}, \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_ROLLOUT}, \texttt{DEFAULT\_OFF}, \texttt{NOT\_FOUND}, \texttt{INVALID\_CONTEXT} và \texttt{ERROR}.
 
-Các reason code hiện tại gồm \texttt{GLOBAL\_ON}, \texttt{FLAG\_DISABLED}, \texttt{FLAG\_ARCHIVED}, \texttt{GROUP\_KILL\_SWITCH}, \texttt{KILL\_SWITCH}, \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_MATCH}, \texttt{PERCENTAGE\_ROLLOUT}, \texttt{DEFAULT\_OFF}, \texttt{NOT\_FOUND}, \texttt{INVALID\_CONTEXT} và \texttt{ERROR}.
+Thứ tự ưu tiên của data plane là: archived flag, disabled config, group kill switch, flag kill switch, global on, ordered enabled rules và default off. Vì vậy một rule rollout không thể vô tình bật flag khi flag đã bị archive, disabled hoặc bị kill switch.
 
-\subsection{API audit log và lịch sử cấu hình}
+\subsection{Monitoring API}
 
-Audit log được truy vấn trong phạm vi project:
+Monitoring API gồm audit/history và evaluation statistics. Audit log là nguồn append-only để truy vết actor, action, target, request ID và snapshot trước/sau; flag history là projection từ audit log, không tạo nguồn sự thật thứ hai. Statistics chỉ lưu dữ liệu aggregate theo flag, environment, reason, enabled/disabled và bucket giờ UTC, không lưu raw evaluation context hay định danh người dùng cuối. Ngoài ra backend có health probe công khai \path|GET /v1/health|.
 
-\begin{itemize}
-    \item \texttt{GET /v1/projects/\{projectKey\}/audit-logs}: danh sách audit log;
-    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}/history}: lịch sử cấu hình tập trung của một flag.
-\end{itemize}
+\subsubsection{Audit Log API}
 
-Audit log lưu \texttt{actor}, \texttt{action}, \texttt{targetType}, \texttt{targetId}, \texttt{targetKey}, \texttt{before}, \texttt{after}, \texttt{metadata}, \texttt{requestId} và thời điểm tạo. Các thao tác mutation quan trọng như tạo/cập nhật project, tạo/cập nhật/archive/restore/delete flag, replace rule, tạo/cập nhật group, bật/tắt group kill switch và gán/gỡ group đều ghi audit log cùng transaction với thay đổi nghiệp vụ.
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Audit Log và Flag History API}
+    \label{tab:api-audit-history}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.38\textwidth} p{0.19\textwidth} p{0.22\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        GET & \path|/v1/projects/{projectKey}/audit-logs| & \texttt{CONTROL\_PLANE\_READ} & Liệt kê audit log của project. Query hỗ trợ \texttt{targetType}, \texttt{targetKey}, \texttt{actor}, \texttt{action}, \texttt{from}, \texttt{to} và pagination. \\
+        GET & \path|/v1/projects/{projectKey}/flags/{flagKey}/history| & \texttt{CONTROL\_PLANE\_READ} & Lịch sử cấu hình của một flag, được projection từ audit log liên quan đến flag, config và rule. Query hỗ trợ pagination và \texttt{sort=createdAt}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Endpoint history không tạo bảng version riêng. Nó là projection đọc từ \texttt{AuditLogEntry} cho flag, flag environment config và rule liên quan. Cách này đáp ứng yêu cầu lịch sử cấu hình mà không tạo hai nguồn sự thật song song.
+\subsubsection{Evaluation Statistics API}
 
-\subsection{API thống kê evaluation}
-
-Thống kê evaluation là chức năng khuyến khích đã được triển khai bằng dữ liệu aggregate theo giờ UTC, không lưu raw evaluation context. Các endpoint hiện tại gồm:
-
-\begin{itemize}
-    \item \texttt{GET /v1/projects/\{projectKey\}/stats/flags}: tổng hợp theo các flag trong project;
-    \item \texttt{GET /v1/projects/\{projectKey\}/flags/\{flagKey\}/stats}: thống kê chi tiết một flag.
-\end{itemize}
-
-Dữ liệu thống kê được nhóm theo \texttt{projectKey}, \texttt{environmentKey}, \texttt{flagKey}, \texttt{bucketStart}, \texttt{reason} và \texttt{enabled}. Hệ thống cố ý không lưu targeting key, user ID, role, attributes hay matched rule ID trong bảng metric. Việc ghi metric là best-effort; nếu ghi metric thất bại, Evaluation API vẫn trả kết quả cho client.
+\begin{table}[H]
+    \centering
+    \scriptsize
+    \caption{Đặc tả Evaluation Statistics API}
+    \label{tab:api-statistics}
+    \begin{tabular}{@{}p{0.12\textwidth} p{0.36\textwidth} p{0.19\textwidth} p{0.24\textwidth}@{}}
+        \toprule
+        \textbf{Method} & \textbf{Endpoint} & \textbf{Quyền} & \textbf{Mục đích và dữ liệu chính} \\
+        \midrule
+        GET & \path|/v1/projects/{projectKey}/stats/flags| & \texttt{CONTROL\_PLANE\_READ} & Thống kê tổng hợp theo các flag trong project. Query hỗ trợ \texttt{environmentKey}, \texttt{from}, \texttt{to}, pagination và sort theo \texttt{totalEvaluations}, \texttt{enabledCount}, \texttt{disabledCount}, \texttt{flagKey}. \\
+        GET & \path|/v1/projects/{projectKey}/flags/{flagKey}/stats| & \texttt{CONTROL\_PLANE\_READ} & Thống kê chi tiết một flag: tổng lượt evaluate, số enabled/disabled, phần trăm enabled, breakdown theo reason và bucket theo giờ. Query hỗ trợ \texttt{environmentKey}, \texttt{from}, \texttt{to}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \subsection{Validation và mô hình lỗi}
 
-Backend sử dụng DTO, \texttt{class-validator}, \texttt{ValidationPipe} và global exception filter để chuẩn hóa validation và error response. Key nghiệp vụ tuân theo biểu thức chính quy:
+Validation được thực hiện ở biên API bằng DTO, \texttt{class-validator}, \texttt{class-transformer} và global \texttt{ValidationPipe}. Pipe bật \texttt{whitelist}, \texttt{forbidNonWhitelisted} và \texttt{transform}, vì vậy field ngoài DTO bị từ chối, query string như \texttt{limit} được chuyển sang số, và lỗi validation được chuẩn hóa trước khi vào service. Các khóa nghiệp vụ như \texttt{projectKey}, \texttt{flagKey}, \texttt{groupKey} và \texttt{environmentKey} dùng regex:
 
-\begin{lstlisting}
+\begin{lstlisting}[
+    caption={Định dạng key nghiệp vụ},
+    label={lst:key-regex}
+]
 ^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$
 \end{lstlisting}
 
-Điều này tương ứng với độ dài 3--64 ký tự, chỉ gồm chữ thường, chữ số và dấu gạch ngang, không bắt đầu hoặc kết thúc bằng dấu gạch ngang. Error response control-plane có dạng:
+Quy tắc này tương ứng độ dài 3--64 ký tự, chỉ gồm chữ thường, chữ số và dấu gạch ngang, không bắt đầu hoặc kết thúc bằng dấu gạch ngang. Các DTO còn giới hạn độ dài \texttt{name} tối đa 120 ký tự, \texttt{description} tối đa 1000 ký tự, pagination \texttt{limit} từ 1 đến 100, \texttt{offset} không âm, thời gian \texttt{from}/\texttt{to} theo ISO-8601 và enum phải thuộc giá trị hợp lệ.
 
-\begin{lstlisting}
+Control-plane error response có dạng thống nhất:
+
+\begin{lstlisting}[
+    caption={Mẫu error response của control plane},
+    label={lst:api-error-response}
+]
 {
   "code": "VALIDATION_ERROR",
   "message": "Request validation failed.",
   "details": [
-    { "field": "projectKey", "message": "Invalid key format" }
+    {
+      "field": "projectKey",
+      "message": "projectKey must be a valid 3-64 character key."
+    }
   ],
-  "requestId": "request-id"
+  "requestId": "req_123"
 }
 \end{lstlisting}
 
-Các mã lỗi hiện tại gồm \texttt{VALIDATION\_ERROR}, \texttt{UNAUTHORIZED}, \texttt{FORBIDDEN}, \texttt{NOT\_FOUND}, \texttt{CONFLICT} và \texttt{INTERNAL\_ERROR}. Request ID được lấy từ header \texttt{X-Request-Id} nếu có, hoặc được backend tạo tự động; giá trị này xuất hiện trong error response, audit log và log phía server để hỗ trợ truy vết \cite{owasp_rest_security,owasp_logging}.
-
-\subsection{Tài liệu hóa API}
-
-Backend sinh tài liệu OpenAPI/Swagger từ controller và DTO. Sau khi backend khởi động, Swagger UI có tại:
-
-\begin{lstlisting}
-/docs
-\end{lstlisting}
-
-Swagger được cấu hình với bearer auth cho control-plane demo token và API key \texttt{X-Request-Id}. Các tag chính gồm Health, Projects, Feature Flags, Rules, Evaluation, Statistics, Sample Users và Audit Logs. Việc sinh tài liệu từ source code giúp báo cáo, frontend, SDK và kiểm thử bám sát hợp đồng triển khai thực tế.
+Các mã lỗi chuẩn gồm \texttt{VALIDATION\_ERROR}, \texttt{UNAUTHORIZED}, \texttt{FORBIDDEN}, \texttt{NOT\_FOUND}, \texttt{CONFLICT} và \texttt{INTERNAL\_ERROR}. \texttt{UNAUTHORIZED} dùng khi thiếu hoặc sai bearer token demo; \texttt{FORBIDDEN} dùng khi role đã xác thực nhưng không có permission; \texttt{CONFLICT} dùng cho xung đột như khóa đã tồn tại; \texttt{INTERNAL\_ERROR} che giấu chi tiết lỗi nội bộ nhưng vẫn log kèm request ID. Riêng Evaluation API có thêm mô hình lỗi domain bằng reason code trong response 200 để giữ fail-closed, ví dụ \texttt{NOT\_FOUND}, \texttt{INVALID\_CONTEXT} hoặc \texttt{ERROR} đều trả \texttt{enabled = false} và \texttt{variant = off} thay vì để client tự suy diễn.
