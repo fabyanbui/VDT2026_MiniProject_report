@@ -1,131 +1,261 @@
-\section{Phân tích bài toán và yêu cầu hệ thống}
+\section{Phân tích yêu cầu hệ thống}
 
-Mục này xác định phạm vi bài toán trước khi đi vào thiết kế. Các mô tả dưới đây dừng ở mức yêu cầu; chi tiết kiến trúc, dữ liệu, API và kiểm thử được trình bày ở các mục riêng để tránh trùng lặp.
+Mục này chuyển các yêu cầu của đề tài thành phạm vi hệ thống cần xây dựng. Hệ thống được xem như một nền tảng Feature Flag thu nhỏ cho ứng dụng web, gồm phần quản trị cấu hình, phần đánh giá flag ở thời điểm chạy và ứng dụng demo chứng minh giá trị của việc tách \textit{deploy} khỏi \textit{release}.
 
-\subsection{Các đối tượng sử dụng hệ thống}
+Các stakeholder và actor chính của hệ thống gồm:
 
-Hệ thống phục vụ bốn nhóm tác nhân: người quản trị, nhà phát triển, người xem và ứng dụng tích hợp Feature Flag.
+\begin{itemize}
+    \item \textbf{Quản trị viên}: chịu trách nhiệm tạo project, quản lý Feature Flag, cấu hình rule, kích hoạt kill switch, phân quyền demo và theo dõi toàn bộ lịch sử thay đổi.
+    \item \textbf{Nhà phát triển}: chuẩn bị cấu hình rollout, kiểm thử rule, tích hợp Evaluation API hoặc JavaScript SDK vào ứng dụng khách và sử dụng audit/history để đối chiếu khi có sự cố.
+    \item \textbf{Người xem}: quan sát project, flag, audit log, lịch sử cấu hình và thống kê evaluation nhưng không được thay đổi cấu hình.
+    \item \textbf{Ứng dụng tích hợp Feature Flag}: gửi evaluation request kèm context người dùng không nhạy cảm và dùng kết quả trả về để bật hoặc ẩn tính năng tại runtime.
+    \item \textbf{Người dùng cuối của ứng dụng demo}: không trực tiếp quản trị nền tảng nhưng là đối tượng nhìn thấy tác động của các quyết định bật/tắt, targeting hoặc percentage rollout.
+\end{itemize}
 
-\subsubsection{Quản trị viên}
+Từ các actor trên, các trường hợp sử dụng chính được gom thành bốn nhóm. Nhóm quản trị cấu hình bao gồm quản lý project, Feature Flag, rule rollout và kill switch. Nhóm runtime evaluation bao gồm việc ứng dụng khách gọi Evaluation API hoặc SDK để nhận quyết định bật/tắt có reason code. Nhóm quan sát và truy vết bao gồm audit log, lịch sử cấu hình và thống kê số lượt evaluation. Nhóm trình diễn bao gồm các kịch bản global enable/disable, targeting theo role hoặc user, percentage rollout và rollback nhanh mà không cần triển khai lại ứng dụng.
 
-Quản trị viên chịu trách nhiệm tạo project, cấu hình flag, quản lý rule/group, kích hoạt kill switch và theo dõi lịch sử thay đổi.
+\subsection{Yêu cầu chức năng}
 
-\subsubsection{Nhà phát triển}
+Bảng~\ref{tab:mvp-functional-requirements} tóm tắt các yêu cầu chức năng ở mức MVP. Đây là phạm vi bắt buộc để hệ thống có một luồng end-to-end hoàn chỉnh từ quản trị flag đến ứng dụng demo.
 
-Nhà phát triển sử dụng nền tảng để chuẩn bị rollout, kiểm thử cấu hình và tích hợp Evaluation API hoặc SDK vào ứng dụng.
+\begin{table}[H]
+    \centering
+    \caption{Yêu cầu chức năng mức MVP}
+    \label{tab:mvp-functional-requirements}
+    \begin{tabular}{p{0.13\textwidth} p{0.37\textwidth} p{0.18\textwidth} p{0.22\textwidth}}
+        \toprule
+        \textbf{Mã} & \textbf{Yêu cầu} & \textbf{Actor chính} & \textbf{Kết quả mong đợi} \\
+        \midrule
+        FR-MVP-01 & Quản lý project dùng làm phạm vi chứa Feature Flag và dữ liệu cấu hình liên quan. & Quản trị viên, nhà phát triển & Có thể tạo, xem và chọn project để quản trị flag. \\
+        FR-MVP-02 & Quản lý vòng đời Feature Flag gồm tạo, xem danh sách, cập nhật thông tin và thể hiện trạng thái rõ ràng. & Quản trị viên, nhà phát triển & Dashboard hiển thị được flag và trạng thái quản trị của flag. \\
+        FR-MVP-03 & Cấu hình rule cho flag, bao gồm bật/tắt toàn cục, allowlist theo user ID, targeting theo role và rollout theo phần trăm người dùng. & Quản trị viên, nhà phát triển & Rule được lưu bền vững và được engine sử dụng khi evaluation. \\
+        FR-MVP-04 & Cung cấp Evaluation API để ứng dụng khách gửi project key, flag key và user context. & Ứng dụng tích hợp Feature Flag & API trả về quyết định bật/tắt cho flag tương ứng. \\
+        FR-MVP-05 & Trả response evaluation có cấu trúc nhất quán, tối thiểu gồm \texttt{enabled}, \texttt{reason}, \texttt{projectKey} và \texttt{flagKey}. & Ứng dụng tích hợp Feature Flag & Ứng dụng khách có thể giải thích lý do bật/tắt và xử lý fallback. \\
+        FR-MVP-06 & Ghi audit log cho các thay đổi cấu hình flag và rule. & Quản trị viên, nhà phát triển, người xem & Có thể truy vết ai thay đổi gì, khi nào và giá trị trước/sau. \\
+        FR-MVP-07 & Cung cấp Dashboard với các màn hình project list, flag list, tạo/sửa flag, rule configuration và audit log. & Quản trị viên, nhà phát triển, người xem & Người dùng thao tác được luồng quản trị chính qua giao diện web. \\
+        FR-MVP-08 & Cung cấp Demo Application gọi Evaluation API và hiển thị hoặc ẩn tính năng dựa trên kết quả flag. & Người dùng cuối, ứng dụng tích hợp Feature Flag & Demo chứng minh thay đổi cấu hình không cần deploy lại ứng dụng. \\
+        FR-MVP-09 & Hỗ trợ tối thiểu hai kịch bản demo: global enable/disable và targeting theo role hoặc percentage rollout. & Quản trị viên, người dùng cuối & Người chấm có thể quan sát trực tiếp giá trị của Feature Flag. \\
+        FR-MVP-10 & Lưu trữ project, flag, rule, sample user context và audit log trong database; có validation, xử lý lỗi cơ bản, seed data và hướng dẫn chạy. & Toàn hệ thống & Hệ thống có thể khởi chạy lặp lại và phục vụ kiểm thử/chấm điểm. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Người xem}
+Sau khi MVP ổn định, hệ thống bổ sung các yêu cầu khuyến khích trong Bảng~\ref{tab:recommended-functional-requirements}. Các yêu cầu này làm sản phẩm gần hơn với một nền tảng Feature Flag thực tế nhưng không được làm suy giảm baseline MVP.
 
-Người xem cần quan sát trạng thái flag, audit log và thống kê nhưng không được thực hiện mutation cấu hình.
+\begin{table}[H]
+    \centering
+    \caption{Yêu cầu chức năng mức khuyến khích}
+    \label{tab:recommended-functional-requirements}
+    \begin{tabular}{p{0.13\textwidth} p{0.40\textwidth} p{0.18\textwidth} p{0.19\textwidth}}
+        \toprule
+        \textbf{Mã} & \textbf{Yêu cầu} & \textbf{Actor chính} & \textbf{Giá trị bổ sung} \\
+        \midrule
+        FR-REC-01 & Cache evaluation snapshot bằng in-memory cache hoặc Redis để giảm truy vấn lặp trong Evaluation API. & Ứng dụng tích hợp Feature Flag & Tăng hiệu năng runtime nhưng không thay đổi tính đúng đắn. \\
+        FR-REC-02 & Cung cấp JavaScript SDK để ứng dụng web gọi Evaluation API qua giao diện ổn định, có timeout và fallback an toàn. & Nhà phát triển, ứng dụng tích hợp Feature Flag & Giảm mã tích hợp lặp lại ở phía client. \\
+        FR-REC-03 & Bổ sung unit test cho Rule Evaluation Engine, đặc biệt là precedence, stable rollout, kill switch và trường hợp thiếu dữ liệu. & Nhà phát triển & Tăng độ tin cậy và khả năng bảo trì. \\
+        FR-REC-04 & Cung cấp lịch sử cấu hình hoặc rule versioning dựa trên audit log. & Quản trị viên, nhà phát triển, người xem & Hỗ trợ truy vết và giải thích thay đổi theo thời gian. \\
+        FR-REC-05 & Áp dụng RBAC demo với ba vai trò admin, developer và viewer cho các thao tác quản trị. & Quản trị viên, nhà phát triển, người xem & Thể hiện ranh giới quyền và giảm rủi ro thao tác nhầm. \\
+        FR-REC-06 & Cung cấp statistics dashboard cho số lượt evaluation theo flag, kết quả và thời gian. & Quản trị viên, nhà phát triển, người xem & Hỗ trợ quan sát tác động của flag trong demo. \\
+        FR-REC-07 & Hỗ trợ group kill switch để vô hiệu hóa nhanh một nhóm flag liên quan. & Quản trị viên, nhà phát triển & Cho phép rollback nhanh ở cấp nhóm tính năng. \\
+        FR-REC-08 & Cung cấp Docker Compose để khởi chạy database, backend, dashboard, demo và các tác vụ migration/seed. & Nhà phát triển, người chấm & Đơn giản hóa setup và tăng khả năng tái lập khi trình diễn. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Ứng dụng tích hợp Feature Flag}
-
-Ứng dụng tích hợp gửi evaluation request kèm context và sử dụng kết quả trả về để bật hoặc ẩn hành vi tương ứng.
-
-\subsection{Các ca sử dụng chính}
-
-Các ca sử dụng được gom theo chuỗi thao tác từ quản trị đến runtime evaluation.
-
-\subsubsection{Quản lý project và environment}
-
-Người dùng cần tạo project và sử dụng environment làm phạm vi cấu hình/evaluation.
-
-\subsubsection{Quản lý Feature Flag}
-
-Hệ thống cần hỗ trợ tạo, cập nhật, archive/restore và xem trạng thái của Feature Flag.
-
-\subsubsection{Cấu hình chiến lược rollout}
-
-Người dùng cần cấu hình serving mode, user allowlist, role targeting, percentage rollout và kill switch.
-
-\subsubsection{Đánh giá Feature Flag}
-
-Ứng dụng khách cần nhận quyết định bật/tắt có reason code từ Evaluation API.
-
-\subsubsection{Theo dõi thay đổi và thống kê}
-
-Hệ thống cần ghi lại mutation cấu hình và tổng hợp số lượt evaluation để hỗ trợ truy vết và trình diễn.
-
-\subsection{Yêu cầu chức năng mức MVP}
-
-MVP tập trung vào một luồng end-to-end hoàn chỉnh: quản trị flag, lưu dữ liệu, evaluate từ ứng dụng demo và kiểm chứng kết quả.
-
-\subsubsection{Yêu cầu đối với Backend API}
-
-Backend phải cung cấp Management API, Evaluation API, validation, lỗi chuẩn hóa, persistence, audit log và seed data.
-
-\subsubsection{Yêu cầu đối với Frontend Dashboard}
-
-Dashboard phải cho phép quản lý project/flag/rule, quan sát trạng thái, xem audit log và thống kê ở mức đủ cho demo.
-
-\subsubsection{Yêu cầu đối với Demo Application}
-
-Demo Application phải cho thấy thay đổi cấu hình trên Dashboard ảnh hưởng đến hành vi ứng dụng mà không cần deploy lại.
-
-\subsubsection{Yêu cầu đối với dữ liệu và tài liệu}
-
-Sản phẩm cần có schema/migration, dữ liệu mẫu, tài liệu thiết kế ngắn và hướng dẫn chạy để phục vụ chấm điểm.
-
+\setcounter{subsection}{2}
 \subsection{Yêu cầu phi chức năng}
 
-Các yêu cầu phi chức năng bảo đảm hệ thống không chỉ chạy được mà còn có hành vi đáng tin cậy khi cấu hình phức tạp hơn.
+Các yêu cầu phi chức năng áp dụng cho cả MVP và các phần khuyến khích, nhằm đảm bảo hệ thống không chỉ có đủ chức năng mà còn có hành vi an toàn, dễ giải thích và phù hợp để trình diễn.
 
-\subsubsection{Tính đúng đắn và xác định của kết quả}
+\begin{itemize}
+    \item \textbf{Tính đúng đắn và xác định}: cùng một cấu hình và cùng một evaluation context phải luôn cho cùng kết quả. Percentage rollout phải dùng stable hashing trên khóa ổn định, không chứa PII.
+    \item \textbf{Mặc định an toàn}: khi project hoặc flag không tồn tại, hoặc khi evaluation không thể hoàn tất đáng tin cậy, hệ thống phải trả \texttt{enabled=false}; trường hợp không tìm thấy phải có reason \texttt{NOT\_FOUND}.
+    \item \textbf{Thứ tự ưu tiên rõ ràng}: engine phải tuân thủ precedence thống nhất: flag archived, cấu hình disabled, group kill switch, flag kill switch, global on, các rule targeting có thứ tự và cuối cùng là default off.
+    \item \textbf{Tách control plane và data plane}: Dashboard và Management API quản lý cấu hình; Evaluation API và Rule Evaluation Engine phục vụ runtime decision. Ứng dụng khách không được phụ thuộc vào dữ liệu quản trị nội bộ.
+    \item \textbf{Truy vết và nhất quán dữ liệu}: mutation quan trọng phải ghi audit log append-only với actor, timestamp, target và snapshot trước/sau trong cùng giao dịch lưu dữ liệu.
+    \item \textbf{Hiệu năng evaluation}: Evaluation API cần độ trễ thấp; cache snapshot chỉ là tầng tăng tốc và có thể bị xóa mà không làm mất nguồn sự thật trong database.
+    \item \textbf{Bảo mật và quyền truy cập}: Management API cần kiểm tra quyền theo RBAC demo; evaluation context do client gửi chỉ dùng để targeting, không được xem là bằng chứng phân quyền thật.
+    \item \textbf{Bảo vệ dữ liệu cá nhân}: hệ thống ưu tiên stable targeting key và dữ liệu mẫu không nhạy cảm; rollout không phụ thuộc vào thông tin định danh trực tiếp của người dùng thật.
+    \item \textbf{Khả dụng cho demo}: seed data, README và Docker Compose phải giúp người chấm khởi chạy lại hệ thống trong môi trường mới với ít bước thủ công.
+    \item \textbf{Khả năng bảo trì và mở rộng}: logic evaluation phải tách khỏi controller, có test tự động và có thể mở rộng thêm rule, SDK hoặc backend triển khai khác trong tương lai.
+    \item \textbf{Tính dễ dùng của giao diện}: Dashboard phải phân biệt trạng thái quản trị của flag như Enabled, Disabled, Archived với trạng thái runtime On/Off; các thao tác bị chặn bởi quyền phải được hiển thị rõ ràng.
+\end{itemize}
 
-Cùng một cấu hình và context phải cho cùng một kết quả; percentage rollout phải dùng stable hashing.
+\subsection{Đặc tả use case}
 
-\subsubsection{Hiệu năng evaluation}
+Hình~\ref{fig:feature-flag-use-case-model} trình bày use case model diagram của hệ thống. Sơ đồ thể hiện quan hệ giữa các actor quản trị, ứng dụng tích hợp Feature Flag và các use case chính được đặc tả bên dưới.
 
-Evaluation API cần có độ trễ thấp và có thể tận dụng snapshot cache mà không làm sai quyết định.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.98\textwidth,height=0.72\textheight,keepaspectratio]{\detokenize{Images/mermaid/Use case model diagram.png}}
+    \caption{Use case model diagram của Feature Flag Platform}
+    \label{fig:feature-flag-use-case-model}
+\end{figure}
 
-\subsubsection{Tính nhất quán của cấu hình}
+\subsubsection{Use case: Quản lý project}
 
-Mutation cấu hình phải làm mới dữ liệu runtime liên quan và tránh để engine dùng snapshot lỗi thời quá lâu.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Quản lý project}
+    \label{tab:uc-manage-project}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-01. \\
+        Actor chính & Quản trị viên, nhà phát triển. \\
+        Mục tiêu & Tạo và chọn project làm phạm vi quản lý Feature Flag. \\
+        Tiền điều kiện & Người dùng có quyền truy cập Dashboard. \\
+        Luồng chính & Người dùng mở danh sách project, tạo hoặc chọn project, hệ thống lưu dữ liệu và hiển thị project đang được quản trị. \\
+        Ngoại lệ & Dữ liệu không hợp lệ hoặc project key trùng thì hệ thống từ chối và trả thông báo lỗi. \\
+        Hậu điều kiện & Project tồn tại trong database và có thể được dùng cho flag, rule và evaluation. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Khả năng bảo trì và mở rộng}
+\subsubsection{Use case: Quản lý Feature Flag}
 
-Logic evaluation cần tách khỏi controller để có thể bổ sung rule hoặc SDK mới trong tương lai.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Quản lý Feature Flag}
+    \label{tab:uc-manage-flag}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-02. \\
+        Actor chính & Quản trị viên, nhà phát triển. \\
+        Mục tiêu & Tạo, cập nhật và quan sát trạng thái Feature Flag trong một project. \\
+        Tiền điều kiện & Project đã tồn tại; người dùng có quyền mutation phù hợp. \\
+        Luồng chính & Người dùng nhập key, tên, mô tả và trạng thái; Backend kiểm tra dữ liệu, lưu flag và ghi audit log. \\
+        Ngoại lệ & Flag key trùng, dữ liệu thiếu hoặc người dùng không đủ quyền thì thao tác bị từ chối. \\
+        Hậu điều kiện & Feature Flag được lưu bền vững, hiển thị trên Dashboard và sẵn sàng cấu hình rule. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Khả năng kiểm thử}
+\subsubsection{Use case: Cấu hình rule rollout}
 
-Các nhánh precedence, fallback, validation và persistence phải có test tự động hoặc kịch bản kiểm chứng rõ ràng.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Cấu hình rule rollout}
+    \label{tab:uc-configure-rollout-rule}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-03. \\
+        Actor chính & Quản trị viên, nhà phát triển. \\
+        Mục tiêu & Xác định cách flag được bật theo global mode, user allowlist, role targeting hoặc percentage rollout. \\
+        Tiền điều kiện & Feature Flag đã tồn tại và chưa bị archived. \\
+        Luồng chính & Người dùng cấu hình serving mode và danh sách rule có thứ tự; hệ thống validate tham số, lưu rule, invalidation snapshot liên quan và ghi audit log. \\
+        Ngoại lệ & Rule không hợp lệ, phần trăm rollout ngoài khoảng cho phép hoặc thiếu quyền thì hệ thống trả lỗi. \\
+        Hậu điều kiện & Evaluation Engine sử dụng rule mới trong các request tiếp theo. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Bảo mật và khả năng truy vết}
+\subsubsection{Use case: Đánh giá Feature Flag}
 
-Management API cần RBAC demo, audit log append-only và không tin tưởng dữ liệu context do client tự khai báo.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Đánh giá Feature Flag}
+    \label{tab:uc-evaluate-flag}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-04. \\
+        Actor chính & Ứng dụng tích hợp Feature Flag. \\
+        Mục tiêu & Nhận quyết định bật/tắt flag cho một context tại runtime. \\
+        Tiền điều kiện & Ứng dụng biết project key, flag key và endpoint evaluation; context dùng stable key không nhạy cảm. \\
+        Luồng chính & Ứng dụng gọi Evaluation API hoặc SDK; engine tải snapshot, áp dụng precedence và trả \texttt{enabled}, \texttt{reason}, \texttt{projectKey}, \texttt{flagKey}. \\
+        Ngoại lệ & Project/flag không tồn tại hoặc lỗi evaluation thì hệ thống trả kết quả fail-closed phù hợp. \\
+        Hậu điều kiện & Ứng dụng sử dụng kết quả để bật hoặc ẩn tính năng; cấu hình hệ thống không bị thay đổi bởi request evaluation. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsection{Các yêu cầu khuyến khích}
+\subsubsection{Use case: Xem audit log và lịch sử cấu hình}
 
-Ngoài MVP, đề tài bổ sung các năng lực giúp sản phẩm gần hơn với nền tảng Feature Flag thực tế.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Xem audit log và lịch sử cấu hình}
+    \label{tab:uc-view-audit-history}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-05. \\
+        Actor chính & Quản trị viên, nhà phát triển, người xem. \\
+        Mục tiêu & Truy vết các thay đổi cấu hình và giải thích vì sao trạng thái flag thay đổi theo thời gian. \\
+        Tiền điều kiện & Đã có mutation cấu hình hoặc seed data tạo audit entry. \\
+        Luồng chính & Người dùng mở màn hình audit/history, lọc theo project hoặc target; hệ thống hiển thị actor, action, timestamp và snapshot trước/sau. \\
+        Ngoại lệ & Nếu không có dữ liệu phù hợp, hệ thống hiển thị trạng thái rỗng thay vì lỗi. \\
+        Hậu điều kiện & Người dùng có bằng chứng truy vết để phục vụ debug, báo cáo và trình diễn. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Caching evaluation snapshot}
+\subsubsection{Use case: Quản lý quyền truy cập demo}
 
-Cache snapshot cấu hình để giảm truy vấn lặp của Evaluation API.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Quản lý quyền truy cập demo}
+    \label{tab:uc-demo-rbac}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-06. \\
+        Actor chính & Quản trị viên, nhà phát triển, người xem. \\
+        Mục tiêu & Thể hiện sự khác biệt quyền giữa admin, developer và viewer trong Dashboard. \\
+        Tiền điều kiện & Hệ thống có danh sách identity demo hoặc bearer identity được backend phân giải. \\
+        Luồng chính & Người dùng chọn vai trò demo; Backend áp dụng permission matrix cho từng endpoint; Dashboard vô hiệu hóa hoặc ẩn thao tác không được phép. \\
+        Ngoại lệ & Nếu role không có quyền mutation, hệ thống trả lỗi authorization và không ghi thay đổi cấu hình. \\
+        Hậu điều kiện & Audit log ghi actor đáng tin cậy từ backend; người xem chỉ quan sát, không thể thay đổi dữ liệu. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{JavaScript SDK}
+\subsubsection{Use case: Theo dõi thống kê evaluation}
 
-SDK giúp ứng dụng web gọi Evaluation API bằng một giao diện ổn định và fail-closed.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Theo dõi thống kê evaluation}
+    \label{tab:uc-view-evaluation-statistics}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-07. \\
+        Actor chính & Quản trị viên, nhà phát triển, người xem. \\
+        Mục tiêu & Quan sát số lượt evaluation theo flag, kết quả và thời gian để thấy tác động runtime của cấu hình. \\
+        Tiền điều kiện & Demo Application hoặc client đã phát sinh evaluation request. \\
+        Luồng chính & Người dùng mở statistics dashboard; hệ thống đọc số liệu aggregate và hiển thị tổng lượt, lượt bật/tắt và phân bố theo reason hoặc khoảng thời gian. \\
+        Ngoại lệ & Khi chưa có số liệu, Dashboard hiển thị hướng dẫn chạy demo để tạo dữ liệu. \\
+        Hậu điều kiện & Người dùng có thêm bằng chứng trực quan cho quá trình rollout và rollback. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Unit test cho Rule Evaluation Engine}
+\subsubsection{Use case: Kích hoạt group kill switch}
 
-Engine cần test cho precedence, stable rollout và các trường hợp lỗi/thiếu context.
-
-\subsubsection{Versioning và lịch sử cấu hình}
-
-Lịch sử cấu hình được dựng từ audit log thay vì bảng version riêng.
-
-\subsubsection{Phân quyền người dùng quản trị}
-
-RBAC demo phân biệt admin, developer và viewer cho các thao tác quản trị.
-
-\subsubsection{Thống kê số lần evaluation}
-
-Hệ thống tổng hợp số lượt evaluation theo flag, kết quả và thời gian.
-
-\subsubsection{Group kill switch}
-
-Group kill switch cho phép vô hiệu hóa nhanh nhiều flag liên quan.
-
-\subsubsection{Triển khai bằng Docker Compose}
-
-Docker Compose cung cấp quy trình khởi chạy thống nhất cho database, backend, dashboard và demo.
+\begin{table}[H]
+    \centering
+    \caption{Đặc tả use case Kích hoạt group kill switch}
+    \label{tab:uc-group-kill-switch}
+    \begin{tabular}{p{0.24\textwidth} p{0.66\textwidth}}
+        \toprule
+        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \midrule
+        Use case ID & UC-08. \\
+        Actor chính & Quản trị viên, nhà phát triển. \\
+        Mục tiêu & Tắt nhanh một nhóm flag liên quan khi có sự cố hoặc cần rollback khẩn cấp. \\
+        Tiền điều kiện & Các flag đã được gán vào group; người dùng có quyền thay đổi kill switch. \\
+        Luồng chính & Người dùng bật kill switch cho group; hệ thống lưu trạng thái, ghi audit log và làm mới snapshot để evaluation sau đó trả về trạng thái tắt. \\
+        Ngoại lệ & Nếu group không tồn tại hoặc người dùng thiếu quyền, thao tác bị từ chối và không ảnh hưởng tới các flag. \\
+        Hậu điều kiện & Các flag thuộc group bị vô hiệu hóa ở runtime cho đến khi kill switch được gỡ. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
