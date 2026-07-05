@@ -1,73 +1,19 @@
 \section{Các đóng góp chính}
 
+Các đóng góp của đề tài được tổng hợp theo ba nhóm, tránh lặp lại phần mô tả chi tiết đã trình bày ở các chương trước.
+
 \subsection{Đóng góp về nghiên cứu}
 
-\subsubsection{Hệ thống hóa kiến thức Feature Flag}
+Báo cáo hệ thống hóa kiến thức về Feature Flag trong bối cảnh release management: tách deploy khỏi release, phân loại flag, các chiến lược targeting/rollout, rủi ro feature flag debt và yêu cầu vận hành an toàn. Việc khảo sát LaunchDarkly, Unleash, OpenFeature và các khuyến nghị bảo mật giúp xác định những thành phần cốt lõi cần có trong một nền tảng Feature Flag thu nhỏ.
 
-Đề tài đã hệ thống hóa các khái niệm nền tảng của Feature Flag và vai trò của kỹ thuật này trong quy trình phát triển phần mềm hiện đại. Báo cáo làm rõ sự khác biệt giữa \textit{deploy} và \textit{release}, chỉ ra rằng Feature Flag cho phép tách biệt hai quá trình này nhằm giảm rủi ro khi phát hành tính năng mới, đồng thời tạo điều kiện cho phát triển liên tục và triển khai liên tục (Continuous Integration/Continuous Delivery). Nội dung nghiên cứu cũng tổng hợp các loại Feature Flag phổ biến như release flag, experiment flag, operational (kill switch) flag và permission flag cùng các trường hợp sử dụng điển hình trong thực tế \cite{fowler_feature_toggles,unleash_feature_flags,launchdarkly_feature_flags,microsoft_devops}.
+\subsection{Đóng góp về thiết kế}
 
-Bên cạnh việc trình bày các khái niệm lý thuyết, báo cáo còn xây dựng bức tranh tổng thể về kiến trúc của một nền tảng Feature Flag, bao gồm Dashboard quản trị, Backend Management API, Rule Evaluation Engine, Evaluation API và ứng dụng khách. Việc liên kết giữa các thành phần giúp làm rõ luồng hoạt động của hệ thống từ quá trình cấu hình Feature Flag đến khi ứng dụng khách thực hiện đánh giá và áp dụng kết quả trong thời gian chạy.
+Đề tài đề xuất thiết kế có ranh giới rõ giữa control plane và data plane. Control plane đảm nhiệm quản trị cấu hình, phân quyền và audit log; data plane đảm nhiệm evaluation với snapshot, precedence, reason code và fallback an toàn. Mô hình dữ liệu hỗ trợ project, environment, flag, config, rule, group, sample context, audit log và statistics theo cách đủ đơn giản cho mini project nhưng vẫn có khả năng mở rộng.
 
-\subsubsection{Phân tích các chiến lược rollout}
+\subsection{Đóng góp về triển khai}
 
-Một đóng góp quan trọng của đề tài là phân tích và tổng hợp các chiến lược rollout được sử dụng phổ biến trong các nền tảng Feature Flag hiện nay. Báo cáo trình bày nguyên lý hoạt động, ưu điểm và phạm vi áp dụng của các chiến lược như bật hoặc tắt toàn cục (global on/off), targeting theo người dùng, targeting theo vai trò và rollout theo tỷ lệ phần trăm người dùng. Đồng thời, thứ tự ưu tiên khi đánh giá các rule cũng được phân tích nhằm đảm bảo kết quả evaluation xác định và nhất quán \cite{launchdarkly_targeting_rules,launchdarkly_percentage_rollouts,openfeature_flag_evaluation}.
+Sản phẩm hiện thực đầy đủ luồng end-to-end từ quản trị flag đến thay đổi hành vi trong demo app. Backend, Dashboard, SDK, Demo Application, migration/seed, test và Docker Compose tạo thành một hệ thống có thể chạy, kiểm thử và trình bày được. Đây là bằng chứng thực tế cho các quyết định thiết kế đã phân tích trong báo cáo.
 
-Ngoài ra, đề tài nghiên cứu cơ chế stable hashing để bảo đảm cùng một người dùng luôn nhận được kết quả rollout giống nhau giữa nhiều lần đánh giá, đồng thời phân tích vai trò của Evaluation Context trong việc truyền thông tin người dùng và thuộc tính phục vụ quá trình đánh giá Feature Flag \cite{openfeature_evaluation_context,launchdarkly_percentage_rollouts}. Các kết quả nghiên cứu này được sử dụng làm cơ sở cho việc thiết kế Rule Evaluation Engine và Evaluation API của hệ thống.
+\subsection{Đóng góp về tư duy hệ thống}
 
-\subsubsection{Phân tích rủi ro và yêu cầu vận hành}
-
-Đề tài không chỉ tập trung vào chức năng của Feature Flag mà còn phân tích các vấn đề phát sinh trong quá trình vận hành hệ thống. Báo cáo chỉ ra rằng việc sử dụng Feature Flag trong thời gian dài có thể tạo ra \textit{feature flag debt}, làm tăng độ phức tạp của mã nguồn và gây khó khăn cho quá trình bảo trì nếu các flag không được quản lý vòng đời phù hợp \cite{fowler_feature_toggles,mahdavi_hezaveh_feature_toggles}.
-
-Bên cạnh đó, các yêu cầu về vận hành như cơ chế caching để giảm độ trễ evaluation, đảm bảo tính nhất quán sau khi cập nhật cấu hình, quản lý audit log phục vụ truy vết thay đổi, bảo vệ Management API và Evaluation API, cũng như phân quyền người dùng quản trị đã được tổng hợp và phân tích dựa trên các tài liệu thực tiễn của Unleash, OWASP và Docker \cite{unleash_feature_flag_best_practices,owasp_rest_security,owasp_logging,redis_client_side_caching,docker_compose}. Những nội dung này tạo nền tảng cho việc thiết kế hệ thống Feature Flag có khả năng vận hành ổn định, an toàn và dễ mở rộng trong phạm vi của mini project.
-
-\subsection{Đóng góp về thiết kế hệ thống}
-
-\subsubsection{Thiết kế kiến trúc control plane và data plane}
-
-Đề tài đề xuất kiến trúc hệ thống theo hướng tách biệt giữa \textit{control plane} và \textit{data plane}, phù hợp với cách tổ chức của nhiều nền tảng Feature Flag hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}. Trong đó, control plane bao gồm Dashboard quản trị và Management API, chịu trách nhiệm quản lý project, feature flag, rule, group, audit log và statistics; environment là dữ liệu nền cho evaluation. Data plane bao gồm Evaluation API, Rule Evaluation Engine và lớp caching, chịu trách nhiệm đánh giá Feature Flag với độ trễ thấp trong thời gian chạy.
-
-Việc phân tách hai mặt phẳng giúp giảm sự phụ thuộc giữa quá trình quản trị cấu hình và quá trình đánh giá Feature Flag, cho phép các thay đổi cấu hình được thực hiện độc lập với lưu lượng evaluation của ứng dụng khách. Kiến trúc này cũng tạo tiền đề cho việc mở rộng theo hướng triển khai nhiều instance của Evaluation API hoặc bổ sung cơ chế đồng bộ cấu hình trong tương lai.
-
-\subsubsection{Thiết kế Evaluation Engine có precedence rõ ràng}
-
-Một đóng góp quan trọng của hệ thống là thiết kế Rule Evaluation Engine với thứ tự ưu tiên (precedence) được xác định rõ ràng. Engine thực hiện đánh giá lần lượt các trạng thái runtime của Feature Flag như archived, disabled và kill switch trước khi chuyển sang các chiến lược rollout như global on, user targeting, role targeting và percentage rollout. Cách tổ chức này bảo đảm mỗi yêu cầu evaluation luôn tạo ra một kết quả duy nhất cùng với reason code tương ứng \cite{openfeature_flag_evaluation,launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
-
-Ngoài việc xác định precedence, hệ thống còn áp dụng stable hashing cho percentage rollout nhằm bảo đảm cùng một người dùng luôn nhận được kết quả nhất quán giữa các lần đánh giá. Evaluation Context được thiết kế theo hướng mở rộng để có thể bổ sung thêm các thuộc tính mới mà không ảnh hưởng đến giao diện Evaluation API \cite{openfeature_evaluation_context}. Thiết kế này giúp Rule Evaluation Engine dễ bảo trì và thuận lợi khi bổ sung thêm các loại rule trong tương lai.
-
-\subsubsection{Thiết kế dữ liệu và audit log}
-
-Đề tài xây dựng mô hình dữ liệu bao gồm các thực thể Project, Environment, Feature Flag, Flag Configuration, Flag Rule, Sample User và Audit Log, phản ánh đầy đủ mối quan hệ giữa các thành phần của nền tảng Feature Flag. Cấu hình rule và các thuộc tính mở rộng được lưu dưới dạng JSONB nhằm tăng tính linh hoạt khi bổ sung các loại targeting mới mà không phải thay đổi cấu trúc cơ sở dữ liệu \cite{postgresql_json_types}.
-
-Bên cạnh đó, hệ thống thiết kế cơ chế audit log theo mô hình append-only, lưu lại actor, thời gian thực hiện, hành động, request ID cùng snapshot trước và sau mỗi thay đổi cấu hình. Thiết kế này đáp ứng yêu cầu truy vết, hỗ trợ kiểm tra lịch sử thay đổi và nâng cao khả năng vận hành hệ thống theo các khuyến nghị về logging và auditability \cite{owasp_logging,owasp_rest_security}.
-
-\subsubsection{Thiết kế API có khả năng mở rộng}
-
-Hệ thống xây dựng bộ Management API và Evaluation API theo kiến trúc REST với cấu trúc request và response thống nhất, hỗ trợ validation dữ liệu đầu vào, chuẩn hóa mã lỗi và sử dụng request ID để phục vụ truy vết. Evaluation API được thiết kế tách biệt khỏi Management API nhằm đáp ứng yêu cầu tối ưu hóa cho lưu lượng đánh giá Feature Flag trong thời gian chạy \cite{openfeature_flag_evaluation}.
-
-Ngoài các chức năng bắt buộc của mini project, API còn được thiết kế theo hướng dễ mở rộng thông qua việc sử dụng Evaluation Context, reason code và mô hình rule độc lập. Cách tiếp cận này cho phép bổ sung các chiến lược targeting theo thuộc tính, organization, thời gian hoặc nhiều biến thể (variant) mà không làm thay đổi giao diện của Evaluation API, đồng thời tạo điều kiện thuận lợi để tích hợp SDK hoặc các dịch vụ khác trong tương lai \cite{openfeature_evaluation_context,unleash_feature_flag_best_practices,launchdarkly_feature_flags}.
-
-\subsection{Đóng góp về triển khai sản phẩm}
-
-\subsubsection{Nền tảng quản lý Feature Flag hoàn chỉnh}
-
-Đề tài đã xây dựng một nền tảng quản lý Feature Flag hoàn chỉnh đáp ứng đầy đủ các yêu cầu bắt buộc của mini project. Hệ thống bao gồm Dashboard quản trị, Backend Management API, Rule Evaluation Engine, Evaluation API, cơ sở dữ liệu lưu trữ cấu hình và Demo Application minh họa việc sử dụng Feature Flag trong thực tế. Các thành phần được tổ chức theo kiến trúc thống nhất, cho phép quản lý toàn bộ vòng đời của Feature Flag từ khởi tạo, cấu hình, đánh giá đến lưu vết thay đổi.
-
-Sản phẩm hỗ trợ quản lý project, feature flag, rule targeting, flag group, audit log, statistics và dữ liệu mẫu ở backend, đồng thời cung cấp giao diện trực quan để cấu hình và theo dõi trạng thái của từng Feature Flag. Việc triển khai đầy đủ các thành phần giúp minh họa tương đối đầy đủ quy trình quản trị Feature Flag trong một hệ thống phần mềm hiện đại \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
-
-\subsubsection{Demo Application chứng minh giá trị thực tế}
-
-Đề tài xây dựng một Demo Application đóng vai trò là ứng dụng khách tích hợp với Evaluation API nhằm minh họa giá trị của Feature Flag trong quá trình phát hành phần mềm. Ứng dụng sử dụng Evaluation Context để gửi thông tin người dùng, nhận kết quả evaluation và quyết định hiển thị hoặc ẩn các tính năng ngay trong thời gian chạy mà không cần triển khai lại ứng dụng.
-
-Thông qua các kịch bản như bật hoặc tắt toàn cục, targeting theo người dùng, targeting theo vai trò và percentage rollout, Demo Application cho thấy khả năng tách biệt giữa deploy và release, đồng thời minh họa cách Feature Flag hỗ trợ kiểm soát phạm vi phát hành và giảm rủi ro khi đưa tính năng mới vào môi trường production \cite{fowler_feature_toggles,microsoft_devops,openfeature_flag_evaluation}.
-
-\subsubsection{Các chức năng vượt mức MVP}
-
-Ngoài các chức năng bắt buộc theo yêu cầu của mini project, hệ thống còn triển khai nhiều chức năng thuộc mức khuyến khích nhằm nâng cao giá trị sử dụng và khả năng mở rộng của sản phẩm. Các chức năng này bao gồm cơ chế caching evaluation snapshot, JavaScript SDK hỗ trợ tích hợp với ứng dụng khách, phân quyền người dùng quản trị theo vai trò, thống kê aggregate số lần evaluation, lịch sử cấu hình dựa trên audit log, group kill switch để vô hiệu hóa đồng thời nhiều Feature Flag, cùng với các bài kiểm thử cho Rule Evaluation Engine.
-
-Việc triển khai các chức năng trên giúp hệ thống tiệm cận hơn với cách xây dựng của các nền tảng Feature Flag hiện đại, đồng thời chứng minh khả năng mở rộng vượt ngoài phạm vi MVP ban đầu. Các chức năng này cũng góp phần nâng cao hiệu năng, khả năng quản trị và tính an toàn trong quá trình vận hành hệ thống \cite{unleash_feature_flag_best_practices,launchdarkly_feature_flags,owasp_logging,redis_client_side_caching}.
-
-\subsubsection{Khả năng triển khai bằng Docker Compose}
-
-Đề tài xây dựng môi trường triển khai sử dụng Docker Compose nhằm đơn giản hóa quá trình cài đặt và khởi chạy toàn bộ hệ thống. Các thành phần như Backend API, Dashboard, Demo Application, PostgreSQL và các dịch vụ hỗ trợ được cấu hình hoạt động thông qua một tệp Docker Compose thống nhất, giúp giảm sự phụ thuộc vào môi trường cài đặt của từng máy phát triển \cite{docker_compose}.
-
-Việc đóng gói hệ thống bằng container giúp rút ngắn thời gian thiết lập môi trường, tăng tính nhất quán giữa các môi trường phát triển và trình diễn, đồng thời tạo nền tảng để mở rộng theo hướng triển khai trên các hạ tầng container hóa trong tương lai. Đây cũng là một trong những chức năng khuyến khích được hoàn thành trong phạm vi của mini project.
+Đề tài thể hiện cách tiếp cận hệ thống đối với một bài toán tưởng như chỉ là bật/tắt tính năng. Mỗi quyết định đều được đặt trong quan hệ giữa độ an toàn, khả năng giải thích, hiệu năng, bảo mật, trải nghiệm quản trị và khả năng mở rộng. Đây là giá trị quan trọng nhất của mini project khi so sánh với việc chỉ xây dựng một API CRUD đơn giản.

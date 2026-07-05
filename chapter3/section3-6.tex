@@ -1,197 +1,31 @@
 \section{Kết quả kiểm thử}
 
-\subsection{Kết quả unit test Rule Evaluation Engine}
+Phần này ghi nhận kết quả sau khi áp dụng chiến lược kiểm thử đã nêu ở Chương 2. Nội dung tập trung vào bằng chứng đạt/không đạt, không lặp lại chi tiết thiết kế của engine, API, cache, RBAC hoặc Docker Compose.
 
-Để bảo đảm Rule Evaluation Engine hoạt động đúng theo thiết kế, đề tài xây dựng bộ unit test bằng Jest cho các thành phần cốt lõi của quá trình đánh giá Feature Flag. Các trường hợp kiểm thử tập trung vào thứ tự ưu tiên (precedence), các chiến lược targeting, cơ chế percentage rollout và các tình huống fallback khi không thể đưa ra kết quả theo luồng thông thường. Việc kiểm thử ở mức đơn vị giúp xác nhận từng nhánh xử lý độc lập trước khi tích hợp với Evaluation API và Dashboard.
+\subsection{Tổng quan kết quả}
 
-\subsubsection{Kiểm thử precedence}
+Các nhóm kiểm thử chính đều hoàn thành với kết quả đạt. Rule Evaluation Engine trả về đúng precedence và reason code; Backend API giữ contract response ổn định; mutation tạo audit log và invalidation cache như kỳ vọng; Dashboard phản ánh đúng quyền thao tác; Demo Application nhận kết quả từ SDK và thay đổi giao diện theo trạng thái flag.
 
-Thứ tự ưu tiên của Rule Evaluation Engine được kiểm thử nhằm bảo đảm kết quả evaluation luôn xác định và nhất quán khi nhiều điều kiện đồng thời tồn tại. Các trường hợp kiểm thử bao gồm Feature Flag đã bị archive, flag bị vô hiệu hóa, kill switch được kích hoạt, chế độ bật toàn cục (Global On), rule targeting và giá trị mặc định.
+\subsection{Rule Evaluation Engine}
 
-Kết quả kiểm thử cho thấy Evaluation Engine luôn áp dụng đúng thứ tự ưu tiên đã thiết kế. Khi một điều kiện có mức ưu tiên cao hơn được thỏa mãn, các rule phía sau sẽ không tiếp tục được đánh giá. Điều này giúp tránh phát sinh kết quả mâu thuẫn và phù hợp với nguyên tắc đánh giá Feature Flag trong các nền tảng hiện đại \cite{fowler_feature_toggles,launchdarkly_feature_flags}.
+Unit test xác nhận các nhánh quyết định quan trọng: archive, disabled, group kill switch, flag kill switch, global on, user allowlist, role targeting, percentage rollout, default off, \texttt{NOT\_FOUND}, \texttt{INVALID\_CONTEXT} và \texttt{ERROR}. Kết quả cho thấy engine luôn dừng ở điều kiện có precedence cao nhất và không đánh giá các rule thấp hơn khi đã có kết quả terminal.
 
-\subsubsection{Kiểm thử targeting rule}
+Đối với percentage rollout, cùng một \texttt{targetingKey} luôn được ánh xạ tới cùng một bucket khi cấu hình không đổi. Khi tăng tỷ lệ rollout, tập người dùng đã được bật tiếp tục được giữ lại; khi giảm tỷ lệ, chỉ các bucket nằm ngoài ngưỡng mới bị tắt.
 
-Các unit test tiếp theo kiểm tra khả năng đánh giá các rule targeting dựa trên thông tin trong Evaluation Context. Các trường hợp được kiểm thử gồm user allowlist, role targeting, nhiều role đồng thời và trường hợp không khớp với bất kỳ rule nào.
+\subsection{Backend API và persistence}
 
-Kết quả cho thấy Evaluation Engine xác định chính xác rule đầu tiên thỏa mãn điều kiện và trả về trạng thái tương ứng cùng với reason code phù hợp. Khi không tồn tại rule phù hợp, hệ thống tiếp tục đánh giá các bước kế tiếp hoặc trả về giá trị mặc định. Cách xử lý này phù hợp với mô hình Evaluation Context và Rule Evaluation được đề xuất trong OpenFeature cũng như các nền tảng Feature Flag phổ biến \cite{openfeature_evaluation_context,openfeature_flag_evaluation,launchdarkly_targeting_rules}.
+Integration test xác nhận các API quản trị xử lý đúng dữ liệu hợp lệ, từ chối dữ liệu sai định dạng và phân biệt được các tình huống \texttt{NOT\_FOUND}, conflict và validation error. Evaluation API luôn trả response an toàn với \texttt{enabled = false} cho các trường hợp không thể đánh giá.
 
-\subsubsection{Kiểm thử percentage rollout}
+Các mutation quan trọng đều tạo audit log append-only với actor, action, request ID và snapshot trước/sau. Các kiểm thử cũng xác nhận dữ liệu audit không bị sửa hoặc xóa thông qua API quản trị thông thường.
 
-Đối với chiến lược rollout theo phần trăm, bộ unit test kiểm tra tính ổn định của thuật toán băm (stable hashing), giới hạn phần trăm và khả năng phân phối người dùng vào các bucket.
+\subsection{Cache, statistics và RBAC}
 
-Kết quả kiểm thử cho thấy cùng một \texttt{targetingKey} luôn được ánh xạ tới cùng một bucket trong các lần evaluation khác nhau, bảo đảm người dùng không thay đổi trạng thái ngẫu nhiên giữa các lần truy cập. Đồng thời, các giá trị rollout khác nhau như 0\%, 25\%, 50\%, 75\% và 100\% đều tạo ra kết quả đúng với cấu hình mong muốn. Cơ chế này phù hợp với nguyên tắc stable assignment được sử dụng trong các hệ thống Feature Flag thực tế \cite{launchdarkly_percentage_rollouts}.
+Cache test cho thấy request đầu tiên tải snapshot từ cơ sở dữ liệu, các request sau dùng cache, và cache liên quan được invalidation sau mutation. Khi cache lỗi, Evaluation API fallback về repository và vẫn giữ kết quả fail-closed đúng contract.
 
-\subsubsection{Kiểm thử fallback}
+Statistics test xác nhận số lần evaluation được tổng hợp theo flag, kết quả bật/tắt và mốc thời gian phục vụ Dashboard. RBAC test xác nhận ba vai trò demo hoạt động đúng: admin có toàn quyền, developer chỉ được phép trong phạm vi cấu hình được cấp, viewer chỉ đọc. Các thao tác vượt quyền bị chặn ở backend và được phản ánh trên Dashboard.
 
-Các trường hợp fallback được xây dựng nhằm kiểm tra khả năng xử lý khi Evaluation Engine không thể xác định kết quả theo luồng thông thường. Bộ kiểm thử bao gồm các tình huống như Feature Flag không tồn tại, Evaluation Context thiếu thông tin cần thiết, không có rule phù hợp hoặc phát sinh lỗi trong quá trình xử lý.
+\subsection{Dashboard, Demo Application và Docker Compose}
 
-Kết quả cho thấy hệ thống luôn trả về phản hồi hợp lệ với giá trị mặc định an toàn (fail-safe), đồng thời sinh reason code tương ứng để hỗ trợ việc ghi log và truy vết. Cơ chế fallback này giúp ứng dụng khách duy trì hoạt động ổn định ngay cả khi gặp lỗi hoặc dữ liệu không đầy đủ, phù hợp với các khuyến nghị về Feature Flag và Evaluation API \cite{fowler_feature_toggles,openfeature_flag_evaluation,unleash_feature_flag_best_practices}.
+Kiểm thử giao diện xác nhận Dashboard hiển thị đúng danh sách project/flag/rule/group, trạng thái lifecycle/runtime, audit log, statistics và trạng thái vô hiệu hóa theo role. Demo Application gọi Evaluation API thông qua JavaScript SDK, hiển thị tính năng theo kết quả \texttt{enabled} và dùng fallback tắt khi API không khả dụng.
 
-\subsection{Kết quả kiểm thử API}
-
-Sau khi hoàn thành kiểm thử ở mức đơn vị, hệ thống tiếp tục được kiểm thử ở mức API nhằm đánh giá tính đúng đắn của các endpoint, khả năng xử lý dữ liệu đầu vào, phản hồi lỗi và sự phối hợp giữa các thành phần Backend API, cơ sở dữ liệu và Rule Evaluation Engine. Các kịch bản kiểm thử được thực hiện thông qua Swagger UI và các yêu cầu HTTP với dữ liệu mẫu đã được seed trước. Kết quả cho thấy các API hoạt động ổn định, trả về mã trạng thái phù hợp và đáp ứng đúng đặc tả đã thiết kế.
-
-\subsubsection{API quản trị}
-
-Nhóm API quản trị bao gồm các chức năng quản lý project, feature flag, replace rule set, flag group, sample user context, audit log, history và statistics; environment được kiểm thử thông qua seed data, repository, Evaluation API, group config và statistics thay vì controller CRUD riêng. Các trường hợp kiểm thử bao gồm tạo mới, cập nhật, truy vấn, archive, khôi phục và các thao tác thay đổi cấu hình.
-
-Kết quả kiểm thử cho thấy dữ liệu được kiểm tra hợp lệ trước khi ghi xuống cơ sở dữ liệu. Các trường hợp khóa trùng, tham số không hợp lệ hoặc thiếu dữ liệu đều trả về phản hồi lỗi thống nhất cùng request ID để hỗ trợ truy vết. Đối với các thao tác thay đổi cấu hình, hệ thống đồng thời ghi nhận audit log và thực hiện cache invalidation khi cần thiết, bảo đảm dữ liệu phục vụ evaluation luôn được cập nhật.
-
-\subsubsection{Evaluation API}
-
-Evaluation API được kiểm thử với đầy đủ các kịch bản như bật toàn cục, user targeting, role targeting, percentage rollout, group kill switch, Feature Flag không tồn tại và các trường hợp fallback.
-
-Kết quả kiểm thử cho thấy API luôn trả về đầy đủ thông tin gồm trạng thái bật hoặc tắt, variant, reason code và thông tin rule được áp dụng khi có. Các request có cùng \texttt{targetingKey} luôn nhận được kết quả nhất quán trong kịch bản percentage rollout, trong khi các trường hợp lỗi vẫn trả về giá trị mặc định an toàn thay vì phát sinh ngoại lệ cho ứng dụng khách. Kết quả này phù hợp với mô hình Evaluation API và Evaluation Context được đề xuất trong OpenFeature \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
-
-\subsubsection{Audit log API}
-
-API audit log được kiểm thử nhằm xác nhận khả năng lưu vết toàn bộ các thao tác thay đổi cấu hình trong hệ thống. Các trường hợp kiểm thử bao gồm tạo, cập nhật, archive, khôi phục Feature Flag, thay đổi rule, thay đổi trạng thái và thao tác trên group kill switch.
-
-Kết quả kiểm thử cho thấy mỗi thao tác đều tạo một bản ghi audit mới với đầy đủ thông tin về actor, action, timestamp, request ID cùng before và after snapshot. Dữ liệu audit được lưu theo cơ chế append-only, cho phép truy vết lịch sử cấu hình và hỗ trợ phân tích nguyên nhân khi xảy ra sự cố. Cách triển khai này phù hợp với các khuyến nghị về logging và audit trong các hệ thống quản trị hiện đại \cite{owasp_logging}.
-
-\subsubsection{Statistics API}
-
-Statistics API được kiểm thử nhằm đánh giá khả năng tổng hợp dữ liệu phục vụ Dashboard. Các trường hợp kiểm thử bao gồm thống kê tổng số lần evaluation, thống kê theo Feature Flag, phân bố kết quả bật hoặc tắt và dữ liệu biểu đồ theo thời gian.
-
-Kết quả kiểm thử cho thấy dữ liệu thống kê được cập nhật chính xác sau mỗi lần evaluation và có thể truy vấn theo nhiều tiêu chí khác nhau. Các endpoint trả về dữ liệu đúng định dạng để Dashboard trực tiếp hiển thị biểu đồ và báo cáo mà không cần xử lý bổ sung ở phía giao diện. Điều này giúp hệ thống hỗ trợ theo dõi hiệu quả sử dụng Feature Flag cũng như đánh giá phạm vi tác động của từng cấu hình trong quá trình vận hành.
-
-\subsection{Kết quả kiểm thử validation và error handling}
-
-Bên cạnh việc kiểm tra chức năng nghiệp vụ, hệ thống còn được kiểm thử đối với các trường hợp dữ liệu không hợp lệ và các tình huống lỗi trong quá trình xử lý. Mục tiêu của các kịch bản này là bảo đảm Backend API luôn phản hồi theo định dạng thống nhất, không làm gián đoạn dịch vụ và cung cấp đầy đủ thông tin để hỗ trợ việc gỡ lỗi và truy vết. Kết quả kiểm thử cho thấy các cơ chế validation và xử lý lỗi hoạt động đúng theo thiết kế.
-
-\subsubsection{Validation key và enum}
-
-Các trường hợp kiểm thử bao gồm project key, environment key, feature flag key không đúng định dạng, giá trị enum không hợp lệ và các trường dữ liệu bắt buộc bị thiếu.
-
-Kết quả kiểm thử cho thấy toàn bộ dữ liệu đầu vào đều được kiểm tra trước khi xử lý nghiệp vụ. Khi phát hiện dữ liệu không hợp lệ, API trả về mã lỗi tương ứng cùng danh sách các trường vi phạm và request ID để hỗ trợ truy vết. Việc kiểm tra dữ liệu đầu vào giúp hạn chế lỗi phát sinh trong các tầng xử lý phía sau và nâng cao tính ổn định của hệ thống.
-
-\subsubsection{Validation rule parameters}
-
-Các kịch bản kiểm thử tập trung vào các tham số cấu hình rule như danh sách user, role, giá trị percentage rollout và cấu trúc của các tham số cấu hình.
-
-Kết quả kiểm thử cho thấy hệ thống từ chối các cấu hình không hợp lệ như tỷ lệ rollout ngoài khoảng cho phép, tham số thiếu dữ liệu hoặc kiểu dữ liệu không đúng. Chỉ những rule đáp ứng đầy đủ các ràng buộc mới được lưu vào cơ sở dữ liệu, qua đó bảo đảm Rule Evaluation Engine luôn hoạt động trên tập dữ liệu hợp lệ.
-
-\subsubsection{Not found và conflict}
-
-Nhóm kiểm thử này đánh giá khả năng xử lý khi tài nguyên không tồn tại hoặc xảy ra xung đột dữ liệu. Các trường hợp bao gồm truy vấn Feature Flag không tồn tại, cập nhật đối tượng đã bị archive, tạo mới với khóa đã tồn tại hoặc tham chiếu đến project và environment không hợp lệ.
-
-Kết quả kiểm thử cho thấy API trả về đúng mã lỗi theo từng tình huống, đồng thời cung cấp thông báo rõ ràng để phía ứng dụng khách có thể xử lý phù hợp. Việc phân biệt giữa lỗi không tìm thấy và lỗi xung đột giúp quá trình tích hợp với Dashboard và Demo Application trở nên đơn giản và nhất quán.
-
-\subsubsection{Internal error}
-
-Các trường hợp kiểm thử internal error được thực hiện bằng cách mô phỏng lỗi trong quá trình truy cập cơ sở dữ liệu hoặc phát sinh ngoại lệ ngoài dự kiến trong tầng nghiệp vụ.
-
-Kết quả kiểm thử cho thấy mọi ngoại lệ đều được bộ xử lý lỗi toàn cục tiếp nhận và chuyển đổi thành phản hồi thống nhất mà không làm lộ thông tin nội bộ của hệ thống. Đồng thời, request ID được trả về cho ứng dụng khách để đối chiếu với audit log và log của máy chủ khi cần điều tra nguyên nhân. Cách xử lý này phù hợp với các khuyến nghị về bảo mật API và quản lý lỗi trong các hệ thống dịch vụ hiện đại \cite{owasp_rest_security,owasp_logging}.
-
-\subsection{Kết quả kiểm thử stable rollout}
-
-Một trong những yêu cầu quan trọng của Feature Flag là bảo đảm người dùng nhận được kết quả nhất quán trong các lần evaluation khi sử dụng chiến lược percentage rollout. Để đánh giá cơ chế này, hệ thống được kiểm thử với thuật toán stable hashing dựa trên \texttt{targetingKey}, đồng thời quan sát sự phân bố bucket và hành vi khi thay đổi tỷ lệ rollout. Kết quả kiểm thử cho thấy cơ chế stable rollout hoạt động đúng theo thiết kế và đáp ứng yêu cầu về tính ổn định trong môi trường thực tế.
-
-\subsubsection{Độ ổn định theo targeting key}
-
-Kịch bản kiểm thử được thực hiện bằng cách gửi nhiều request với cùng một \texttt{targetingKey} trong các thời điểm khác nhau nhưng giữ nguyên cấu hình Feature Flag.
-
-Kết quả cho thấy cùng một \texttt{targetingKey} luôn được ánh xạ tới cùng một bucket và nhận được cùng một kết quả evaluation trong tất cả các lần kiểm thử. Điều này bảo đảm người dùng không bị thay đổi trạng thái Feature Flag một cách ngẫu nhiên giữa các lần truy cập, phù hợp với nguyên tắc stable assignment của các nền tảng Feature Flag hiện đại \cite{launchdarkly_percentage_rollouts}.
-
-\subsubsection{Phân bố bucket}
-
-Để đánh giá tính đồng đều của thuật toán băm, hệ thống tiến hành kiểm thử với tập dữ liệu gồm nhiều \texttt{targetingKey} khác nhau và thống kê bucket tương ứng.
-
-Kết quả cho thấy các bucket được phân bố tương đối đồng đều trên toàn bộ miền giá trị, không xuất hiện hiện tượng tập trung bất thường vào một khoảng nhất định. Nhờ đó, tỷ lệ người dùng được bật Feature Flag gần với tỷ lệ rollout đã cấu hình, giúp các đợt phát hành từng phần phản ánh đúng quy mô mong muốn.
-
-\subsubsection{Tăng tỷ lệ rollout}
-
-Kịch bản kiểm thử được thực hiện bằng cách tăng dần giá trị rollout, ví dụ từ 10\% lên 30\%, 50\%, 75\% và 100\%, đồng thời theo dõi tập người dùng được bật Feature Flag.
-
-Kết quả kiểm thử cho thấy tất cả người dùng đã được bật ở mức rollout thấp hơn vẫn tiếp tục được bật khi tăng tỷ lệ rollout. Hệ thống chỉ bổ sung thêm các bucket mới thuộc phạm vi mở rộng mà không thay đổi trạng thái của các bucket đã được chọn trước đó. Điều này giúp quá trình phát hành diễn ra liên tục và hạn chế ảnh hưởng đến trải nghiệm của người dùng \cite{launchdarkly_percentage_rollouts}.
-
-\subsubsection{Giảm tỷ lệ rollout}
-
-Đối với trường hợp giảm tỷ lệ rollout, hệ thống lần lượt giảm giá trị cấu hình và quan sát các bucket còn nằm trong phạm vi được phục vụ.
-
-Kết quả kiểm thử cho thấy chỉ các bucket nằm ngoài ngưỡng rollout mới bị loại bỏ, trong khi các bucket vẫn thuộc phạm vi cấu hình tiếp tục giữ nguyên trạng thái. Cơ chế này bảo đảm việc thu hẹp phạm vi phát hành diễn ra có kiểm soát, đồng thời duy trì tính nhất quán của kết quả evaluation đối với những người dùng vẫn còn trong tập rollout.
-
-\subsection{Kết quả kiểm thử cache}
-
-Nhằm giảm độ trễ của Evaluation API và hạn chế số lần truy cập cơ sở dữ liệu, hệ thống triển khai cơ chế cache cho dữ liệu phục vụ quá trình evaluation. Các kịch bản kiểm thử tập trung đánh giá khả năng tận dụng cache, cơ chế invalidation khi cấu hình thay đổi và hành vi của hệ thống khi cache không khả dụng. Kết quả kiểm thử cho thấy cơ chế cache hoạt động đúng theo thiết kế và không làm ảnh hưởng đến tính chính xác của kết quả evaluation.
-
-\subsubsection{Cache hit và cache miss}
-
-Kịch bản kiểm thử được thực hiện bằng cách gửi liên tiếp nhiều request evaluation với cùng project, environment và Feature Flag. Lần truy cập đầu tiên được sử dụng để tạo dữ liệu trong cache, các lần tiếp theo kiểm tra khả năng tái sử dụng dữ liệu đã lưu.
-
-Kết quả cho thấy request đầu tiên xảy ra cache miss và tải dữ liệu từ cơ sở dữ liệu trước khi ghi vào cache. Các request tiếp theo sử dụng dữ liệu đã được lưu, giảm số lần truy cập cơ sở dữ liệu trong khi vẫn trả về kết quả evaluation giống nhau. Điều này góp phần cải thiện thời gian phản hồi của Evaluation API và phù hợp với mục tiêu tối ưu hiệu năng của hệ thống \cite{redis_client_side_caching}.
-
-\subsubsection{Invalidation khi cập nhật flag}
-
-Sau khi thay đổi trạng thái hoặc cấu hình của Feature Flag, hệ thống tiến hành kiểm thử khả năng làm mới dữ liệu trong cache.
-
-Kết quả kiểm thử cho thấy cache liên quan đến Feature Flag được xóa ngay sau khi thao tác cập nhật hoàn tất. Request evaluation kế tiếp thực hiện tải lại dữ liệu mới từ cơ sở dữ liệu và ghi trở lại cache, bảo đảm các thay đổi được phản ánh ngay trong kết quả evaluation mà không sử dụng dữ liệu cũ.
-
-\subsubsection{Invalidation khi cập nhật rule}
-
-Kịch bản kiểm thử tiếp tục được thực hiện đối với các thao tác thêm, sửa hoặc xóa rule của Feature Flag.
-
-Kết quả cho thấy mỗi lần cấu hình rule thay đổi, dữ liệu cache tương ứng đều được invalidation trước khi phục vụ các request mới. Nhờ đó, Rule Evaluation Engine luôn đánh giá trên tập cấu hình mới nhất và tránh tình trạng sử dụng rule đã hết hiệu lực. Cơ chế này giúp duy trì tính nhất quán giữa dữ liệu trong cache và cơ sở dữ liệu.
-
-\subsubsection{Hành vi khi cache lỗi}
-
-Để đánh giá khả năng chịu lỗi, hệ thống mô phỏng các trường hợp cache không khả dụng hoặc phát sinh lỗi trong quá trình truy cập.
-
-Kết quả kiểm thử cho thấy Evaluation API vẫn hoạt động bình thường bằng cách truy vấn trực tiếp cơ sở dữ liệu thay vì phụ thuộc hoàn toàn vào cache. Mặc dù thời gian phản hồi có thể tăng so với trường hợp cache hoạt động, kết quả evaluation vẫn chính xác và không ảnh hưởng đến chức năng của ứng dụng. Cách triển khai này bảo đảm cache chỉ đóng vai trò tối ưu hiệu năng, không trở thành điểm lỗi duy nhất của hệ thống \cite{redis_client_side_caching,unleash_feature_flag_best_practices}.
-
-\subsection{Kết quả kiểm thử phân quyền}
-
-Hệ thống được kiểm thử cơ chế phân quyền nhằm bảo đảm mỗi nhóm người dùng chỉ được thực hiện các thao tác phù hợp với vai trò được cấp. Các kịch bản kiểm thử bao gồm quyền của \texttt{admin}, \texttt{developer}, \texttt{viewer} và các trường hợp truy cập trái phép. Kết quả cho thấy Backend API và Dashboard phối hợp thực hiện kiểm soát quyền một cách nhất quán, đồng thời ngăn chặn các thao tác không hợp lệ ngay từ tầng giao diện và tầng dịch vụ.
-
-\subsubsection{Quyền admin}
-
-Vai trò \texttt{admin} được kiểm thử với đầy đủ các chức năng quản trị như tạo mới, cập nhật, archive và khôi phục Feature Flag, cấu hình rule, quản lý group, kích hoạt group kill switch, xem audit log và truy vấn dữ liệu thống kê.
-
-Kết quả kiểm thử cho thấy người dùng có vai trò \texttt{admin} được phép thực hiện toàn bộ các thao tác quản trị theo thiết kế. Sau mỗi thao tác thay đổi cấu hình, hệ thống đồng thời ghi nhận audit log, thực hiện cache invalidation khi cần thiết và cập nhật dữ liệu phục vụ Dashboard, bảo đảm tính nhất quán của toàn bộ hệ thống.
-
-\subsubsection{Quyền developer}
-
-Vai trò \texttt{developer} được kiểm thử với các chức năng theo phạm vi được cấp quyền như truy vấn thông tin Feature Flag, xem cấu hình, thực hiện evaluation và sử dụng các chức năng phục vụ phát triển, đồng thời kiểm tra khả năng bị từ chối đối với các thao tác chỉ dành cho quản trị viên.
-
-Kết quả kiểm thử cho thấy các thao tác vượt quá quyền hạn đều bị Backend API từ chối và Dashboard đồng thời ẩn hoặc vô hiệu hóa các nút chức năng tương ứng. Cơ chế này giúp hạn chế thao tác sai và bảo đảm chỉ người dùng có quyền phù hợp mới có thể thay đổi cấu hình của hệ thống.
-
-\subsubsection{Quyền viewer}
-
-Vai trò \texttt{viewer} được kiểm thử với các chức năng chỉ đọc như xem danh sách project, Feature Flag, rule, audit log và dữ liệu thống kê.
-
-Kết quả kiểm thử cho thấy người dùng chỉ có thể truy cập các API phục vụ truy vấn thông tin, trong khi toàn bộ các endpoint thay đổi dữ liệu đều bị từ chối. Trên Dashboard, các chức năng tạo mới, chỉnh sửa, archive và cấu hình rule đều được ẩn hoặc chuyển sang trạng thái vô hiệu hóa, giúp giao diện phản ánh đúng quyền của người sử dụng.
-
-\subsubsection{Truy cập trái phép}
-
-Nhóm kiểm thử cuối cùng đánh giá khả năng xử lý các yêu cầu không hợp lệ như người dùng chưa xác thực, người dùng không có quyền hoặc cố gắng gọi trực tiếp các endpoint quản trị thông qua HTTP client.
-
-Kết quả kiểm thử cho thấy Backend API luôn kiểm tra quyền trước khi thực hiện nghiệp vụ. Các request không đáp ứng yêu cầu xác thực hoặc phân quyền đều bị từ chối với mã trạng thái và thông báo lỗi phù hợp, đồng thời không làm thay đổi dữ liệu trong cơ sở dữ liệu cũng như không tạo ra các thao tác quản trị ngoài ý muốn. Cách triển khai này phù hợp với các khuyến nghị về bảo vệ REST API và kiểm soát truy cập của OWASP \cite{owasp_rest_security}.
-
-\subsection{Kết quả kiểm thử triển khai}
-
-Sau khi hoàn thành quá trình phát triển và kiểm thử chức năng, hệ thống tiếp tục được kiểm thử ở mức triển khai nhằm đánh giá khả năng xây dựng, khởi chạy và vận hành đồng thời các thành phần của nền tảng Feature Flag. Các kịch bản kiểm thử bao gồm quá trình build các service, triển khai bằng Docker Compose, kết nối giữa các thành phần và khởi tạo dữ liệu mẫu. Kết quả cho thấy hệ thống có thể được triển khai thành công trong môi trường mới với quy trình cài đặt đơn giản và ổn định.
-
-\subsubsection{Build các service}
-
-Các service của hệ thống bao gồm Backend API, Dashboard và Demo Application được kiểm thử thông qua quá trình build từ mã nguồn.
-
-Kết quả kiểm thử cho thấy toàn bộ các service đều được biên dịch thành công, không phát sinh lỗi phụ thuộc hoặc lỗi cấu hình trong quá trình build. Các artifact được tạo đúng theo cấu hình triển khai và sẵn sàng sử dụng trong môi trường Docker, đáp ứng yêu cầu đóng gói hệ thống để triển khai trên nhiều môi trường khác nhau.
-
-\subsubsection{Khởi chạy Docker Compose}
-
-Kịch bản kiểm thử tiếp theo sử dụng Docker Compose để khởi tạo đồng thời các container của hệ thống, bao gồm cơ sở dữ liệu PostgreSQL, Backend API, Dashboard và Demo Application.
-
-Kết quả kiểm thử cho thấy các container được tạo và khởi động thành công theo đúng thứ tự phụ thuộc. Docker Compose tự động thiết lập mạng nội bộ, khởi tạo các service cần thiết và duy trì trạng thái hoạt động ổn định trong suốt quá trình kiểm thử. Việc triển khai bằng Docker Compose giúp đơn giản hóa quá trình cài đặt và bảo đảm môi trường thực thi nhất quán giữa các lần triển khai \cite{docker_compose}.
-
-\subsubsection{Kết nối giữa các service}
-
-Sau khi các container được khởi chạy, hệ thống tiếp tục được kiểm thử khả năng giao tiếp giữa các thành phần thông qua mạng Docker.
-
-Kết quả kiểm thử cho thấy Backend API kết nối thành công với PostgreSQL để truy cập dữ liệu, Dashboard có thể gọi các API quản trị và Demo Application có thể gửi request tới Evaluation API để lấy kết quả Feature Flag. Quá trình trao đổi dữ liệu giữa các service diễn ra ổn định và không xuất hiện lỗi kết nối trong các kịch bản kiểm thử.
-
-\subsubsection{Khởi tạo dữ liệu mẫu}
-
-Kịch bản kiểm thử cuối cùng đánh giá quá trình khởi tạo dữ liệu mẫu phục vụ việc trình diễn và kiểm thử hệ thống.
-
-Kết quả kiểm thử cho thấy các migration được thực thi thành công trước khi seed dữ liệu. Hệ thống tạo đầy đủ project, environment, Feature Flag, rule, group, sample user và các dữ liệu liên quan theo đúng cấu trúc đã thiết kế. Sau khi khởi tạo, Dashboard và Demo Application có thể sử dụng ngay các dữ liệu này để thực hiện các kịch bản bật hoặc tắt toàn cục, user targeting, role targeting, percentage rollout, group kill switch và theo dõi audit log mà không cần cấu hình thủ công.
+Quy trình Docker Compose build và khởi chạy thành công các thành phần chính gồm PostgreSQL, Backend API, Admin Dashboard và Demo Application. Sau migration và seed, hệ thống có dữ liệu demo đủ để trình bày các kịch bản end-to-end mà không cần cấu hình thủ công ban đầu.

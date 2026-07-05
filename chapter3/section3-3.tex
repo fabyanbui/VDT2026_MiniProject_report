@@ -1,232 +1,167 @@
 \section{Kết quả xây dựng Frontend Dashboard}
 
+Admin Dashboard đã được xây dựng để kiểm chứng các luồng quản trị chính của nền tảng. Mục này tập trung vào kết quả giao diện và trạng thái hiển thị, không lặp lại thiết kế API hay rule engine.
+
 \subsection{Màn hình quản lý project}
 
-Màn hình quản lý project là điểm truy cập đầu tiên của người quản trị sau khi đăng nhập vào hệ thống. Giao diện này cho phép tạo, cập nhật và lựa chọn project cần quản lý trước khi thực hiện các thao tác cấu hình Feature Flag. Thiết kế theo mô hình phân cấp giúp cô lập cấu hình giữa các dự án, đồng thời tạo nền tảng để mở rộng nhiều project và nhiều môi trường triển khai trong tương lai \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+Màn hình project là điểm vào của Dashboard, cho phép người dùng xem danh sách project và truy cập khu vực quản trị Feature Flag của từng project.
 
 \subsubsection{Danh sách project}
 
-Danh sách project được hiển thị dưới dạng các thẻ (card), mỗi thẻ thể hiện các thông tin cơ bản gồm tên project, project key, mô tả nếu có và thời gian cập nhật gần nhất. Việc sử dụng card thay vì bảng dữ liệu giúp người dùng nhanh chóng nhận biết từng project và phù hợp với số lượng project không quá lớn trong phạm vi mini project.
-
-Người dùng có thể quan sát toàn bộ project hiện có, lựa chọn project cần thao tác hoặc thực hiện các hành động tạo và chỉnh sửa ngay trên giao diện. Mỗi project được định danh bằng một \textit{project key} duy nhất nhằm phục vụ cho Evaluation API khi ứng dụng khách gửi yêu cầu đánh giá Feature Flag.
+Danh sách hiển thị khóa, tên, mô tả và trạng thái cơ bản của project để người dùng nhanh chóng chọn phạm vi làm việc.
 
 \subsubsection{Tạo và chỉnh sửa project}
 
-Dashboard cung cấp biểu mẫu để tạo mới hoặc cập nhật thông tin project. Các trường dữ liệu bao gồm tên project, project key và mô tả ngắn. Dữ liệu đầu vào được kiểm tra trước khi gửi tới Backend API nhằm đảm bảo các trường bắt buộc được nhập đầy đủ và project key tuân thủ định dạng quy định.
-
-Khi người dùng lưu thay đổi, giao diện gửi yêu cầu tới Management API và cập nhật lại danh sách project nếu thao tác thành công. Trường hợp xảy ra lỗi validation hoặc trùng project key, hệ thống hiển thị thông báo lỗi tương ứng để người dùng điều chỉnh. Thiết kế này giúp giảm thao tác sai và duy trì tính nhất quán của dữ liệu quản lý.
+Biểu mẫu tạo/sửa project gọi Management API và hiển thị lỗi validation từ backend khi dữ liệu không hợp lệ.
 
 \subsubsection{Truy cập chi tiết project}
 
-Mỗi project trong danh sách đều có thể được mở để chuyển sang màn hình quản trị chi tiết. Sau khi lựa chọn project, Dashboard cho phép chuyển tới các màn hình Feature Flag, Flag Group, Audit Log và Statistics tương ứng.
-
-Việc tổ chức giao diện theo từng project giúp toàn bộ cấu hình được cô lập giữa các ứng dụng khác nhau. Đây cũng là mô hình được sử dụng phổ biến trong các nền tảng Feature Flag nhằm cho phép nhiều dự án cùng sử dụng chung một hệ thống quản lý nhưng vẫn đảm bảo tính độc lập về cấu hình \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+Từ danh sách, người dùng có thể mở chi tiết project để quản lý flag, group, audit log và statistics.
 
 \subsubsection{Phạm vi environment trong Dashboard hiện tại}
 
-Source code hiện tại chưa có màn hình quản trị environment riêng. Environment vẫn tồn tại trong mô hình dữ liệu và được dùng bởi Evaluation API, seed data, Docker demo production/staging và một số bộ lọc như statistics. Trên Dashboard, các form cấu hình Feature Flag và Rule tập trung vào default environment của project, trong luồng demo chính là production.
+Dashboard hiện sử dụng environment đã được seed và chưa cung cấp màn hình CRUD environment riêng.
 
-Cách giới hạn này giúp giao diện quản trị phù hợp với phạm vi mini project nhưng vẫn giữ nền tảng dữ liệu để mở rộng thành quản lý nhiều environment đầy đủ trong tương lai.
 \subsection{Màn hình quản lý Feature Flag}
 
-Màn hình quản lý Feature Flag là thành phần trung tâm của Dashboard, cho phép người quản trị theo dõi toàn bộ các Feature Flag thuộc một project và thực hiện các thao tác quản lý trong suốt vòng đời của chúng. Giao diện được thiết kế nhằm giúp người dùng nhanh chóng nhận biết trạng thái hiện tại của từng flag, tìm kiếm theo nhiều tiêu chí và thực hiện các thao tác như archive hoặc restore mà không ảnh hưởng đến dữ liệu lịch sử. Thiết kế này phù hợp với các nguyên tắc quản lý Feature Flag hiện đại và hạn chế phát sinh \textit{feature flag debt} thông qua việc quản lý vòng đời của flag \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+Màn hình Feature Flag hiển thị danh sách flag trong project và cung cấp các thao tác quản trị phổ biến.
 
 \subsubsection{Danh sách Feature Flag}
 
-Danh sách Feature Flag được trình bày dưới dạng bảng dữ liệu, trong đó mỗi dòng tương ứng với một Feature Flag. Các cột thông tin bao gồm tên flag, flag key, trạng thái lifecycle, trạng thái runtime, environment đang áp dụng, nhóm flag và thời điểm cập nhật gần nhất.
-
-Bảng dữ liệu cho phép người quản trị quan sát đồng thời nhiều Feature Flag và thực hiện nhanh các thao tác như xem chi tiết, chỉnh sửa cấu hình hoặc chuyển sang màn hình cấu hình rule. Việc hiển thị đầy đủ các thuộc tính quan trọng giúp giảm số lần chuyển màn hình và hỗ trợ quá trình quản trị hiệu quả hơn.
+Bảng flag hiển thị flag key, tên, mô tả, trạng thái lifecycle và thông tin runtime tóm tắt.
 
 \subsubsection{Tìm kiếm và lọc flag}
 
-Dashboard cung cấp chức năng tìm kiếm theo tên hoặc flag key nhằm hỗ trợ người dùng nhanh chóng xác định Feature Flag cần quản lý khi số lượng flag tăng lên.
-
-Bên cạnh tìm kiếm, giao diện còn hỗ trợ lọc theo các tiêu chí như lifecycle status, runtime status hoặc nhóm Feature Flag. Các điều kiện lọc có thể được kết hợp để thu hẹp phạm vi kết quả, giúp người quản trị dễ dàng xác định các Feature Flag đang hoạt động, đã archive hoặc thuộc một nhóm chức năng cụ thể.
-
-Việc tìm kiếm và lọc trực tiếp trên Dashboard giúp giảm thời gian thao tác và phù hợp với mô hình quản lý số lượng lớn Feature Flag trong các hệ thống thực tế \cite{launchdarkly_feature_flags}.
+Người dùng có thể lọc danh sách để tìm flag cần thao tác trong các project có nhiều cấu hình.
 
 \subsubsection{Hiển thị trạng thái runtime}
 
-Mỗi Feature Flag đều hiển thị trạng thái runtime dưới dạng nhãn trực quan nhằm phản ánh khả năng phục vụ của flag tại thời điểm hiện tại. Trạng thái này được tổng hợp từ lifecycle status, trạng thái cấu hình, serving mode và kill switch của environment tương ứng.
-
-Thông qua các nhãn hiển thị, người quản trị có thể nhanh chóng phân biệt các trường hợp như flag đang hoạt động, đã bị vô hiệu hóa, đang phục vụ theo chế độ Global On, đang áp dụng Targeted Rollout hoặc đã bị Kill Switch ngắt hoàn toàn. Việc hiển thị rõ trạng thái runtime giúp giảm nguy cơ cấu hình sai và hỗ trợ quá trình kiểm tra trước khi phát hành tính năng.
+Dashboard phân biệt trạng thái lifecycle với trạng thái runtime để tránh nhầm lẫn giữa flag đã archive và flag đang tắt do cấu hình.
 
 \subsubsection{Archive và restore flag}
 
-Thay vì xóa vật lý khỏi cơ sở dữ liệu, Dashboard hỗ trợ chuyển Feature Flag sang trạng thái \textit{Archived}. Khi archive, flag sẽ không còn được sử dụng trong quá trình evaluation nhưng toàn bộ cấu hình, rule và lịch sử audit vẫn được bảo toàn.
-
-Trong trường hợp cần sử dụng lại, người quản trị có thể thực hiện thao tác \textit{Restore} để đưa Feature Flag trở về trạng thái hoạt động mà không cần tạo mới. Cách tiếp cận này giúp bảo toàn lịch sử thay đổi, tránh mất dữ liệu và phù hợp với khuyến nghị quản lý vòng đời Feature Flag của các nền tảng hiện đại \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+Các thao tác archive/restore được đặt ở vị trí rõ ràng và có phản hồi sau khi backend cập nhật thành công.
 
 \subsection{Màn hình tạo và chỉnh sửa flag}
 
-Màn hình tạo và chỉnh sửa Feature Flag cho phép người quản trị khởi tạo mới hoặc cập nhật thông tin của một Feature Flag trong project. Giao diện được thiết kế dưới dạng biểu mẫu, trong đó các trường dữ liệu được nhóm theo chức năng nhằm giảm thao tác cấu hình và hạn chế sai sót. Toàn bộ thay đổi được gửi tới Management API thông qua các yêu cầu REST và chỉ được lưu khi vượt qua các bước kiểm tra hợp lệ ở cả phía Frontend và Backend \cite{launchdarkly_feature_flags,owasp_rest_security}.
+Biểu mẫu flag tập trung vào các trường cần thiết để người dùng cấu hình nhanh nhưng vẫn giữ dữ liệu hợp lệ.
 
 \subsubsection{Nhập thông tin định danh}
 
-Biểu mẫu cho phép người dùng nhập các thông tin định danh cơ bản của Feature Flag, bao gồm tên hiển thị, flag key, mô tả và nhóm Feature Flag nếu có. Trong đó, flag key đóng vai trò là định danh duy nhất để Demo App và Evaluation API truy cập tới Feature Flag tương ứng.
-
-Các trường thông tin được bố trí theo thứ tự từ định danh đến mô tả nhằm phù hợp với quy trình tạo mới. Sau khi hoàn tất, người dùng có thể lưu cấu hình hoặc hủy thao tác để quay lại màn hình danh sách Feature Flag.
+Flag key được nhập theo định dạng ổn định, dùng làm định danh cho Evaluation API và ứng dụng khách.
 
 \subsubsection{Chọn trạng thái và serving mode}
 
-Dashboard cho phép cấu hình các thuộc tính điều khiển chính của Feature Flag, bao gồm trạng thái kích hoạt và chế độ phục vụ (\textit{Serving Mode}). Trạng thái kích hoạt xác định Feature Flag có được phép tham gia quá trình evaluation hay không, trong khi Serving Mode quyết định cơ chế đánh giá được áp dụng.
-
-Hệ thống hỗ trợ hai chế độ phục vụ là \textit{Global On} và \textit{Targeted}. Với Global On, Feature Flag được bật cho toàn bộ người dùng của environment hiện tại. Với Targeted, kết quả evaluation được xác định dựa trên các rule đã cấu hình như user targeting, role targeting hoặc percentage rollout. Cách phân tách này giúp người quản trị chuyển đổi nhanh giữa phát hành toàn cục và phát hành có kiểm soát mà không cần thay đổi mã nguồn ứng dụng \cite{launchdarkly_feature_flags,launchdarkly_targeting_rules}.
+Người dùng chọn trạng thái cấu hình theo environment và serving mode phù hợp với kịch bản phát hành.
 
 \subsubsection{Validation biểu mẫu}
 
-Trước khi gửi dữ liệu tới Backend API, Dashboard thực hiện kiểm tra hợp lệ đối với các trường đầu vào. Các trường bắt buộc phải được nhập đầy đủ, trong khi flag key phải tuân thủ định dạng quy định và không chứa các ký tự không hợp lệ.
-
-Ngoài các kiểm tra phía Frontend nhằm nâng cao trải nghiệm người dùng, toàn bộ dữ liệu vẫn được Backend xác thực lại trước khi ghi vào cơ sở dữ liệu. Cơ chế kiểm tra hai lớp giúp giảm số lượng yêu cầu không hợp lệ, đồng thời bảo đảm tính toàn vẹn của dữ liệu ngay cả khi yêu cầu được gửi trực tiếp tới API \cite{owasp_rest_security}.
+Frontend kiểm tra các lỗi đơn giản trước khi gửi request, còn backend vẫn là nguồn validation cuối cùng.
 
 \subsubsection{Hiển thị lỗi từ Backend API}
 
-Trong trường hợp Backend API trả về lỗi, Dashboard hiển thị thông báo tương ứng ngay trên giao diện biểu mẫu. Các lỗi phổ biến bao gồm dữ liệu không hợp lệ, trùng flag key, không tìm thấy project hoặc các lỗi xử lý nội bộ của hệ thống.
-
-Thông tin lỗi được hiển thị gần trường dữ liệu liên quan hoặc dưới dạng thông báo tổng quát tùy theo loại lỗi. Cách trình bày này giúp người dùng nhanh chóng xác định nguyên nhân và thực hiện chỉnh sửa mà không cần tải lại trang. Việc phản hồi lỗi rõ ràng cũng phù hợp với mô hình API thống nhất được áp dụng trong toàn bộ hệ thống \cite{owasp_rest_security}.
+Khi backend trả lỗi chuẩn hóa, Dashboard hiển thị thông báo gần trường nhập hoặc ở vùng cảnh báo chung.
 
 \subsection{Màn hình cấu hình rule}
 
-Màn hình cấu hình rule cho phép người quản trị xác định tập người dùng được phép sử dụng một Feature Flag khi Serving Mode được đặt ở chế độ \textit{Targeted}. Dashboard hỗ trợ trực quan hóa từng loại rule, chỉnh sửa tham số tương ứng và thay đổi thứ tự ưu tiên giữa các rule. Cách tổ chức này giúp quá trình cấu hình phù hợp với cơ chế đánh giá tuần tự của Rule Evaluation Engine, đồng thời phản ánh rõ phạm vi ảnh hưởng của từng chiến lược rollout \cite{launchdarkly_targeting_rules,launchdarkly_percentage_rollouts}.
+Màn hình rule cho phép người dùng cấu hình ba loại rule đã hỗ trợ và quan sát thứ tự áp dụng mà không cần hiểu chi tiết mã nguồn engine.
 
 \subsubsection{Cấu hình user allowlist}
 
-Dashboard hỗ trợ tạo các rule thuộc loại \textit{User Allowlist}, cho phép chỉ định trực tiếp các người dùng sẽ được bật Feature Flag. Người quản trị nhập danh sách user ID tương ứng với những người dùng cần cấp quyền truy cập. Các giá trị này được lưu trong \texttt{parameters.userIds} và được so khớp với \texttt{context.userId}.
-
-User Allowlist thường được sử dụng trong các tình huống kiểm thử nội bộ, triển khai cho khách hàng chiến lược hoặc xác minh tính năng trước khi mở rộng phạm vi phát hành. Do chỉ áp dụng cho một tập nhỏ người dùng, đây là loại rule có mức ưu tiên cao nhằm đảm bảo các đối tượng được chỉ định luôn nhận được kết quả mong muốn \cite{launchdarkly_targeting_rules}.
+Giao diện nhận danh sách user ID mẫu và gửi về backend dưới dạng parameters của rule allowlist.
 
 \subsubsection{Cấu hình role targeting}
 
-Dashboard cho phép cấu hình Feature Flag dựa trên vai trò của người dùng thông qua các rule \textit{Role Targeting}. Người quản trị lựa chọn một hoặc nhiều role đã được định nghĩa trong hệ thống, chẳng hạn như \textit{Admin}, \textit{Beta Customer} hoặc \textit{Regular Customer}.
-
-Trong quá trình evaluation, nếu vai trò của người dùng khớp với một trong các role được cấu hình, Feature Flag sẽ được bật theo kết quả của rule đó. Cách tiếp cận này phù hợp với các kịch bản phát hành theo nhóm người dùng hoặc phân quyền sử dụng tính năng mà không cần liệt kê từng người dùng riêng lẻ \cite{launchdarkly_targeting_rules}.
+Giao diện cho phép chọn một hoặc nhiều role mẫu để phục vụ demo phát hành theo nhóm người dùng.
 
 \subsubsection{Cấu hình percentage rollout}
 
-Đối với các trường hợp cần phát hành dần tính năng, Dashboard hỗ trợ cấu hình \textit{Percentage Rollout}. Người quản trị chỉ định tỷ lệ phần trăm người dùng sẽ được bật Feature Flag thông qua thanh trượt hoặc trường nhập giá trị.
-
-Hệ thống sử dụng thuật toán băm ổn định để ánh xạ mỗi \textit{targeting key} vào một bucket cố định. Nhờ đó, cùng một người dùng luôn nhận được kết quả nhất quán giữa nhiều lần evaluation, ngay cả khi hệ thống được khởi động lại. Khi thay đổi tỷ lệ rollout, chỉ những người dùng thuộc phần bucket mới được bổ sung hoặc loại bỏ khỏi tập được phục vụ, giúp giảm sự biến động trong trải nghiệm người dùng \cite{launchdarkly_percentage_rollouts}.
+Người dùng nhập hoặc điều chỉnh tỷ lệ rollout trong khoảng hợp lệ; frontend chặn các giá trị ngoài miền trước khi gửi.
 
 \subsubsection{Thay đổi độ ưu tiên rule}
 
-Dashboard cho phép thay đổi thứ tự ưu tiên của các rule thông qua các thao tác trực quan. Sau khi điều chỉnh, hệ thống cập nhật lại giá trị ưu tiên và lưu cấu hình mới vào Backend API.
-
-Trong source code hiện tại, priority quyết định thứ tự giữa các rule cùng loại. Engine vẫn áp dụng type precedence cố định: User Allowlist trước, Role Targeting sau và Percentage Rollout cuối cùng. Cơ chế này giúp hành vi của hệ thống luôn xác định và dễ dự đoán khi tồn tại nhiều rule đồng thời \cite{launchdarkly_targeting_rules}.
+Dashboard hỗ trợ sắp xếp rule cùng loại bằng priority, sau đó lưu lại qua API quản trị.
 
 \subsubsection{Hiển thị tác động của rule}
 
-Sau khi cấu hình hoặc chỉnh sửa rule, Dashboard hiển thị các thông tin giúp người quản trị nhận biết phạm vi tác động của từng rule, bao gồm loại rule, điều kiện áp dụng, mức ưu tiên và trạng thái hiện tại.
-
-Việc trực quan hóa cấu hình giúp người dùng dễ dàng kiểm tra lại logic rollout trước khi lưu thay đổi, đồng thời giảm nguy cơ cấu hình sai dẫn đến phát hành ngoài mong muốn. Thiết kế này cũng hỗ trợ quá trình quản trị và bảo trì Feature Flag khi số lượng rule tăng lên theo thời gian \cite{unleash_feature_flag_best_practices,launchdarkly_targeting_rules}.
+Mỗi rule được trình bày với loại, tham số và trạng thái để người quản trị kiểm tra trước khi lưu cấu hình.
 
 \subsection{Màn hình quản lý flag group}
 
-Màn hình quản lý Flag Group được xây dựng nhằm hỗ trợ quản lý nhiều Feature Flag có cùng chức năng hoặc cùng phạm vi nghiệp vụ. Thay vì cấu hình từng Feature Flag riêng lẻ, người quản trị có thể tổ chức chúng thành các nhóm và thực hiện các thao tác tập trung như bật hoặc tắt nhanh toàn bộ nhóm thông qua Group Kill Switch. Cách tiếp cận này giúp giảm số lượng thao tác quản trị và phù hợp với các hệ thống có số lượng Feature Flag lớn \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+Màn hình group chứng minh khả năng quản trị nhiều flag liên quan trong cùng một thao tác.
 
 \subsubsection{Danh sách flag group}
 
-Dashboard hiển thị danh sách toàn bộ Flag Group thuộc project hiện tại dưới dạng các thẻ thông tin. Mỗi nhóm thể hiện tên nhóm, group key, số lượng Feature Flag đang được gán, environment đang hiển thị và trạng thái của Group Kill Switch trong environment đó.
-
-Từ màn hình này, người quản trị có thể tạo mới, đổi tên hoặc lựa chọn một Flag Group để xem danh sách các Feature Flag thuộc nhóm. Việc tổng hợp thông tin theo từng nhóm giúp dễ dàng quản lý các tính năng liên quan đến cùng một nghiệp vụ hoặc cùng một đợt phát hành.
+Danh sách group hiển thị group key, tên, số lượng flag thành viên và trạng thái kill switch theo environment.
 
 \subsubsection{Quản lý thành viên của group}
 
-Dashboard hỗ trợ thêm hoặc loại bỏ Feature Flag khỏi từng Flag Group thông qua giao diện trực quan. Khi cập nhật thành viên, hệ thống đồng thời hiển thị danh sách các Feature Flag hiện có để người quản trị dễ dàng lựa chọn.
-
-Một Feature Flag chỉ thuộc về một Flag Group trong phạm vi project, nhờ đó cấu trúc quản lý luôn rõ ràng và tránh phát sinh xung đột khi áp dụng Group Kill Switch. Sau khi lưu thay đổi, danh sách thành viên được cập nhật ngay trên giao diện để phản ánh trạng thái mới của nhóm.
+Dashboard hỗ trợ thêm hoặc loại bỏ flag khỏi group thông qua danh sách chọn trực quan.
 
 \subsubsection{Kích hoạt group kill switch}
 
-Đối với mỗi Flag Group, Dashboard cung cấp công tắc bật hoặc tắt Group Kill Switch. Khi Kill Switch được kích hoạt, toàn bộ Feature Flag thuộc nhóm sẽ bị vô hiệu hóa trong environment đang hiển thị mà không cần chỉnh sửa từng Feature Flag riêng lẻ.
-
-Cơ chế này đặc biệt hữu ích khi cần xử lý nhanh sự cố trên production. Thay vì thực hiện nhiều thao tác cấu hình độc lập, người quản trị chỉ cần kích hoạt Group Kill Switch để ngắt đồng thời toàn bộ các tính năng liên quan, từ đó rút ngắn thời gian phản ứng khi xảy ra lỗi \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+Công tắc group kill switch gửi mutation đến backend và làm mới danh sách sau khi thành công.
 
 \subsubsection{Xác nhận thao tác nguy hiểm}
 
-Các thao tác có khả năng ảnh hưởng tới nhiều Feature Flag như kích hoạt hoặc hủy Group Kill Switch đều yêu cầu người dùng xác nhận trước khi thực hiện. Dashboard hiển thị hộp thoại xác nhận kèm theo thông tin về Flag Group và số lượng Feature Flag sẽ bị tác động.
-
-Sau khi người dùng xác nhận, yêu cầu mới được gửi tới Backend API để cập nhật cấu hình. Thiết kế này giúp hạn chế các thao tác nhầm lẫn, giảm nguy cơ vô hiệu hóa ngoài ý muốn nhiều Feature Flag cùng lúc và góp phần bảo đảm an toàn trong quá trình vận hành hệ thống.
+Các thao tác ảnh hưởng nhiều flag yêu cầu xác nhận để giảm rủi ro vận hành nhầm.
 
 \subsection{Màn hình audit log}
 
-Màn hình Audit Log cho phép theo dõi toàn bộ các thay đổi cấu hình được thực hiện trên hệ thống quản lý Feature Flag. Mỗi thao tác quản trị như tạo, cập nhật, archive, restore Feature Flag, thay đổi rule hoặc cấu hình Group Kill Switch đều được ghi nhận dưới dạng một bản ghi bất biến. Giao diện này hỗ trợ truy vết lịch sử thay đổi, xác định nguyên nhân của các sự cố cấu hình và tăng khả năng kiểm toán trong quá trình vận hành hệ thống \cite{owasp_logging,unleash_feature_flag_best_practices}.
+Màn hình audit log giúp người dùng kiểm tra lịch sử thay đổi phát sinh từ các mutation quản trị.
 
 \subsubsection{Danh sách thay đổi}
 
-Dashboard hiển thị Audit Log dưới dạng bảng dữ liệu theo thứ tự thời gian giảm dần, giúp người quản trị nhanh chóng quan sát các thay đổi mới nhất. Mỗi bản ghi bao gồm thời điểm thực hiện, actor, loại đối tượng bị tác động, hành động thực hiện và request ID tương ứng.
-
-Các hành động được hiển thị dưới dạng nhãn trực quan như tạo mới, cập nhật, archive, restore hoặc thay đổi cấu hình rule. Nhờ đó người dùng có thể nhanh chóng nhận biết lịch sử hoạt động của hệ thống mà không cần truy cập trực tiếp vào cơ sở dữ liệu.
+Bảng audit log sắp xếp theo thời gian và hiển thị actor, action, target, request ID cùng thời điểm thao tác.
 
 \subsubsection{Lọc theo actor và action}
 
-Khi số lượng Audit Log tăng lên, Dashboard hỗ trợ lọc dữ liệu theo nhiều tiêu chí nhằm rút ngắn thời gian tìm kiếm. Người quản trị có thể lọc theo actor thực hiện thao tác hoặc theo loại hành động cần kiểm tra.
-
-Việc kết hợp nhiều điều kiện lọc giúp nhanh chóng xác định các thay đổi liên quan đến một người dùng hoặc một loại thao tác cụ thể, từ đó hỗ trợ quá trình điều tra sự cố và kiểm tra lịch sử cấu hình trong các hệ thống có nhiều người quản trị \cite{owasp_logging}.
+Bộ lọc giúp thu hẹp lịch sử khi cần điều tra một người dùng hoặc một loại thao tác cụ thể.
 
 \subsubsection{Hiển thị before và after snapshot}
 
-Đối với các thao tác cập nhật cấu hình, Dashboard hiển thị đồng thời trạng thái trước và sau khi thay đổi thông qua hai bản snapshot. Các trường dữ liệu được trình bày song song để người quản trị dễ dàng so sánh và xác định chính xác nội dung đã được chỉnh sửa.
-
-Việc lưu trữ snapshot trước và sau thay đổi giúp hỗ trợ truy vết, kiểm tra lịch sử cấu hình và phục vụ quá trình phân tích khi xảy ra sự cố. Đây cũng là một trong những thông tin quan trọng của hệ thống Audit Log nhằm bảo đảm khả năng kiểm toán và minh bạch trong quản trị \cite{owasp_logging}.
+Dashboard trình bày snapshot trước/sau để người dùng nhìn thấy chính xác dữ liệu đã đổi.
 
 \subsubsection{Truy vết theo request ID}
 
-Mỗi yêu cầu gửi tới Management API đều được gắn một request ID duy nhất và được lưu cùng bản ghi Audit Log. Dashboard hiển thị request ID để người quản trị có thể liên kết nhiều thao tác phát sinh từ cùng một yêu cầu hoặc đối chiếu với log của Backend API.
-
-Cơ chế truy vết theo request ID giúp rút ngắn thời gian xác định nguyên nhân khi xảy ra lỗi, hỗ trợ quá trình gỡ lỗi giữa Frontend và Backend, đồng thời nâng cao khả năng quan sát và vận hành hệ thống theo các khuyến nghị về ghi log và truy vết trong các ứng dụng web hiện đại \cite{owasp_logging,owasp_rest_security}.
+Request ID được hiển thị để liên kết audit log với phản hồi API hoặc log backend khi debug.
 
 \subsection{Màn hình thống kê evaluation}
 
-Màn hình thống kê evaluation cung cấp cái nhìn tổng quan về hoạt động của Rule Evaluation Engine thông qua các số liệu được thu thập trong quá trình xử lý yêu cầu từ Demo App hoặc các ứng dụng khách. Các thống kê được trình bày dưới dạng số liệu tổng hợp và biểu đồ trực quan, giúp người quản trị đánh giá mức độ sử dụng của từng Feature Flag cũng như theo dõi hiệu quả của các chiến lược rollout. Việc theo dõi các chỉ số này hỗ trợ quá trình vận hành và tối ưu cấu hình Feature Flag trong suốt vòng đời của hệ thống \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+Màn hình statistics tổng hợp các lượt evaluation đã được backend ghi nhận.
 
 \subsubsection{Tổng số lần evaluation}
 
-Dashboard hiển thị tổng số yêu cầu evaluation đã được hệ thống xử lý trong khoảng thời gian được lựa chọn. Chỉ số này phản ánh mức độ sử dụng của Evaluation API và cho phép người quản trị nhanh chóng đánh giá lưu lượng truy cập của hệ thống.
-
-Ngoài giá trị tổng, giao diện còn cập nhật thời điểm thống kê gần nhất nhằm bảo đảm người dùng luôn quan sát được dữ liệu mới nhất. Việc theo dõi tổng số lần evaluation cũng giúp đánh giá hiệu quả của cơ chế cache và hỗ trợ lập kế hoạch mở rộng hệ thống khi lưu lượng truy cập tăng.
+Dashboard hiển thị tổng số request evaluation trong phạm vi thời gian được chọn.
 
 \subsubsection{Thống kê theo Feature Flag}
 
-Dashboard cung cấp bảng thống kê aggregate số lần evaluation của từng Feature Flag trong project. Mỗi dòng thể hiện tên Feature Flag cùng với số lượng yêu cầu evaluation tương ứng, cho phép người quản trị xác định những Feature Flag được sử dụng nhiều nhất.
-
-Thông tin này giúp nhận biết các Feature Flag đóng vai trò quan trọng trong hệ thống, từ đó ưu tiên theo dõi, kiểm thử hoặc tối ưu cấu hình. Đồng thời, các Feature Flag ít hoặc không còn được sử dụng cũng có thể được xem xét archive nhằm giảm chi phí quản lý và hạn chế phát sinh \textit{feature flag debt} \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+Bảng thống kê theo flag giúp nhận biết flag nào được gọi nhiều trong demo.
 
 \subsubsection{Thống kê theo kết quả bật và tắt}
 
-Bên cạnh số lượng evaluation, Dashboard còn thống kê số lần Feature Flag được đánh giá ở trạng thái bật (\textit{Enabled}) và tắt (\textit{Disabled}). Các số liệu được trình bày dưới dạng biểu đồ hoặc tỷ lệ phần trăm để người quản trị dễ dàng quan sát.
-
-Thông qua thống kê này, người quản trị có thể đánh giá mức độ ảnh hưởng của các chiến lược rollout, xác định Feature Flag đang được phục vụ cho bao nhiêu người dùng và kiểm tra xem kết quả evaluation có phù hợp với cấu hình mong muốn hay không.
+Dashboard phân tách số lần enabled/disabled để người dùng đối chiếu với chiến lược rollout.
 
 \subsubsection{Biểu đồ theo thời gian}
 
-Dashboard hiển thị biểu đồ thể hiện số lượng evaluation theo từng khoảng thời gian như giờ hoặc ngày. Dữ liệu được tổng hợp liên tục từ các yêu cầu evaluation và cập nhật khi người dùng thay đổi khoảng thời gian thống kê.
-
-Biểu đồ theo thời gian giúp nhận biết xu hướng sử dụng của hệ thống, phát hiện các khoảng thời gian có lưu lượng truy cập cao hoặc các biến động bất thường trong quá trình vận hành. Các thông tin này hỗ trợ người quản trị đánh giá tác động của việc phát hành tính năng mới, điều chỉnh chiến lược rollout và chuẩn bị tài nguyên phù hợp cho hệ thống.
+Biểu đồ thời gian minh họa xu hướng evaluation và hỗ trợ trình diễn tác động khi thay đổi cấu hình.
 
 \subsection{Hiển thị quyền và trạng thái}
 
-Dashboard không chỉ cung cấp các chức năng quản trị Feature Flag mà còn phản ánh rõ quyền của người dùng và trạng thái hiện tại của từng đối tượng trong hệ thống. Giao diện được thiết kế để chỉ hiển thị các thao tác phù hợp với quyền được cấp, đồng thời trực quan hóa trạng thái lifecycle và runtime của Feature Flag nhằm giảm nguy cơ thao tác sai. Cách tiếp cận này giúp tăng tính an toàn trong quản trị và phù hợp với mô hình phân quyền của hệ thống \cite{owasp_rest_security,launchdarkly_feature_flags}.
+Dashboard phản ánh role hiện tại và trạng thái quyền để người dùng hiểu thao tác nào khả dụng.
 
 \subsubsection{Ẩn hoặc vô hiệu hóa thao tác}
 
-Dashboard kiểm tra quyền của người dùng trước khi hiển thị các chức năng quản trị. Đối với những thao tác mà người dùng không được phép thực hiện, giao diện sẽ ẩn hoàn toàn hoặc chuyển nút chức năng sang trạng thái vô hiệu hóa (\textit{disabled}).
-
-Các thao tác như tạo Feature Flag, chỉnh sửa cấu hình, archive, restore hoặc kích hoạt Group Kill Switch chỉ khả dụng đối với các vai trò có quyền tương ứng. Việc kiểm soát ngay trên giao diện giúp giảm số lượng yêu cầu không hợp lệ gửi tới Backend API và cải thiện trải nghiệm sử dụng, mặc dù toàn bộ quyền truy cập vẫn được xác thực lại ở phía máy chủ \cite{owasp_rest_security}.
+Các nút không đủ quyền được ẩn hoặc disabled, trong khi backend vẫn kiểm tra quyền lần cuối.
 
 \subsubsection{Hiển thị role hiện tại}
 
-Dashboard hiển thị vai trò của người dùng đang đăng nhập tại khu vực thông tin tài khoản, giúp người dùng nhận biết phạm vi thao tác của mình trong hệ thống. Các vai trò như \textit{Administrator}, \textit{Developer} hoặc \textit{Viewer} được biểu diễn bằng nhãn trực quan để dễ phân biệt.
-
-Việc hiển thị role ngay trên giao diện giúp người dùng hiểu lý do một số chức năng không khả dụng, đồng thời giảm nhầm lẫn khi nhiều tài khoản có các mức quyền khác nhau cùng sử dụng hệ thống quản trị.
+Role admin/developer/viewer được hiển thị ở khu vực tài khoản để tránh nhầm lẫn trong demo.
 
 \subsubsection{Hiển thị trạng thái lifecycle}
 
-Mỗi Feature Flag đều hiển thị trạng thái vòng đời (\textit{Lifecycle Status}) thông qua các nhãn trực quan như \textit{Active} hoặc \textit{Archived}. Trạng thái này phản ánh khả năng tồn tại của Feature Flag trong hệ thống và được cập nhật ngay sau mỗi thao tác archive hoặc restore.
-
-Việc phân biệt rõ lifecycle status giúp người quản trị dễ dàng nhận biết các Feature Flag đã ngừng sử dụng nhưng vẫn được lưu trữ để phục vụ truy vết hoặc khôi phục sau này. Đây cũng là cơ sở để hạn chế việc cấu hình hoặc đánh giá các Feature Flag đã được archive \cite{unleash_feature_flag_best_practices}.
+Lifecycle status cho biết flag đang active hay archived.
 
 \subsubsection{Hiển thị trạng thái runtime}
 
-Bên cạnh lifecycle status, Dashboard còn hiển thị trạng thái runtime của Feature Flag nhằm phản ánh khả năng phục vụ thực tế trong quá trình evaluation. Trạng thái này được xác định từ nhiều yếu tố như trạng thái kích hoạt, Serving Mode, Kill Switch và cấu hình rule hiện hành.
-
-Các trạng thái runtime được biểu diễn bằng màu sắc và nhãn trực quan để người quản trị nhanh chóng nhận biết Feature Flag đang được bật toàn cục, đang phục vụ theo rule targeting, đã bị vô hiệu hóa hoặc đang chịu tác động của Kill Switch. Việc hiển thị đồng thời lifecycle và runtime giúp người dùng phân biệt rõ giữa trạng thái quản lý của Feature Flag và trạng thái hoạt động thực tế trong hệ thống \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+Runtime status cho biết flag đang được phục vụ theo cấu hình nào tại environment hiện hành.

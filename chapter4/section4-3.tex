@@ -1,73 +1,53 @@
 \section{Bài học kinh nghiệm}
 
+Quá trình thực hiện đề tài cho thấy giá trị của việc tách rõ nghiên cứu, thiết kế, triển khai và kiểm thử. Các bài học dưới đây được trình bày ở mức tổng kết, không lặp lại chi tiết kỹ thuật đã phân tích ở các chương trước.
+
 \subsection{Bài học về phân tích bài toán}
 
 \subsubsection{Xác định phạm vi MVP}
 
-Một trong những bài học quan trọng nhất của đề tài là cần xác định rõ phạm vi của sản phẩm tối thiểu khả thi (Minimum Viable Product -- MVP) ngay từ giai đoạn phân tích. Feature Flag là một lĩnh vực có phạm vi rất rộng, bao gồm nhiều chức năng như đa biến thể (multi-variant), realtime streaming, SDK cho nhiều ngôn ngữ, đồng bộ phân tán, experiment platform hay phân tích hành vi người dùng. Nếu cố gắng triển khai toàn bộ các chức năng này trong phạm vi mini project sẽ dẫn đến hệ thống quá phức tạp, khó hoàn thành đúng tiến độ và khó kiểm chứng.
-
-Vì vậy, đề tài tập trung vào các chức năng cốt lõi phản ánh đúng bản chất của Feature Flag, bao gồm quản lý Feature Flag, cấu hình rule theo người dùng, vai trò và phần trăm rollout, Evaluation API, dashboard quản trị, audit log và ứng dụng minh họa. Việc giới hạn phạm vi giúp nhóm tập trung vào chất lượng thiết kế của Rule Evaluation Engine, tính đúng đắn của kết quả evaluation và khả năng minh họa rõ giá trị của Feature Flag trong quá trình phát hành phần mềm \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
+Feature Flag là miền bài toán rộng, dễ mở sang A/B testing, realtime sync hoặc workflow phê duyệt. Việc xác định MVP giúp ưu tiên các năng lực cốt lõi: quản lý flag, rule engine xác định, audit log, dashboard và demo tích hợp.
 
 \subsubsection{Phân tách yêu cầu bắt buộc và mở rộng}
 
-Trong quá trình phân tích yêu cầu, đề tài nhận thấy việc phân chia giữa các chức năng bắt buộc và các chức năng mở rộng có ý nghĩa quan trọng đối với việc lập kế hoạch phát triển. Các yêu cầu MVP được ưu tiên triển khai trước nhằm đảm bảo hệ thống có thể hoạt động đầy đủ và đáp ứng các mục tiêu chính của đề tài. Sau khi hoàn thành các chức năng nền tảng, các yêu cầu mở rộng như caching, JavaScript SDK, phân quyền quản trị, lịch sử cấu hình dựa trên audit log, evaluation metrics, group kill switch và Docker Compose mới được bổ sung từng bước.
-
-Cách tiếp cận này giúp giảm rủi ro trong quá trình phát triển, đồng thời tạo điều kiện đánh giá tiến độ một cách rõ ràng. Ngoài ra, việc xây dựng các chức năng mở rộng trên nền tảng kiến trúc đã ổn định cũng giúp hạn chế việc phải thay đổi thiết kế ban đầu và tăng khả năng bảo trì của hệ thống trong tương lai \cite{unleash_feature_flag_best_practices,microsoft_devops}.
+Tách yêu cầu bắt buộc khỏi yêu cầu khuyến khích giúp sản phẩm có baseline ổn định trước khi bổ sung SDK, RBAC, statistics, group kill switch và Docker Compose.
 
 \subsubsection{Chuyển yêu cầu thành use case và thiết kế}
 
-Một bài học quan trọng khác là yêu cầu nghiệp vụ cần được chuyển đổi thành các use case cụ thể trước khi tiến hành thiết kế hệ thống. Thay vì thiết kế trực tiếp từ danh sách chức năng, đề tài xây dựng các luồng sử dụng như quản trị Feature Flag, cấu hình rule, đánh giá trạng thái flag, ghi nhận audit log và tích hợp với ứng dụng khách. Từ các use case này, kiến trúc hệ thống, cơ sở dữ liệu, API và Rule Evaluation Engine được thiết kế theo hướng phục vụ trực tiếp các nghiệp vụ thực tế.
-
-Quá trình này cũng giúp xác định rõ các thực thể dữ liệu, luồng xử lý, thứ tự ưu tiên của các rule và các trường hợp ngoại lệ cần xử lý trong Evaluation Engine. Nhờ đó, hệ thống có cấu trúc rõ ràng, dễ kiểm thử, dễ mở rộng và phù hợp với các nguyên tắc thiết kế của các nền tảng Feature Flag hiện đại cũng như đặc tả Evaluation API và Evaluation Context của OpenFeature \cite{openfeature_flag_evaluation,openfeature_evaluation_context}.
+Các yêu cầu ban đầu cần được chuyển thành use case, contract API, mô hình dữ liệu và tiêu chí kiểm thử cụ thể; nếu không, hệ thống dễ chỉ dừng ở giao diện bật/tắt đơn giản.
 
 \subsection{Bài học về thiết kế hệ thống}
 
 \subsubsection{Tầm quan trọng của evaluation precedence}
 
-Trong quá trình thiết kế Rule Evaluation Engine, bài học quan trọng nhất là cần xác định thứ tự ưu tiên (evaluation precedence) ngay từ đầu. Khi nhiều điều kiện có thể đồng thời áp dụng cho một Feature Flag, hệ thống phải luôn đưa ra cùng một kết quả đối với cùng một Evaluation Context. Nếu không có precedence rõ ràng, các lần đánh giá có thể cho kết quả khác nhau tùy theo thứ tự thực thi hoặc cách cài đặt, làm giảm tính xác định của hệ thống.
-
-Đề tài xây dựng một thứ tự đánh giá cố định, trong đó các trạng thái như archived, disabled và kill switch được kiểm tra trước, tiếp theo là các rule targeting theo người dùng, vai trò và percentage rollout, cuối cùng mới sử dụng giá trị mặc định nếu không có rule nào phù hợp. Thiết kế này giúp Evaluation Engine hoạt động nhất quán, dễ kiểm thử và thuận lợi khi bổ sung thêm các loại rule mới mà không làm thay đổi hành vi của các rule hiện có \cite{openfeature_flag_evaluation,launchdarkly_targeting_rules}.
+Một rule engine chỉ đáng tin cậy khi thứ tự ưu tiên được định nghĩa trước và được kiểm thử. Đây là điểm quyết định để kết quả evaluation có thể giải thích được.
 
 \subsubsection{Phân tách định nghĩa flag và cấu hình runtime}
 
-Một bài học khác là cần tách biệt giữa định nghĩa của Feature Flag và cấu hình runtime. Ban đầu có thể lựa chọn lưu toàn bộ thông tin trong một thực thể duy nhất để đơn giản hóa thiết kế, tuy nhiên cách tiếp cận này nhanh chóng bộc lộ hạn chế khi cần quản lý nhiều môi trường triển khai hoặc thay đổi cấu hình mà vẫn giữ nguyên định nghĩa của flag.
-
-Trong hệ thống được xây dựng, phần định nghĩa Feature Flag chỉ chứa các thông tin mang tính ổn định như tên, khóa định danh và mô tả, trong khi trạng thái hoạt động, serving mode, kill switch và tập các rule được quản lý thông qua cấu hình runtime. Việc phân tách này giúp dữ liệu có tính mô-đun hơn, giảm sự phụ thuộc giữa các thành phần và tạo nền tảng để mở rộng sang nhiều environment hoặc nhiều phiên bản cấu hình trong tương lai \cite{launchdarkly_feature_flags,unleash_feature_flags}.
+Tách metadata của flag khỏi cấu hình theo environment giúp cùng một flag phục vụ nhiều môi trường mà không nhân bản định nghĩa.
 
 \subsubsection{Thiết kế auditability từ đầu}
 
-Quá trình phát triển cho thấy khả năng truy vết (auditability) cần được xem là một yêu cầu kiến trúc thay vì một chức năng bổ sung ở giai đoạn cuối. Nếu chỉ ghi nhận các thay đổi sau khi hệ thống đã hoàn thiện, nhiều thông tin quan trọng như actor, request ID hoặc trạng thái trước và sau khi thay đổi sẽ khó được bổ sung đầy đủ.
-
-Vì vậy, hệ thống được thiết kế với cơ chế audit log append-only ngay từ đầu, ghi nhận toàn bộ các thao tác thay đổi cấu hình cùng thông tin người thực hiện, thời điểm thực hiện và snapshot của dữ liệu trước và sau khi cập nhật. Thiết kế này không chỉ hỗ trợ việc kiểm tra và khắc phục sự cố mà còn giúp tăng tính minh bạch, khả năng truy vết và đáp ứng các nguyên tắc ghi nhật ký an toàn được khuyến nghị bởi OWASP \cite{owasp_logging,owasp_rest_security}.
+Audit log nên được đưa vào luồng mutation ngay từ đầu, vì bổ sung sau khi hệ thống đã có nhiều endpoint sẽ dễ bỏ sót hành động quan trọng.
 
 \subsubsection{Cân bằng giữa tính đơn giản và khả năng mở rộng}
 
-Feature Flag là một lĩnh vực có nhiều chức năng nâng cao như realtime update, multi-variant, experiment platform hay distributed configuration. Tuy nhiên, không phải tất cả các khả năng này đều cần thiết trong phạm vi của một mini project. Một bài học quan trọng là cần cân bằng giữa tính đơn giản của thiết kế và khả năng mở rộng trong tương lai.
-
-Đề tài lựa chọn chỉ triển khai các chức năng cốt lõi nhưng vẫn xây dựng kiến trúc theo hướng mô-đun. Rule Evaluation Engine được tách biệt khỏi tầng truy cập dữ liệu, API được thiết kế theo nguyên tắc REST, dữ liệu rule được lưu dưới dạng có thể mở rộng và các thành phần như cache, SDK hoặc các loại targeting mới có thể được bổ sung mà không phải thay đổi đáng kể kiến trúc hiện có. Cách tiếp cận này giúp hệ thống vừa đáp ứng đầy đủ yêu cầu của mini project, vừa tạo nền tảng thuận lợi cho các hướng phát triển tiếp theo \cite{unleash_feature_flag_best_practices,fowler_feature_toggles,mahdavi_hezaveh_feature_toggles}.
+Kiến trúc một backend service đủ đơn giản cho mini project nhưng vẫn giữ ranh giới module để có thể tách service hoặc thêm hạ tầng phân tán sau này.
 
 \subsection{Bài học về triển khai và kiểm thử}
 
 \subsubsection{Validation tại ranh giới hệ thống}
 
-Trong quá trình triển khai, đề tài nhận thấy việc kiểm tra dữ liệu đầu vào ngay tại ranh giới của hệ thống có vai trò quan trọng đối với tính ổn định và an toàn của toàn bộ nền tảng. Các yêu cầu như định dạng khóa định danh, giá trị phần trăm rollout, trạng thái Feature Flag, Evaluation Context hay quyền truy cập cần được kiểm tra trước khi dữ liệu đi vào các tầng nghiệp vụ. Điều này giúp hạn chế dữ liệu không hợp lệ lan truyền vào cơ sở dữ liệu hoặc Rule Evaluation Engine, đồng thời đơn giản hóa việc xử lý lỗi ở các tầng phía sau.
-
-Bên cạnh đó, việc chuẩn hóa cấu trúc phản hồi lỗi cùng request ID cũng giúp client dễ dàng xác định nguyên nhân sự cố và hỗ trợ quá trình theo dõi, gỡ lỗi trong quá trình vận hành. Đây cũng là cách tiếp cận phù hợp với các khuyến nghị về bảo vệ REST API và validation đầu vào của OWASP \cite{owasp_rest_security}.
+DTO validation và constraint database giúp phát hiện lỗi sớm, giảm trạng thái cấu hình không hợp lệ lọt vào engine.
 
 \subsubsection{Kiểm thử các trường hợp precedence}
 
-Một bài học quan trọng trong kiểm thử là không chỉ xác nhận từng rule hoạt động đúng mà còn phải kiểm thử các trường hợp nhiều điều kiện cùng tồn tại. Các kịch bản như flag vừa bị disabled vừa được bật kill switch, người dùng đồng thời thuộc allowlist và role được cấp quyền, hoặc nhiều rule targeting có khả năng cùng khớp đều cần được kiểm thử để xác nhận Evaluation Engine luôn tuân thủ đúng evaluation precedence đã thiết kế.
-
-Việc xây dựng các bộ kiểm thử theo từng nhóm precedence giúp phát hiện sớm các trường hợp xung đột trong logic đánh giá, đồng thời đảm bảo kết quả evaluation luôn mang tính xác định và có thể dự đoán được. Đây là một yêu cầu quan trọng đối với các hệ thống Feature Flag nhằm duy trì hành vi nhất quán trong môi trường production \cite{launchdarkly_targeting_rules,openfeature_flag_evaluation}.
+Các test quan trọng nhất là những test chứng minh precedence, fail-closed và stable rollout không thay đổi khi refactor.
 
 \subsubsection{Quản lý cache invalidation}
 
-Quá trình bổ sung cơ chế cache cho Evaluation Engine cho thấy việc lưu trữ dữ liệu chỉ là một phần của bài toán, trong khi cache invalidation mới là yếu tố quyết định tính đúng đắn của kết quả evaluation. Nếu cache không được làm mới sau khi thay đổi trạng thái Feature Flag hoặc cập nhật rule, ứng dụng có thể tiếp tục sử dụng cấu hình cũ và dẫn đến kết quả không phản ánh đúng trạng thái thực tế của hệ thống.
-
-Do đó, mọi thao tác thay đổi cấu hình đều cần kích hoạt cơ chế invalidation tương ứng để đảm bảo các lần evaluation tiếp theo sử dụng dữ liệu mới nhất. Thiết kế này giúp cân bằng giữa hiệu năng truy vấn và tính nhất quán của cấu hình, đồng thời phù hợp với các nguyên tắc triển khai Feature Flag ở quy mô lớn \cite{unleash_feature_flag_best_practices,redis_client_side_caching}.
+Cache chỉ an toàn khi có chiến lược invalidation rõ. Với Feature Flag, snapshot cũ có thể trực tiếp làm sai quyết định runtime.
 
 \subsubsection{Xây dựng dữ liệu và kịch bản demo}
 
-Một bài học thực tiễn khác là chất lượng của dữ liệu mẫu và kịch bản demo ảnh hưởng trực tiếp đến khả năng đánh giá giá trị của hệ thống. Thay vì chỉ chuẩn bị dữ liệu tối thiểu để minh họa giao diện, đề tài xây dựng nhiều người dùng, vai trò, tổ chức và Feature Flag với các cấu hình khác nhau nhằm tái hiện các tình huống thường gặp trong thực tế.
-
-Các kịch bản demo bao gồm bật hoặc tắt toàn cục, targeting theo người dùng, targeting theo vai trò, percentage rollout, kill switch, audit log và thống kê evaluation. Nhờ đó, hệ thống có thể minh họa đầy đủ quá trình quản trị Feature Flag từ cấu hình đến evaluation, đồng thời giúp việc kiểm thử tích hợp và trình diễn sản phẩm trở nên trực quan, thuyết phục và phản ánh đúng mục tiêu của đề tài \cite{fowler_feature_toggles,microsoft_devops,launchdarkly_percentage_rollouts}.
+Seed data và kịch bản demo cần được chuẩn bị cùng lúc với tính năng để người xem có thể quan sát giá trị hệ thống mà không phải cấu hình thủ công quá nhiều.

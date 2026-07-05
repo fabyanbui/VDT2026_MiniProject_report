@@ -1,275 +1,33 @@
 \section{Các kịch bản minh họa}
 
+Các kịch bản dưới đây dùng để trình diễn sản phẩm, không lặp lại phần giải thích lý thuyết về targeting, rollout, kill switch hay audit log đã trình bày ở Chương 2. Mỗi kịch bản gồm thao tác trên Dashboard, context từ Demo Application và kết quả quan sát được.
+
 \subsection{Bật và tắt tính năng toàn cục}
 
-Kịch bản đầu tiên minh họa khả năng bật hoặc tắt một tính năng cho toàn bộ người dùng mà không cần triển khai lại ứng dụng. Đây là trường hợp sử dụng phổ biến nhất của Feature Flag trong thực tế, cho phép tách quá trình triển khai mã nguồn khỏi quá trình phát hành tính năng, đồng thời hỗ trợ rollback nhanh khi phát hiện sự cố trên môi trường production \cite{fowler_feature_toggles,microsoft_devops}. Trong hệ thống được xây dựng, chế độ này được thực hiện thông qua \textit{Serving Mode = Global On} kết hợp với trạng thái cấu hình của Feature Flag.
+Người quản trị chọn một Feature Flag ở môi trường production và chuyển serving mode giữa \texttt{GLOBAL\_ON} và trạng thái không phục vụ toàn cục. Demo Application gọi Evaluation API với cùng context trước và sau thao tác. Kết quả quan sát được là giao diện tính năng mới xuất hiện hoặc biến mất ngay sau khi cấu hình thay đổi, đồng thời audit log ghi nhận mutation tương ứng.
 
-\subsubsection{Cấu hình ban đầu}
+\subsection{Targeting theo user và role}
 
-Ban đầu, Feature Flag được tạo trong Dashboard với trạng thái \textit{Enabled} và chế độ phục vụ (\textit{Serving Mode}) được đặt là \textit{Targeted}. Khi đó, Demo Application chỉ hiển thị tính năng nếu kết quả evaluation thỏa mãn các rule đã cấu hình. Evaluation Engine thực hiện kiểm tra trạng thái của Feature Flag trước khi đánh giá các rule, bảo đảm thứ tự ưu tiên xử lý nhất quán trong toàn hệ thống.
+Với user allowlist, người quản trị thêm một \texttt{userId} cụ thể vào rule. Demo Application chọn lần lượt người dùng nằm trong và ngoài danh sách để chứng minh chỉ user được cấu hình nhận \texttt{enabled = true}.
 
-Để minh họa việc phát hành tính năng cho toàn bộ người dùng, người quản trị chuyển chế độ phục vụ sang \textit{Global On}. Khi đó, mọi yêu cầu evaluation hợp lệ đều nhận kết quả bật tính năng mà không cần xét đến user, role hoặc tỷ lệ rollout. Cơ chế này phù hợp với mô hình phát hành toàn cục được áp dụng trong nhiều nền tảng Feature Flag hiện đại \cite{launchdarkly_feature_flags}.
+Với role targeting, Dashboard cấu hình role được phép, ví dụ \texttt{beta-customer}. Demo Application đổi giữa người dùng beta và người dùng thường để quan sát hai kết quả khác nhau. Kịch bản này chứng minh cùng một flag có thể được phát hành cho nhóm người dùng có đặc điểm nghiệp vụ khác nhau mà không cần đổi mã ứng dụng.
 
-\subsubsection{Thao tác trên Dashboard}
+\subsection{Rollout theo phần trăm}
 
-Từ màn hình quản lý Feature Flag, người quản trị chọn Feature Flag cần cấu hình và mở trang chỉnh sửa cấu hình. Tại đây, chế độ phục vụ được chuyển từ \textit{Targeted} sang \textit{Global On} và lưu thay đổi.
+Người quản trị đặt rollout ở một tỷ lệ cụ thể, sau đó Demo Application thử nhiều sample user có \texttt{targetingKey} khác nhau. Một số người dùng nhận tính năng mới, số khác tiếp tục ở trạng thái cũ. Khi tỷ lệ rollout tăng, nhóm đã được bật không bị đảo trạng thái; khi tỷ lệ giảm, chỉ các bucket nằm ngoài ngưỡng mới bị tắt.
 
-Sau khi cấu hình được cập nhật thành công, Backend API ghi nhận thay đổi vào cơ sở dữ liệu, đồng thời cập nhật cache nếu có sử dụng cơ chế lưu đệm. Những yêu cầu evaluation được gửi sau thời điểm này sẽ sử dụng cấu hình mới mà không cần khởi động lại Backend hoặc Demo Application. Việc thay đổi trạng thái thông qua Dashboard thể hiện đặc điểm cấu hình tại thời gian chạy (\textit{runtime configuration}) của Feature Flag \cite{unleash_feature_flag_best_practices}.
+\subsection{Kill switch ở cấp flag và group}
 
-\subsubsection{Kết quả trên Demo Application}
+Khi một flag đang được bật bằng global on hoặc targeting rule, người quản trị kích hoạt flag kill switch. Demo Application nhận ngay kết quả tắt, cho thấy hệ thống có thể rollback runtime mà không cần deploy lại.
 
-Sau khi Dashboard hoàn tất cập nhật cấu hình, Demo Application gửi yêu cầu đến Evaluation API với Evaluation Context của người dùng hiện tại. Evaluation Engine kiểm tra trạng thái của Feature Flag và xác định chế độ phục vụ là \textit{Global On}. Do đó, quá trình đánh giá kết thúc ngay mà không cần tiếp tục kiểm tra các rule targeting.
+Với group kill switch, nhiều flag thuộc cùng một nhóm bị tắt đồng thời trong environment hiện tại. Kịch bản này dùng để trình bày khả năng phản ứng nhanh khi một nhóm tính năng liên quan gây lỗi hoặc cần tạm dừng trong production.
 
-Evaluation API trả về kết quả với thuộc tính \texttt{enabled = true} cùng mã nguyên nhân (\textit{reason}) tương ứng với chế độ bật toàn cục. Demo Application nhận phản hồi và hiển thị đầy đủ giao diện hoặc chức năng được bảo vệ bởi Feature Flag. Kết quả này giống nhau đối với mọi người dùng, bất kể user ID, role hoặc các thuộc tính khác trong Evaluation Context.
+\subsection{Audit log, history và statistics}
 
-Để minh họa khả năng rollback tức thời, người quản trị tiếp tục chuyển Feature Flag từ \textit{Global On} về \textit{Targeted} hoặc \textit{Disabled}. Ngay sau khi cấu hình được cập nhật, các lần evaluation tiếp theo phản ánh trạng thái mới mà không cần triển khai lại ứng dụng, đúng với mục tiêu tách biệt giữa deploy và release \cite{fowler_feature_toggles,microsoft_devops}.
+Sau mỗi thao tác cấu hình, Dashboard hiển thị bản ghi audit mới với actor, action, request ID và snapshot trước/sau. Màn hình history dùng cùng nguồn dữ liệu này để truy vết thay đổi theo từng flag.
 
-\subsubsection{Audit log phát sinh}
+Khi Demo Application phát sinh nhiều request evaluation, màn hình statistics cập nhật tổng số lượt đánh giá và phân bố bật/tắt. Đây là bằng chứng cho thấy hệ thống không chỉ thay đổi hành vi runtime mà còn cung cấp dữ liệu quan sát phục vụ quản trị.
 
-Mỗi thao tác thay đổi trạng thái hoặc chế độ phục vụ của Feature Flag đều sinh một bản ghi Audit Log. Bản ghi lưu thông tin người thực hiện, thời điểm thay đổi, hành động tương ứng, Request ID cùng dữ liệu trước và sau khi cập nhật cấu hình.
+\subsection{Fallback của SDK}
 
-Việc lưu trữ đầy đủ thông tin thay đổi giúp truy vết nguyên nhân khi phát sinh sự cố, hỗ trợ kiểm tra lịch sử cấu hình và tăng khả năng kiểm toán của hệ thống. Audit Log được lưu theo mô hình append-only, không cho phép chỉnh sửa trực tiếp nhằm bảo đảm tính toàn vẹn của dữ liệu \cite{owasp_logging}.
-
-\subsection{Bật tính năng cho người dùng cụ thể}
-
-Kịch bản thứ hai minh họa khả năng phát hành tính năng cho một hoặc một nhóm nhỏ người dùng xác định thông qua \textit{User Allowlist}. Đây là chiến lược thường được sử dụng để kiểm thử nội bộ, phát hành sớm cho khách hàng quan trọng hoặc xác minh tính năng trước khi mở rộng phạm vi triển khai. Trong hệ thống được xây dựng, Rule Evaluation Engine ưu tiên kiểm tra rule theo thứ tự đã thiết kế, trong đó User Allowlist được đánh giá trước các rule theo role và percentage rollout nhằm bảo đảm người dùng được chỉ định luôn nhận được kết quả mong muốn \cite{launchdarkly_targeting_rules}.
-
-\subsubsection{Cấu hình user allowlist}
-
-Từ Dashboard, người quản trị mở trang cấu hình Feature Flag và tạo một rule có kiểu \textit{User Allowlist}. Rule này chứa danh sách \textit{userId} được phép sử dụng tính năng. Sau khi lưu cấu hình, Backend API cập nhật dữ liệu vào cơ sở dữ liệu và sử dụng cấu hình mới cho các lần evaluation tiếp theo.
-
-Evaluation Context do Demo Application gửi lên bao gồm cả \textit{userId} và \textit{targetingKey}. Trong source code hiện tại, User Allowlist so khớp với \texttt{context.userId}; \texttt{targetingKey} được giữ làm khóa ổn định cho percentage rollout. Việc sử dụng Evaluation Context giúp tách biệt thông tin người dùng khỏi logic đánh giá Feature Flag, phù hợp với mô hình được đề xuất trong OpenFeature \cite{openfeature_evaluation_context}.
-
-\subsubsection{Người dùng khớp rule}
-
-Khi người dùng có \textit{userId} nằm trong danh sách cho phép gửi yêu cầu đến Evaluation API, Evaluation Engine lần lượt kiểm tra trạng thái của Feature Flag và tiếp tục đánh giá rule User Allowlist. Do điều kiện được thỏa mãn, quá trình evaluation kết thúc ngay mà không cần tiếp tục đánh giá các rule phía sau.
-
-Evaluation API trả về kết quả với thuộc tính \texttt{enabled = true}. Demo Application nhận phản hồi và hiển thị đầy đủ tính năng tương ứng. Những người dùng khác không bị ảnh hưởng bởi cấu hình này, cho phép triển khai thử nghiệm trên phạm vi rất nhỏ trước khi mở rộng phát hành.
-
-\subsubsection{Người dùng không khớp rule}
-
-Đối với người dùng không nằm trong danh sách cho phép, Evaluation Engine tiếp tục xử lý theo các rule còn lại nếu có. Trong trường hợp Feature Flag chỉ cấu hình duy nhất User Allowlist, quá trình evaluation không tìm thấy rule phù hợp và hệ thống trả về mặc định tắt với reason \texttt{DEFAULT\_OFF}.
-
-Evaluation API trả về kết quả \texttt{enabled = false}, do đó Demo Application tiếp tục ẩn chức năng được bảo vệ bởi Feature Flag. Cách xử lý này bảo đảm chỉ những người dùng được chỉ định mới có thể sử dụng tính năng trong giai đoạn thử nghiệm.
-
-\subsubsection{Reason code trả về}
-
-Ngoài trạng thái bật hoặc tắt, Evaluation API còn trả về \textit{reason code} nhằm giải thích nguyên nhân của kết quả evaluation. Khi người dùng khớp với User Allowlist, hệ thống trả về mã nguyên nhân \texttt{USER\_ALLOWLIST}. Nếu không có rule nào phù hợp, Evaluation Engine trả về mã nguyên nhân mặc định tương ứng với việc không tìm thấy điều kiện kích hoạt, chẳng hạn \texttt{DEFAULT\_OFF}. Các mã nguyên nhân này giúp Demo Application, Dashboard và Audit Log dễ dàng theo dõi quá trình đánh giá, đồng thời hỗ trợ kiểm tra và xử lý sự cố trong quá trình vận hành \cite{openfeature_flag_evaluation,launchdarkly_targeting_rules}.
-
-\subsection{Bật tính năng theo vai trò}
-
-Kịch bản thứ ba minh họa khả năng phát hành tính năng dựa trên vai trò của người dùng (\textit{Role Targeting}). Đây là một trong những chiến lược phổ biến của Feature Flag nhằm triển khai tính năng cho từng nhóm người dùng có cùng đặc điểm nghiệp vụ mà không cần cấu hình riêng cho từng tài khoản. Trong hệ thống được xây dựng, thông tin vai trò được truyền trong Evaluation Context và được Rule Evaluation Engine sử dụng để xác định quyền truy cập vào tính năng \cite{launchdarkly_targeting_rules,openfeature_evaluation_context}.
-
-\subsubsection{Cấu hình role targeting}
-
-Người quản trị mở Dashboard và tạo một rule có kiểu \textit{Role Targeting}. Rule này quy định danh sách các role được phép sử dụng Feature Flag, ví dụ \texttt{beta-customer}. Sau khi lưu cấu hình, Backend API cập nhật dữ liệu và áp dụng ngay cho các lần evaluation tiếp theo.
-
-Khi Demo Application gửi yêu cầu đến Evaluation API, Evaluation Context bao gồm danh sách role hiện tại của người dùng. Rule Evaluation Engine sẽ kiểm tra các role này với danh sách đã cấu hình và quyết định trạng thái của Feature Flag.
-
-\subsubsection{Beta customer}
-
-Đối với người dùng mang role \texttt{beta-customer}, Evaluation Engine xác định có ít nhất một role khớp với rule cấu hình. Quá trình evaluation dừng tại rule này và trả về kết quả \texttt{enabled = true} cùng reason code tương ứng.
-
-Demo Application nhận phản hồi từ Evaluation API và hiển thị tính năng mới cho nhóm người dùng beta. Kịch bản này phù hợp với giai đoạn phát hành thử nghiệm trước khi triển khai rộng rãi cho toàn bộ khách hàng.
-
-\subsubsection{Regular customer}
-
-Đối với người dùng chỉ có role \texttt{customer} hoặc các role không nằm trong danh sách được cấu hình, Evaluation Engine không tìm thấy điều kiện phù hợp tại bước Role Targeting. Nếu không còn rule nào khác có thể áp dụng, hệ thống trả về mặc định tắt với reason \texttt{DEFAULT\_OFF}.
-
-Evaluation API trả về \texttt{enabled = false}, do đó Demo Application tiếp tục ẩn chức năng tương ứng. Việc giới hạn phạm vi phát hành theo role giúp giảm rủi ro khi đưa tính năng mới vào môi trường thực tế và cho phép kiểm soát chính xác nhóm người dùng được trải nghiệm tính năng.
-
-\subsubsection{Trường hợp người dùng có nhiều role}
-
-Trong nhiều hệ thống, một người dùng có thể đồng thời sở hữu nhiều role. Evaluation Context vì vậy truyền danh sách role thay vì một giá trị duy nhất. Rule Evaluation Engine thực hiện so khớp toàn bộ danh sách này với danh sách role được cấu hình trong Feature Flag.
-
-Nếu tồn tại ít nhất một role khớp với rule, Feature Flag được đánh giá là bật và quá trình evaluation kết thúc ngay. Ngược lại, nếu không có role nào phù hợp, hệ thống tiếp tục đánh giá các rule tiếp theo hoặc trả về giá trị mặc định. Cách xử lý này giúp hệ thống hỗ trợ linh hoạt các mô hình phân quyền trong thực tế mà vẫn duy trì quá trình evaluation đơn giản và xác định \cite{launchdarkly_targeting_rules,openfeature_flag_evaluation}.
-
-\subsection{Rollout theo phần trăm người dùng}
-
-Kịch bản thứ tư minh họa khả năng phát hành tính năng theo một tỷ lệ người dùng xác định (\textit{Percentage Rollout}). Thay vì bật đồng thời cho toàn bộ hệ thống, Feature Flag chỉ được kích hoạt cho một phần người dùng dựa trên kết quả của thuật toán phân nhóm ổn định (\textit{stable hashing}). Chiến lược này giúp triển khai tính năng từng bước, theo dõi phản hồi thực tế và giảm thiểu rủi ro khi phát hành phiên bản mới \cite{fowler_feature_toggles,launchdarkly_percentage_rollouts}.
-
-\subsubsection{Cấu hình tỷ lệ rollout}
-
-Người quản trị truy cập Dashboard và tạo một rule có kiểu \textit{Percentage Rollout}. Tại đây, tỷ lệ rollout được cấu hình dưới dạng phần trăm, ví dụ 20\%, 50\% hoặc 100\%. Sau khi lưu thay đổi, Backend API cập nhật cấu hình của Feature Flag và sử dụng giá trị mới cho các lần evaluation tiếp theo.
-
-Trong Demo Application, mọi yêu cầu evaluation đều gửi kèm \textit{targetingKey} trong Evaluation Context. Đây là khóa được sử dụng để xác định người dùng có thuộc nhóm được bật tính năng hay không, bảo đảm kết quả evaluation có tính nhất quán giữa các lần truy cập \cite{openfeature_evaluation_context}.
-
-\subsubsection{Phân nhóm người dùng bằng stable hashing}
-
-Khi Evaluation Engine xử lý rule Percentage Rollout, hệ thống tạo một giá trị băm ổn định từ tổ hợp \textit{projectKey}, \textit{flagKey} và \textit{targetingKey}. Giá trị băm sau đó được ánh xạ vào một khoảng giá trị từ 0 đến dưới 100 để xác định bucket của người dùng.
-
-Nếu bucket của người dùng nhỏ hơn tỷ lệ rollout đã cấu hình thì Feature Flag được bật; ngược lại, tính năng tiếp tục bị tắt. Do cùng một đầu vào luôn tạo ra cùng một giá trị băm, một người dùng sẽ luôn thuộc cùng một bucket miễn là các thông tin đầu vào không thay đổi. Điều này bảo đảm việc phân phối người dùng ổn định trong suốt quá trình rollout \cite{launchdarkly_percentage_rollouts}.
-
-\subsubsection{Kiểm tra tính ổn định}
-
-Để kiểm tra tính ổn định của thuật toán, cùng một người dùng thực hiện nhiều lần evaluation với cùng \textit{targetingKey}. Kết quả cho thấy người dùng luôn nhận được cùng một trạng thái Feature Flag ở mọi lần yêu cầu, ngay cả khi ứng dụng được tải lại hoặc gửi nhiều request liên tiếp.
-
-Trong khi đó, các người dùng khác với \textit{targetingKey} khác nhau sẽ được phân bố vào các bucket khác nhau. Việc sử dụng stable hashing giúp tránh hiện tượng người dùng liên tục thay đổi giữa trạng thái bật và tắt, từ đó mang lại trải nghiệm nhất quán trong quá trình sử dụng hệ thống.
-
-\subsubsection{Tăng và giảm tỷ lệ rollout}
-
-Sau khi xác nhận tính năng hoạt động ổn định, người quản trị có thể tăng dần tỷ lệ rollout, chẳng hạn từ 20\% lên 50\%, sau đó lên 100\%. Khi tỷ lệ được mở rộng, những người dùng đã nằm trong nhóm được bật trước đó vẫn tiếp tục sử dụng tính năng, đồng thời hệ thống bổ sung thêm các người dùng mới theo kết quả của thuật toán stable hashing.
-
-Ngược lại, khi cần giảm phạm vi phát hành do phát hiện lỗi hoặc muốn hạn chế ảnh hưởng, người quản trị chỉ cần giảm tỷ lệ rollout trên Dashboard. Các lần evaluation tiếp theo sẽ phản ánh ngay cấu hình mới mà không cần triển khai lại ứng dụng. Kịch bản này minh họa khả năng kiểm soát quá trình phát hành theo từng giai đoạn và thực hiện rollback linh hoạt, đúng với mục tiêu của Feature Flag trong quy trình phát triển phần mềm hiện đại \cite{fowler_feature_toggles,microsoft_devops,launchdarkly_percentage_rollouts}.
-
-\subsection{Cấu hình theo environment}
-
-Kịch bản thứ năm minh họa khả năng evaluation theo environment. Trong source code hiện tại, mô hình dữ liệu hỗ trợ \texttt{Environment} và \texttt{FlagEnvironmentConfig}; Evaluation API nhận \texttt{environmentKey} tùy chọn và nếu không truyền thì sử dụng default environment của project. Tuy nhiên, Dashboard chưa có màn hình CRUD environment riêng và các form cấu hình flag/rule hiện tập trung vào default environment, tương ứng với luồng demo production.
-
-\subsubsection{Demo production và staging}
-
-Demo Application được chạy thành hai instance dùng cùng một mã nguồn React nhưng khác \texttt{VITE\_ENVIRONMENT\_KEY}. Instance production gửi \texttt{environmentKey = production}, còn instance staging gửi \texttt{environmentKey = staging}. Cách tổ chức này chứng minh rằng cùng một ứng dụng và cùng một người dùng có thể nhận kết quả evaluation khác nhau khi trỏ tới hai environment khác nhau.
-
-\subsubsection{Dữ liệu seed theo environment}
-
-Seed data tạo các environment \texttt{production}, \texttt{staging} và \texttt{development}, đồng thời chuẩn bị các cấu hình flag, group và rule cần thiết cho kịch bản trình diễn. Backend chọn đúng \texttt{FlagEnvironmentConfig} dựa trên \texttt{projectKey}, \texttt{environmentKey} và \texttt{flagKey}; nếu environment hoặc config không tồn tại, Evaluation API trả \texttt{enabled = false} với reason \texttt{NOT\_FOUND}.
-
-\subsubsection{So sánh kết quả evaluation}
-
-Trong quá trình trình diễn, người trình bày có thể mở song song demo production và demo staging. Khi hai instance gửi cùng một Evaluation Context nhưng khác \texttt{environmentKey}, Evaluation Engine truy xuất snapshot khác nhau và trả kết quả tương ứng với cấu hình của từng environment.
-
-Mặc dù cùng một Feature Flag và cùng một người dùng, kết quả evaluation có thể khác nhau do mỗi environment có bộ cấu hình, trạng thái và rule riêng. Điều này phản ánh đúng cách các nền tảng Feature Flag hiện đại quản lý nhiều môi trường triển khai trong cùng một dự án \cite{launchdarkly_feature_flags}.
-
-\subsubsection{Isolation giữa các environment}
-
-Cache key của evaluation snapshot bao gồm project key, environment scope và flag key. Vì vậy, snapshot của production và staging không ghi đè lên nhau. Khi một cấu hình trong một environment bị invalidation, backend chỉ cần xóa snapshot liên quan đến environment đó, trừ các trường hợp mutation không có environment cụ thể thì invalidation có thể mở rộng tới mọi environment của flag.
-
-Cơ chế này cho phép nhóm phát triển kiểm thử, xác nhận và điều chỉnh Feature Flag trên staging trước khi áp dụng sang production trong các phiên bản mở rộng sau này, đồng thời vẫn giữ dashboard hiện tại đủ đơn giản cho mini project \cite{unleash_feature_flag_best_practices,microsoft_devops}.
-
-\subsection{Thứ tự ưu tiên của rule}
-
-Kịch bản thứ sáu minh họa cơ chế xử lý khi một Feature Flag đồng thời chứa nhiều rule khác nhau. Trong source code hiện tại, Rule Evaluation Engine không đánh giá toàn bộ rule bằng một danh sách trộn duy nhất. Engine dùng type precedence cố định: user allowlist trước, role targeting sau, và percentage rollout cuối cùng. Trong từng loại rule, \texttt{priority} quyết định rule nào được xét trước.
-
-\subsubsection{Nhiều rule cùng tồn tại}
-
-Một Feature Flag có thể đồng thời chứa nhiều rule như User Allowlist, Role Targeting và Percentage Rollout. Mỗi rule được gán một mức \texttt{priority} để xác định thứ tự trong cùng nhóm rule. Dashboard hiển thị và lưu rule set theo priority để người quản trị dễ kiểm soát thứ tự cấu hình.
-
-Khi Demo Application gửi yêu cầu evaluation, Rule Evaluation Engine lọc các rule đang enabled, sau đó lần lượt xét các nhóm rule theo thứ tự user allowlist, role targeting và percentage rollout.
-
-\subsubsection{Type precedence cao hơn priority liên loại}
-
-Nếu người dùng đồng thời thỏa mãn nhiều loại rule, type precedence quyết định loại rule nào thắng. Ví dụ, một người dùng vừa nằm trong user allowlist vừa có role \texttt{beta-customer} thì Evaluation Engine trả reason \texttt{USER\_ALLOWLIST}. Nếu không có allowlist khớp nhưng role khớp, reason là \texttt{ROLE\_MATCH}. Percentage rollout chỉ quyết định kết quả khi user allowlist và role targeting đều không khớp.
-
-Điều này có nghĩa là một percentage rule có priority nhỏ hơn vẫn không được vượt qua user allowlist hoặc role targeting. Priority chỉ quyết định thứ tự giữa các rule cùng loại.
-
-\subsubsection{Rule không khớp và default off}
-
-Nếu user allowlist không khớp, engine tiếp tục kiểm tra role targeting. Nếu role targeting không khớp, engine mới đánh giá percentage rollout. Nếu không có rule nào bật flag, hệ thống trả \texttt{enabled = false} với reason \texttt{DEFAULT\_OFF}. Việc dừng ở điều kiện đầu tiên khớp giúp giảm số lượng phép kiểm tra và bảo đảm mọi lần evaluation đều cho kết quả nhất quán với cùng một snapshot.
-
-\subsubsection{Reason code và matched rule}
-
-Ngoài trạng thái bật hoặc tắt của Feature Flag, Evaluation API còn trả về \textit{reason code} và thông tin về rule đã được áp dụng (\textit{matched rule}). Reason code phản ánh nguyên nhân dẫn đến kết quả evaluation, chẳng hạn \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_MATCH} hoặc \texttt{PERCENTAGE\_ROLLOUT}, trong khi \texttt{matchedRuleId} cho biết chính xác rule nào đã quyết định kết quả.
-
-Các thông tin này được sử dụng để hỗ trợ gỡ lỗi, kiểm tra cấu hình và đối chiếu với Audit Log trong quá trình vận hành. Đồng thời, Dashboard có thể hiển thị kết quả evaluation một cách trực quan, giúp người quản trị nhanh chóng xác định nguyên nhân khi Feature Flag hoạt động không như mong đợi \cite{openfeature_flag_evaluation,launchdarkly_targeting_rules}.
-
-\subsection{Flag kill switch}
-
-Kịch bản thứ bảy minh họa khả năng vô hiệu hóa ngay lập tức một Feature Flag thông qua \textit{Kill Switch}. Đây là cơ chế quan trọng trong các nền tảng Feature Flag, cho phép đội vận hành nhanh chóng ngăn chặn một tính năng đang gây ra lỗi mà không cần rollback phiên bản hoặc triển khai lại hệ thống. Trong Rule Evaluation Engine của hệ thống, Kill Switch được kiểm tra trước các rule targeting nhằm bảo đảm mọi yêu cầu evaluation đều bị chặn ngay khi cơ chế này được kích hoạt \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
-
-\subsubsection{Tính năng đang được rollout}
-
-Ban đầu, Feature Flag đang hoạt động bình thường và được phát hành theo một trong các chiến lược như Global On, Role Targeting hoặc Percentage Rollout. Demo Application gửi Evaluation Context đến Evaluation API và nhận kết quả evaluation theo đúng cấu hình hiện tại.
-
-Trong giai đoạn này, người dùng thuộc phạm vi rollout vẫn có thể sử dụng tính năng mới. Audit Log đồng thời ghi nhận các lần thay đổi cấu hình trước đó để phục vụ việc theo dõi và truy vết khi cần thiết.
-
-\subsubsection{Kích hoạt kill switch}
-
-Khi phát hiện sự cố trên môi trường vận hành, người quản trị truy cập Dashboard và bật tùy chọn \textit{Kill Switch} của Feature Flag. Sau khi lưu thay đổi, Backend API cập nhật cấu hình tương ứng và áp dụng ngay cho các yêu cầu evaluation tiếp theo.
-
-Do Kill Switch được kiểm tra ở giai đoạn đầu của quá trình evaluation, Rule Evaluation Engine không tiếp tục đánh giá Global On, User Allowlist, Role Targeting hay Percentage Rollout. Mọi rule còn lại đều bị bỏ qua cho đến khi Kill Switch được tắt.
-
-\subsubsection{Kết quả tắt tức thời}
-
-Ngay sau khi Kill Switch được kích hoạt, tất cả yêu cầu gửi đến Evaluation API đều nhận kết quả \texttt{enabled = false}. Evaluation Engine trả về reason code tương ứng với trạng thái Kill Switch để giải thích nguyên nhân của kết quả evaluation.
-
-Demo Application nhận phản hồi mới và ngay lập tức ẩn hoặc vô hiệu hóa tính năng đang được bảo vệ bởi Feature Flag. Quá trình này diễn ra hoàn toàn thông qua thay đổi cấu hình tại thời gian chạy, không yêu cầu triển khai lại Backend hoặc Demo Application. Đây là ưu điểm quan trọng của Feature Flag trong việc giảm thời gian xử lý sự cố trên môi trường production \cite{fowler_feature_toggles,microsoft_devops}.
-
-\subsubsection{Khôi phục sau sự cố}
-
-Sau khi nguyên nhân gây lỗi được xử lý, người quản trị chỉ cần tắt Kill Switch trên Dashboard. Rule Evaluation Engine tiếp tục sử dụng cấu hình ban đầu của Feature Flag và đánh giá lại các rule theo đúng thứ tự ưu tiên đã thiết kế.
-
-Nếu Feature Flag trước đó đang được rollout theo tỷ lệ hoặc theo các rule targeting, người dùng sẽ tiếp tục nhận kết quả evaluation như trước khi kích hoạt Kill Switch. Toàn bộ quá trình bật, tắt và khôi phục đều được ghi nhận trong Audit Log với thông tin actor, thời điểm thực hiện, Request ID cùng dữ liệu trước và sau khi thay đổi, hỗ trợ kiểm toán và truy vết trong quá trình vận hành \cite{owasp_logging}.
-
-\subsection{Group kill switch}
-
-Kịch bản thứ tám minh họa khả năng vô hiệu hóa đồng thời nhiều Feature Flag thông qua \textit{Group Kill Switch}. Thay vì phải kích hoạt Kill Switch cho từng Feature Flag riêng lẻ, người quản trị chỉ cần thao tác trên một nhóm (\textit{Feature Flag Group}) để nhanh chóng dừng toàn bộ các tính năng liên quan. Cơ chế này đặc biệt hữu ích khi nhiều Feature Flag cùng phục vụ một chức năng hoặc một phiên bản phát hành và cần được vô hiệu hóa đồng thời khi phát sinh sự cố \cite{fowler_feature_toggles,unleash_feature_flag_best_practices}.
-
-\subsubsection{Nhóm nhiều Feature Flag}
-
-Trong Dashboard, nhiều Feature Flag có thể được tổ chức vào cùng một nhóm theo chức năng hoặc phạm vi nghiệp vụ. Ví dụ, các Feature Flag liên quan đến một tính năng thương mại điện tử mới đều được đưa vào cùng một Feature Flag Group.
-
-Mỗi Feature Flag vẫn duy trì cấu hình, rule và trạng thái riêng. Tuy nhiên, khi flag thuộc một group, Evaluation Engine sẽ xét \texttt{FlagGroupConfig} của group trong environment hiện tại. Điều này giúp người quản trị quản lý nhiều Feature Flag một cách tập trung mà không làm thay đổi cấu hình chi tiết của từng Feature Flag.
-
-\subsubsection{Kích hoạt group kill switch}
-
-Khi phát hiện sự cố ảnh hưởng đến toàn bộ nhóm chức năng, người quản trị truy cập Dashboard và kích hoạt Group Kill Switch cho environment đang hiển thị, hiện tại là production trong UI demo. Backend API cập nhật \texttt{FlagGroupConfig} tương ứng và invalidation snapshot cache của các Feature Flag thành viên trong environment đó.
-
-Trong quá trình evaluation, Rule Evaluation Engine kiểm tra trạng thái Group Kill Switch sau khi đã kiểm tra flag archived và disabled, nhưng trước flag kill switch, global on và các rule targeting. Nếu Group Kill Switch đang được bật, Evaluation Engine kết thúc ngay quá trình xử lý và trả về kết quả tắt tính năng mà không tiếp tục đánh giá các rule khác.
-
-\subsubsection{Phạm vi ảnh hưởng}
-
-Sau khi Group Kill Switch được kích hoạt, tất cả Feature Flag thuộc cùng nhóm đều bị vô hiệu hóa đồng thời trong environment tương ứng. Những Feature Flag không thuộc nhóm này hoặc cùng group nhưng ở environment khác vẫn tiếp tục hoạt động theo cấu hình hiện có và không chịu ảnh hưởng từ thao tác vừa thực hiện.
-
-Nhờ cơ chế quản lý theo nhóm, người quản trị có thể cô lập nhanh một tập hợp tính năng đang gặp sự cố mà không ảnh hưởng đến các chức năng khác của hệ thống. Điều này giúp giảm phạm vi tác động trong quá trình xử lý sự cố và tăng tính linh hoạt khi vận hành hệ thống Feature Flag.
-
-\subsubsection{Audit log và cache invalidation}
-
-Mỗi lần bật hoặc tắt Group Kill Switch đều được ghi nhận trong Audit Log với đầy đủ thông tin về actor, thời điểm thực hiện, hành động, Request ID cùng dữ liệu trước và sau khi thay đổi. Các bản ghi này hỗ trợ truy vết lịch sử cấu hình và xác định nguyên nhân khi xảy ra sự cố trong quá trình vận hành \cite{owasp_logging}.
-
-Đồng thời, hệ thống thực hiện cơ chế \textit{cache invalidation} đối với các Feature Flag thuộc nhóm vừa thay đổi. Việc làm mới cache bảo đảm các lần evaluation tiếp theo sử dụng cấu hình mới nhất thay vì dữ liệu đã được lưu trước đó, từ đó duy trì tính nhất quán giữa Dashboard, Backend API và Demo Application \cite{redis_client_side_caching}.
-
-\subsection{Audit log và lịch sử cấu hình}
-
-Kịch bản thứ chín minh họa khả năng ghi nhận lịch sử thay đổi cấu hình của hệ thống thông qua Audit Log append-only và endpoint history. Mỗi thao tác thay đổi Feature Flag đều được lưu lại dưới dạng một bản ghi độc lập, bao gồm thông tin về đối tượng bị tác động, dữ liệu trước và sau khi thay đổi, người thực hiện và Request ID. Nhờ đó, hệ thống hỗ trợ truy vết, kiểm toán và phân tích nguyên nhân khi phát sinh sự cố trong quá trình vận hành \cite{owasp_logging}.
-
-\subsubsection{Thay đổi trạng thái flag}
-
-Người quản trị thực hiện các thao tác như bật hoặc tắt Feature Flag, thay đổi Serving Mode hoặc kích hoạt Kill Switch thông qua Dashboard. Sau khi Backend API xử lý thành công yêu cầu, một bản ghi Audit Log mới được tạo để phản ánh trạng thái vừa thay đổi.
-
-Mỗi lần cập nhật tạo một audit entry mới với snapshot trước và sau. Source code hiện tại không duy trì bảng version riêng và không dùng trường version trên \texttt{FlagEnvironmentConfig}; lịch sử cấu hình được dựng lại từ audit log.
-
-\subsubsection{Thay đổi rule}
-
-Ngoài trạng thái của Feature Flag, hệ thống còn ghi nhận các thao tác tạo mới, chỉnh sửa hoặc xóa rule như User Allowlist, Role Targeting và Percentage Rollout. Khi một rule được cập nhật, Audit Log lưu lại đầy đủ nội dung trước và sau khi thay đổi.
-
-Việc lưu lịch sử cấu hình giúp người quản trị xác định chính xác thời điểm một rule được thay đổi, đồng thời hỗ trợ khôi phục hoặc đối chiếu cấu hình khi phát hiện kết quả evaluation không như mong đợi.
-
-\subsubsection{So sánh before và after snapshot}
-
-Mỗi bản ghi Audit Log đều chứa hai ảnh chụp dữ liệu (\textit{snapshot}) gồm trạng thái trước (\textit{before}) và sau (\textit{after}) khi thực hiện thao tác. Dashboard hiển thị đồng thời hai snapshot để người quản trị dễ dàng quan sát những trường dữ liệu đã thay đổi.
-
-Việc lưu snapshot đầy đủ thay vì chỉ ghi nhận tên hành động giúp việc phân tích lịch sử cấu hình trở nên trực quan hơn. Người quản trị có thể nhanh chóng xác định các thuộc tính đã được chỉnh sửa mà không cần truy vấn nhiều phiên bản dữ liệu khác nhau.
-
-\subsubsection{Truy vết actor và request ID}
-
-Mỗi bản ghi Audit Log đều lưu thông tin về actor thực hiện thao tác cùng Request ID tương ứng với yêu cầu gửi đến Backend API. Actor cho biết người dùng nào đã thực hiện thay đổi, trong khi Request ID hỗ trợ liên kết giữa Audit Log, nhật ký hệ thống và các yêu cầu xử lý của Backend.
-
-Nhờ lưu đầy đủ các thông tin truy vết, hệ thống hỗ trợ kiểm toán, điều tra sự cố và xác định nguyên nhân của các thay đổi cấu hình một cách hiệu quả. Mô hình lưu trữ append-only kết hợp với before và after snapshot giúp bảo đảm tính toàn vẹn của lịch sử thay đổi và đáp ứng các yêu cầu về khả năng truy vết trong quá trình vận hành \cite{owasp_logging}.
-
-\subsection{Evaluation metrics}
-
-Kịch bản thứ mười minh họa khả năng thu thập và thống kê dữ liệu evaluation của hệ thống. Mỗi lần Demo Application gửi yêu cầu đến Evaluation API đều phát sinh một sự kiện evaluation được ghi nhận bởi Backend. Dữ liệu này được tổng hợp theo từng Feature Flag và hiển thị trên Dashboard nhằm hỗ trợ theo dõi mức độ sử dụng, đánh giá hiệu quả rollout và phát hiện các bất thường trong quá trình vận hành.
-
-\subsubsection{Phát sinh evaluation event}
-
-Mỗi yêu cầu evaluation hợp lệ tạo một lần tăng bộ đếm thống kê aggregate theo giờ UTC. Metric được nhóm theo project, environment, flag, bucket thời gian, kết quả bật/tắt và reason code; hệ thống không lưu raw evaluation context trong bảng thống kê.
-
-Việc ghi nhận dữ liệu evaluation được thực hiện sau khi Rule Evaluation Engine hoàn thành quá trình đánh giá, bảo đảm số liệu phản ánh đúng kết quả thực tế trả về cho Demo Application. Cơ chế này giúp hệ thống thu thập dữ liệu vận hành mà không làm thay đổi logic evaluation \cite{openfeature_flag_evaluation}.
-
-\subsubsection{Tổng hợp theo flag}
-
-Các bản ghi evaluation được Backend API tổng hợp theo từng Feature Flag. Dashboard sử dụng dữ liệu này để hiển thị tổng số lần evaluation của mỗi Feature Flag trong khoảng thời gian tương ứng.
-
-Thông tin thống kê giúp người quản trị nhận biết Feature Flag nào đang được sử dụng nhiều, Feature Flag nào ít được truy cập và hỗ trợ đánh giá mức độ ảnh hưởng của từng tính năng trong hệ thống. Đây cũng là cơ sở để xác định các Feature Flag không còn được sử dụng nhằm giảm thiểu \textit{feature flag debt} \cite{mahdavi_hezaveh_feature_toggles}.
-
-\subsubsection{Phân bố kết quả bật và tắt}
-
-Ngoài tổng số lần evaluation, hệ thống còn thống kê số lượng kết quả \texttt{enabled = true} và \texttt{enabled = false}. Tỷ lệ phân bố giữa hai trạng thái phản ánh phạm vi phát hành thực tế của Feature Flag tại thời điểm quan sát.
-
-Đối với các Feature Flag sử dụng Percentage Rollout, dữ liệu thống kê cho phép người quản trị kiểm tra xem tỷ lệ người dùng được bật tính năng có phù hợp với cấu hình rollout hay không. Đồng thời, sự thay đổi đột ngột về tỷ lệ bật hoặc tắt cũng có thể là dấu hiệu của việc thay đổi cấu hình hoặc phát sinh sự cố trong hệ thống.
-
-\subsubsection{Hiển thị trên Dashboard}
-
-Dashboard cung cấp màn hình thống kê evaluation dưới dạng các chỉ số tổng hợp và biểu đồ theo thời gian. Người quản trị có thể lựa chọn Feature Flag cần quan sát để xem tổng số lần evaluation, số lượng kết quả bật và tắt cùng xu hướng thay đổi theo từng khoảng thời gian.
-
-Thông tin thống kê được cập nhật từ dữ liệu do Backend API tổng hợp, giúp Dashboard phản ánh tình trạng vận hành của Feature Flag theo thời gian thực. Việc trực quan hóa dữ liệu evaluation hỗ trợ người quản trị đánh giá hiệu quả của các chiến lược rollout và đưa ra quyết định điều chỉnh cấu hình một cách phù hợp.
+Kịch bản cuối cùng mô phỏng Evaluation API không khả dụng hoặc timeout. JavaScript SDK trả về giá trị fallback tắt, giúp Demo Application tiếp tục hoạt động ở trạng thái an toàn. Kết quả này minh họa nguyên tắc fail-closed trong luồng tích hợp ứng dụng khách.
