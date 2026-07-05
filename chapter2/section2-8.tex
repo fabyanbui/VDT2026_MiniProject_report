@@ -46,6 +46,14 @@ TTL đóng vai trò lớp bảo vệ phụ trong trường hợp invalidation b�
 
 Invalidation được kích hoạt khi cấu hình có thể ảnh hưởng đến kết quả evaluation. Nguyên tắc là ưu tiên loại bỏ snapshot hơi rộng còn hơn giữ snapshot lỗi thời.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{\detokenize{Images/mermaid/Cache invalidation - Tính nhất quán cấu hình.png}}
+    \caption{Luồng cache invalidation và bảo đảm tính nhất quán cấu hình}
+    \label{fig:cache-invalidation-consistency}
+\end{figure}
+
+
 \subsubsection{Invalidation khi cập nhật flag}
 
 Thay đổi lifecycle, serving mode hoặc kill switch của flag làm mất hiệu lực snapshot tương ứng.

@@ -6,6 +6,14 @@ Phần này trình bày kiến trúc ở mức hệ thống. Các chi tiết v�
 
 Hệ thống được tổ chức thành sáu thành phần: Admin Dashboard, Backend API, Rule Evaluation Engine, PostgreSQL/Cache, JavaScript SDK và Demo Application. Dashboard phục vụ quản trị cấu hình; Backend API là ranh giới truy cập duy nhất; Rule Evaluation Engine quyết định trạng thái flag tại runtime; database lưu cấu hình và audit log; cache tăng tốc truy xuất snapshot; SDK và Demo Application minh họa cách ứng dụng khách tích hợp Feature Flag.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{\detokenize{Images/mermaid/Kiến trúc tổng thể của hệ thống.png}}
+    \caption{Kiến trúc tổng thể của hệ thống Feature Flag Platform}
+    \label{fig:system-overall-architecture}
+\end{figure}
+
+
 \subsubsection{Admin Dashboard}
 
 Dashboard cung cấp giao diện quản trị cho project, Feature Flag, rule, flag group, audit log, history, RBAC demo và thống kê evaluation. Dashboard không tự quyết định kết quả evaluation mà gửi yêu cầu đến Backend API, nhờ đó logic nghiệp vụ và quyền truy cập vẫn được kiểm soát tập trung ở phía máy chủ.
@@ -33,6 +41,14 @@ Demo Application mô phỏng một hệ thống thương mại điện tử nh�
 \subsection{Control plane và data plane}
 
 Kiến trúc được phân chia theo hai luồng trách nhiệm. \textit{Control plane} quản lý cấu hình và lịch sử thay đổi; \textit{data plane} xử lý evaluation ở runtime. Cách phân chia này phù hợp với đặc điểm của Feature Flag: thao tác quản trị ít hơn nhưng yêu cầu evaluation có thể xuất hiện liên tục từ ứng dụng tích hợp \cite{launchdarkly_feature_flags,unleash_feature_flag_best_practices}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.88\textwidth]{\detokenize{Images/mermaid/Control Plane - Data Plane.png}}
+    \caption{Phân tách control plane và data plane trong hệ thống}
+    \label{fig:control-plane-data-plane}
+\end{figure}
+
 
 \subsubsection{Vai trò của control plane}
 
@@ -73,6 +89,14 @@ Sau mỗi mutation, Backend API ghi audit log và làm mới snapshot liên quan
 \subsection{Luồng đánh giá Feature Flag}
 
 Luồng evaluation bắt đầu từ ứng dụng khách và kết thúc bằng một quyết định có reason code. Evaluation API không thay đổi cấu hình, không ghi audit log quản trị và không yêu cầu Dashboard tham gia trong runtime.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{\detokenize{Images/mermaid/Luồng đánh giá Feature Flag.png}}
+    \caption{Luồng đánh giá Feature Flag từ ứng dụng khách đến Rule Evaluation Engine}
+    \label{fig:evaluation-flow}
+\end{figure}
+
 
 \subsection{Luồng tích hợp ứng dụng khách}
 

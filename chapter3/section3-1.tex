@@ -88,6 +88,14 @@ Việc chuẩn bị sẵn dữ liệu mẫu giúp dễ dàng kiểm thử các t
 
 Để đơn giản hóa quá trình cài đặt và bảo đảm tính nhất quán giữa các môi trường phát triển, hệ thống được triển khai bằng Docker Compose. Cách tiếp cận này cho phép khởi tạo đồng thời các thành phần của nền tảng Feature Flag thông qua một cấu hình thống nhất, giảm sự phụ thuộc vào môi trường cài đặt của từng máy và hỗ trợ tái tạo hệ thống một cách nhanh chóng \cite{docker_compose}.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{\detokenize{Images/mermaid/Triển khai bằng Docker Compose.png}}
+    \caption{Các service chính trong quy trình triển khai bằng Docker Compose}
+    \label{fig:docker-compose-deployment}
+\end{figure}
+
+
 \subsubsection{Các service trong Docker Compose}
 
 Docker Compose được sử dụng để quản lý các service chính của hệ thống. Trong phiên bản hiện tại, các service bao gồm cơ sở dữ liệu PostgreSQL và các ứng dụng chạy trong môi trường Node.js như Backend API, Admin Dashboard và Demo Application. Khi cần mở rộng, các service này có thể được bổ sung thêm Redis để cache snapshot cấu hình evaluation hoặc các thành phần giám sát mà không làm thay đổi kiến trúc tổng thể.

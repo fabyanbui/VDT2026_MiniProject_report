@@ -76,7 +76,7 @@ Thứ tự ưu tiên là hợp đồng quan trọng nhất của engine. Các đ
 ARCHIVED_FLAG
 FLAG_DISABLED
 GROUP_KILL_SWITCH
-FLAG_KILL_SWITCH
+KILL_SWITCH
 GLOBAL_ON
 USER_ALLOWLIST
 ROLE_TARGETING
@@ -84,7 +84,15 @@ PERCENTAGE_ROLLOUT
 DEFAULT_OFF
 \end{lstlisting}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\textwidth]{\detokenize{Images/mermaid/Thứ tự ưu tiên khi đánh giá.png}}
+    \caption{Flowchart thứ tự ưu tiên của Rule Evaluation Engine}
+    \label{fig:evaluation-precedence-flowchart}
+\end{figure}
+
 \subsubsection{Flag đã được archive}
+
 
 Flag archived không tham gia phục vụ runtime, vì vậy engine trả tắt trước mọi cấu hình khác.
 
@@ -255,7 +263,7 @@ Kết quả evaluation phải vừa đủ cho ứng dụng dùng, Dashboard/debu
 {
   "enabled": true,
   "variant": "on",
-  "reason": "USER_TARGET_MATCH",
+  "reason": "USER_ALLOWLIST",
   "projectKey": "ecommerce-demo",
   "flagKey": "new-checkout"
 }
@@ -271,11 +279,11 @@ NOT_FOUND
 FLAG_ARCHIVED
 FLAG_DISABLED
 GROUP_KILL_SWITCH
-FLAG_KILL_SWITCH
+KILL_SWITCH
 GLOBAL_ON
-USER_TARGET_MATCH
-ROLE_TARGET_MATCH
-PERCENTAGE_ROLLOUT_MATCH
+USER_ALLOWLIST
+ROLE_MATCH
+PERCENTAGE_ROLLOUT
 DEFAULT_OFF
 INVALID_CONTEXT
 ERROR

@@ -2,6 +2,37 @@
 
 Backend API đã được triển khai bằng NestJS và Prisma, giữ vai trò trung tâm cho cả management plane và Evaluation API. Phần này chỉ tóm tắt kết quả hiện thực so với thiết kế; các nguyên tắc chi tiết đã được trình bày ở Chương 2.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{\detokenize{Images/screenshot/Kết quả xây dựng Backend API.png}}
+    \caption{Minh chứng giao diện tài liệu Backend API/OpenAPI đã được sinh từ source code}
+    \label{fig:backend-api-screenshot}
+\end{figure}
+
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Tổng hợp các nhóm endpoint đã triển khai trong Backend API}
+    \label{tab:implemented-backend-endpoints}
+    \begin{tabular}{p{0.20\textwidth} p{0.36\textwidth} p{0.34\textwidth}}
+        \toprule
+        \textbf{Nhóm API} & \textbf{Endpoint chính} & \textbf{Vai trò trong hệ thống} \\
+        \midrule
+        Health & \texttt{GET /v1/health} & Kiểm tra trạng thái backend và health check cho Docker Compose. \\
+        Projects & \texttt{GET/POST /v1/projects}; \texttt{GET/PATCH/DELETE /v1/projects/\{projectKey\}} & Quản lý project, soft delete và phạm vi cấu hình cấp cao nhất. \\
+        Feature Flags & \texttt{GET/POST /v1/projects/\{projectKey\}/flags}; \texttt{PATCH/DELETE /flags/\{flagKey\}}; archive/restore & Quản lý định nghĩa flag, lifecycle và cấu hình runtime mặc định. \\
+        Rules & \texttt{GET/PUT /v1/projects/\{projectKey\}/flags/\{flagKey\}/rules} & Đọc hoặc thay thế toàn bộ rule set có thứ tự của một flag. \\
+        Flag Groups & \texttt{GET/POST/PATCH/DELETE /groups}; \texttt{PUT /groups/\{groupKey\}/config}; \texttt{PUT/DELETE /flags/\{flagKey\}/group} & Quản lý nhóm flag, group kill switch và gán/gỡ flag khỏi group. \\
+        Evaluation & \texttt{POST /v1/evaluate} & Data-plane endpoint công khai cho SDK/Demo App, trả kết quả fail-closed có reason code. \\
+        Audit/History & \texttt{GET /audit-logs}; \texttt{GET /flags/\{flagKey\}/history} & Truy vấn audit log append-only và lịch sử cấu hình theo flag. \\
+        Statistics & \texttt{GET /stats/flags}; \texttt{GET /flags/\{flagKey\}/stats} & Trả dữ liệu aggregate số lần evaluation theo flag, reason, kết quả và thời gian. \\
+        Sample Users & \texttt{GET/POST /sample-users}; \texttt{DELETE /sample-users/\{targetingKey\}} & Quản lý context mẫu dùng cho Dashboard và Demo Application. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
 \subsection{Quản lý project và environment nội bộ}
 
 Backend hỗ trợ quản lý project và sử dụng environment làm phạm vi cấu hình/evaluation. Environment xuất hiện trong schema, seed data, repository và Evaluation API; Dashboard hiện chưa mở màn hình CRUD environment riêng.
