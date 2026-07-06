@@ -1,107 +1,35 @@
-\section{Kết quả xây dựng Demo Application và SDK}
+\section{Các kịch bản demo}
 
-Demo Application và JavaScript SDK được triển khai để chứng minh cách một ứng dụng web tiêu thụ Evaluation API. Phần này mô tả kết quả tích hợp thay vì lặp lại thiết kế engine.
+Các kịch bản dưới đây sẽ được trình bày cụ thể trong phần demo. Mục tiêu là cho thấy hệ thống có thể thay đổi hành vi ứng dụng bằng cấu hình Feature Flag, đồng thời vẫn giữ được tính xác định, khả năng rollback nhanh, audit và quan sát vận hành.
 
-\subsection{Cấu trúc Demo Application}
+\subsection{Quan sát project, flag và ứng dụng demo}
 
-Demo Application mô phỏng một trang thương mại điện tử nhỏ với các khu vực giao diện chịu ảnh hưởng bởi Feature Flag.
+Kịch bản mở đầu giới thiệu project \texttt{demo-project}, các feature flag đã seed, các nhóm flag như \texttt{checkout-experience} và \texttt{recommendations}, sau đó mở Demo Application để cho thấy ứng dụng đang nhận quyết định từ Evaluation API thông qua SDK.
 
-\subsubsection{Mô hình ứng dụng thương mại điện tử mẫu}
+\subsection{Bật và tắt tính năng toàn cục}
 
-Ứng dụng có các thành phần như danh sách sản phẩm, khuyến mãi, checkout hoặc banner thử nghiệm để minh họa tác động của flag.
+Kịch bản này thay đổi cấu hình serving mode hoặc trạng thái runtime của một flag đang bật toàn cục. Demo Application được evaluate lại với cùng user context để quan sát tính năng xuất hiện hoặc bị tắt mà không cần build/deploy lại mã nguồn.
 
-\subsubsection{Dữ liệu người dùng và organization}
+\subsection{Targeting theo role}
 
-Demo cung cấp một số người dùng mẫu với role và organization khác nhau để kiểm tra các kịch bản targeting.
+Kịch bản này chuyển giữa các user mẫu như beta customer, regular customer và shop admin. Demo sẽ cho thấy cùng một flag có thể bật cho nhóm người dùng có role phù hợp và tắt cho nhóm còn lại, đồng thời hiển thị \texttt{projectKey}, \texttt{flagKey}, \texttt{enabled} và \texttt{reason}.
 
-\subsubsection{Các tính năng được kiểm soát bằng flag}
+\subsection{Rollout theo phần trăm}
 
-Mỗi tính năng demo tương ứng với một flag đã seed, giúp người xem thay đổi cấu hình ở Dashboard và quan sát kết quả ở ứng dụng.
+Kịch bản này dùng nhiều tài khoản mẫu có \texttt{targetingKey} ổn định để minh họa percentage rollout. Một số tài khoản nhận tính năng mới, số khác vẫn dùng trải nghiệm cũ; khi evaluate lại cùng context, kết quả không thay đổi do stable hashing.
 
-\subsubsection{Môi trường staging và production}
+\subsection{Kill switch cấp flag và group}
 
-Ứng dụng có thể gửi environment key khác nhau để minh họa cùng một flag nhưng cấu hình khác giữa môi trường.
+Kịch bản này bật kill switch ở cấp một flag hoặc cấp group, ví dụ nhóm \texttt{checkout-experience}. Demo sẽ nhấn mạnh rằng trạng thái runtime chuyển sang Off ngay lập tức, trong khi lifecycle/configuration của từng flag vẫn được giữ lại để có thể khôi phục nhanh.
 
-\subsection{JavaScript SDK}
+\subsection{Audit log, history và statistics}
 
-SDK là lớp client nhỏ, typed và fail-closed, dùng lại contract của Evaluation API.
+Kịch bản này thực hiện một số mutation cấu hình và nhiều lần evaluation từ Demo Application, sau đó mở Dashboard để xem audit log, configuration history và statistics. Phần demo sẽ cho thấy actor, action, request ID, before/after snapshot và số liệu aggregate theo flag/reason.
 
-\subsubsection{Khởi tạo SDK client}
+\subsection{Fallback của JavaScript SDK}
 
-Client nhận base URL, project/environment mặc định và timeout để chuẩn bị gọi evaluation.
+Kịch bản này mô phỏng Evaluation API lỗi hoặc timeout. SDK \texttt{@ffp/js-sdk} sẽ trả kết quả fail-closed với \texttt{enabled=false}, giúp Demo Application tiếp tục hoạt động ở trạng thái an toàn và phân biệt được lỗi client-local với quyết định từ backend.
 
-\subsubsection{Phương thức evaluate}
+\subsection{Phân quyền Admin, Developer và Viewer}
 
-Phương thức \texttt{evaluate} nhận flag key và context, sau đó trả về response đã chuẩn hóa cho ứng dụng.
-
-\subsubsection{Fail-closed fallback của SDK}
-
-Nếu request thất bại hoặc response không hợp lệ, SDK trả kết quả tắt an toàn để ứng dụng không bật nhầm tính năng.
-
-\subsubsection{Xử lý timeout và lỗi mạng}
-
-SDK giới hạn thời gian chờ và chuyển lỗi mạng thành response fallback thay vì làm vỡ giao diện demo.
-
-\subsection{Tích hợp SDK với Demo Application}
-
-Demo Application gọi SDK tại các điểm cần quyết định hiển thị tính năng và cập nhật UI theo kết quả nhận được.
-
-\subsubsection{Tạo evaluation context}
-
-Context được tạo từ người dùng mẫu đang chọn, bao gồm targeting key, user ID, role và attributes minh họa.
-
-\subsubsection{Gọi Evaluation API}
-
-SDK gửi request đến backend; Demo Application chỉ nhận kết quả đã chuẩn hóa.
-
-\subsubsection{Hiển thị hoặc ẩn tính năng}
-
-Các component đọc trường \texttt{enabled} để hiển thị tính năng mới hoặc giữ trải nghiệm mặc định.
-
-\subsubsection{Làm mới trạng thái sau thay đổi cấu hình}
-
-Người dùng có thể refresh evaluation để thấy tác động của cấu hình vừa thay đổi trên Dashboard.
-
-\subsection{User context trong Demo Application}
-
-User context được giữ ở mức mẫu, đủ để minh họa targeting nhưng không chứa dữ liệu cá nhân thật.
-
-\subsubsection{Targeting key}
-
-Targeting key là định danh ổn định dùng cho percentage rollout.
-
-\subsubsection{User ID}
-
-User ID mẫu phục vụ allowlist và các kịch bản kiểm thử trực quan.
-
-\subsubsection{Role}
-
-Role mẫu phục vụ rule targeting theo nhóm người dùng.
-
-\subsubsection{Organization trong attributes}
-
-Organization ID nằm trong attributes để minh họa hướng mở rộng theo tenant hoặc khách hàng doanh nghiệp.
-
-\subsubsection{Thuộc tính mở rộng}
-
-Các attributes khác có thể được bổ sung mà không làm thay đổi contract chính của SDK.
-
-\subsection{Hành vi fallback}
-
-Demo Application thể hiện rõ nguyên tắc an toàn: khi không chắc chắn, tính năng mới không được bật.
-
-\subsubsection{Evaluation API không khả dụng}
-
-Khi backend không phản hồi, SDK trả fallback disabled và giao diện hiển thị trạng thái lỗi thân thiện.
-
-\subsubsection{Request timeout}
-
-Khi vượt quá timeout, request bị hủy ở phía SDK và ứng dụng tiếp tục chạy với kết quả tắt.
-
-\subsubsection{Flag không tồn tại}
-
-Nếu backend trả \texttt{NOT\_FOUND}, demo hiển thị tính năng ở trạng thái tắt và reason tương ứng.
-
-\subsubsection{Context không đầy đủ}
-
-Nếu context thiếu dữ liệu cho một rule, engine bỏ qua rule không đủ điều kiện hoặc trả reason phù hợp; demo dùng reason này để giải thích trạng thái cho người xem.
+Kịch bản cuối cùng chuyển giữa ba vai trò demo trên Admin Dashboard. Viewer chỉ xem dữ liệu, Developer được thao tác trong phạm vi cấu hình được phép, còn Admin có quyền quản trị đầy đủ; các mutation bị từ chối sẽ được backend bảo vệ thay vì chỉ ẩn ở giao diện.

@@ -1,175 +1,37 @@
-\section{Kết quả xây dựng Frontend Dashboard}
+\section{Kiểm thử và đánh giá}
 
-Admin Dashboard đã được xây dựng để kiểm chứng các luồng quản trị chính của nền tảng. Mục này tập trung vào kết quả giao diện và trạng thái hiển thị, không lặp lại thiết kế API hay rule engine.
+Kế hoạch kiểm thử của dự án tập trung vào ba mức: unit test để kiểm tra từng đơn vị nghiệp vụ quan trọng, E2E test để xác nhận các luồng API chạy qua NestJS application và PostgreSQL, và CI để tự động kiểm tra chất lượng khi có thay đổi mã nguồn. Các nhóm kiểm thử ưu tiên những rủi ro chính của hệ thống Feature Flag: evaluation phải xác định, mặc định an toàn, mutation phải có audit log, cache không làm sai kết quả, phân quyền phải được xử lý ở backend và SDK phải fail-closed khi lỗi.
 
-\begin{figure}[H]
+\subsection{Unit test}
+
+Unit test được triển khai bằng Jest trong hai workspace chính: \texttt{@ffp/backend} và \texttt{@ffp/js-sdk}. Ở backend, unit test kiểm tra Rule Evaluation Engine, stable rollout hash, evaluation service/controller/repository, cache, invalidation, audit log, history, RBAC, DTO validation, exception filter, request context, repository và statistics service. Các test dùng mock hoặc dữ liệu tối thiểu để cô lập đơn vị cần kiểm tra, sau đó đối chiếu output với contract mong đợi như \texttt{enabled}, \texttt{reason}, error code, audit snapshot hoặc permission result.
+
+Với JavaScript SDK, unit test kiểm tra client gọi Evaluation API, validate response, trả helper \texttt{isEnabled}/\texttt{getVariant}, xử lý timeout, HTTP error, response sai định dạng và fallback fail-closed. Nhóm test này bảo đảm ứng dụng khách không tự bật tính năng khi Evaluation API không khả dụng.
+
+\begin{table}[H]
     \centering
-    \includegraphics[width=0.95\textwidth]{\detokenize{Images/screenshot/Kết quả xây dựng Frontend Dashboard.png}}
-    \caption{Minh chứng giao diện Admin Dashboard đã được xây dựng}
-    \label{fig:frontend-dashboard-screenshot}
-\end{figure}
-
-
-\subsection{Màn hình quản lý project}
-
-Màn hình project là điểm vào của Dashboard, cho phép người dùng xem danh sách project và truy cập khu vực quản trị Feature Flag của từng project.
-
-\subsubsection{Danh sách project}
-
-Danh sách hiển thị khóa, tên, mô tả và trạng thái cơ bản của project để người dùng nhanh chóng chọn phạm vi làm việc.
-
-\subsubsection{Tạo và chỉnh sửa project}
-
-Biểu mẫu tạo/sửa project gọi Management API và hiển thị lỗi validation từ backend khi dữ liệu không hợp lệ.
-
-\subsubsection{Truy cập chi tiết project}
-
-Từ danh sách, người dùng có thể mở chi tiết project để quản lý flag, group, audit log và statistics.
-
-\subsubsection{Phạm vi environment trong Dashboard hiện tại}
-
-Dashboard hiện sử dụng environment đã được seed và chưa cung cấp màn hình CRUD environment riêng.
-
-\subsection{Màn hình quản lý Feature Flag}
-
-Màn hình Feature Flag hiển thị danh sách flag trong project và cung cấp các thao tác quản trị phổ biến.
-
-\subsubsection{Danh sách Feature Flag}
-
-Bảng flag hiển thị flag key, tên, mô tả, trạng thái lifecycle và thông tin runtime tóm tắt.
-
-\subsubsection{Tìm kiếm và lọc flag}
-
-Người dùng có thể lọc danh sách để tìm flag cần thao tác trong các project có nhiều cấu hình.
-
-\subsubsection{Hiển thị trạng thái runtime}
-
-Dashboard phân biệt trạng thái lifecycle với trạng thái runtime để tránh nhầm lẫn giữa flag đã archive và flag đang tắt do cấu hình.
-
-\subsubsection{Archive và restore flag}
-
-Các thao tác archive/restore được đặt ở vị trí rõ ràng và có phản hồi sau khi backend cập nhật thành công.
-
-\subsection{Màn hình tạo và chỉnh sửa flag}
-
-Biểu mẫu flag tập trung vào các trường cần thiết để người dùng cấu hình nhanh nhưng vẫn giữ dữ liệu hợp lệ.
-
-\subsubsection{Nhập thông tin định danh}
-
-Flag key được nhập theo định dạng ổn định, dùng làm định danh cho Evaluation API và ứng dụng khách.
-
-\subsubsection{Chọn trạng thái và serving mode}
-
-Người dùng chọn trạng thái cấu hình theo environment và serving mode phù hợp với kịch bản phát hành.
-
-\subsubsection{Validation biểu mẫu}
-
-Frontend kiểm tra các lỗi đơn giản trước khi gửi request, còn backend vẫn là nguồn validation cuối cùng.
-
-\subsubsection{Hiển thị lỗi từ Backend API}
-
-Khi backend trả lỗi chuẩn hóa, Dashboard hiển thị thông báo gần trường nhập hoặc ở vùng cảnh báo chung.
-
-\subsection{Màn hình cấu hình rule}
-
-Màn hình rule cho phép người dùng cấu hình ba loại rule đã hỗ trợ và quan sát thứ tự áp dụng mà không cần hiểu chi tiết mã nguồn engine.
-
-\subsubsection{Cấu hình user allowlist}
-
-Giao diện nhận danh sách user ID mẫu và gửi về backend dưới dạng parameters của rule allowlist.
-
-\subsubsection{Cấu hình role targeting}
-
-Giao diện cho phép chọn một hoặc nhiều role mẫu để phục vụ demo phát hành theo nhóm người dùng.
-
-\subsubsection{Cấu hình percentage rollout}
-
-Người dùng nhập hoặc điều chỉnh tỷ lệ rollout trong khoảng hợp lệ; frontend chặn các giá trị ngoài miền trước khi gửi.
-
-\subsubsection{Thay đổi độ ưu tiên rule}
-
-Dashboard hỗ trợ sắp xếp rule cùng loại bằng priority, sau đó lưu lại qua API quản trị.
-
-\subsubsection{Hiển thị tác động của rule}
-
-Mỗi rule được trình bày với loại, tham số và trạng thái để người quản trị kiểm tra trước khi lưu cấu hình.
-
-\subsection{Màn hình quản lý flag group}
-
-Màn hình group chứng minh khả năng quản trị nhiều flag liên quan trong cùng một thao tác.
-
-\subsubsection{Danh sách flag group}
-
-Danh sách group hiển thị group key, tên, số lượng flag thành viên và trạng thái kill switch theo environment.
-
-\subsubsection{Quản lý thành viên của group}
-
-Dashboard hỗ trợ thêm hoặc loại bỏ flag khỏi group thông qua danh sách chọn trực quan.
-
-\subsubsection{Kích hoạt group kill switch}
-
-Công tắc group kill switch gửi mutation đến backend và làm mới danh sách sau khi thành công.
-
-\subsubsection{Xác nhận thao tác nguy hiểm}
-
-Các thao tác ảnh hưởng nhiều flag yêu cầu xác nhận để giảm rủi ro vận hành nhầm.
-
-\subsection{Màn hình audit log}
-
-Màn hình audit log giúp người dùng kiểm tra lịch sử thay đổi phát sinh từ các mutation quản trị.
-
-\subsubsection{Danh sách thay đổi}
-
-Bảng audit log sắp xếp theo thời gian và hiển thị actor, action, target, request ID cùng thời điểm thao tác.
-
-\subsubsection{Lọc theo actor và action}
-
-Bộ lọc giúp thu hẹp lịch sử khi cần điều tra một người dùng hoặc một loại thao tác cụ thể.
-
-\subsubsection{Hiển thị before và after snapshot}
-
-Dashboard trình bày snapshot trước/sau để người dùng nhìn thấy chính xác dữ liệu đã đổi.
-
-\subsubsection{Truy vết theo request ID}
-
-Request ID được hiển thị để liên kết audit log với phản hồi API hoặc log backend khi debug.
-
-\subsection{Màn hình thống kê evaluation}
-
-Màn hình statistics tổng hợp các lượt evaluation đã được backend ghi nhận.
-
-\subsubsection{Tổng số lần evaluation}
-
-Dashboard hiển thị tổng số request evaluation trong phạm vi thời gian được chọn.
-
-\subsubsection{Thống kê theo Feature Flag}
-
-Bảng thống kê theo flag giúp nhận biết flag nào được gọi nhiều trong demo.
-
-\subsubsection{Thống kê theo kết quả bật và tắt}
-
-Dashboard phân tách số lần enabled/disabled để người dùng đối chiếu với chiến lược rollout.
-
-\subsubsection{Biểu đồ theo thời gian}
-
-Biểu đồ thời gian minh họa xu hướng evaluation và hỗ trợ trình diễn tác động khi thay đổi cấu hình.
-
-\subsection{Hiển thị quyền và trạng thái}
-
-Dashboard phản ánh role hiện tại và trạng thái quyền để người dùng hiểu thao tác nào khả dụng.
-
-\subsubsection{Ẩn hoặc vô hiệu hóa thao tác}
-
-Các nút không đủ quyền được ẩn hoặc disabled, trong khi backend vẫn kiểm tra quyền lần cuối.
-
-\subsubsection{Hiển thị role hiện tại}
-
-Role admin/developer/viewer được hiển thị ở khu vực tài khoản để tránh nhầm lẫn trong demo.
-
-\subsubsection{Hiển thị trạng thái lifecycle}
-
-Lifecycle status cho biết flag đang active hay archived.
-
-\subsubsection{Hiển thị trạng thái runtime}
-
-Runtime status cho biết flag đang được phục vụ theo cấu hình nào tại environment hiện hành.
+    \small
+    \caption{Thống kê unit test đã triển khai}
+    \label{tab:unit-test-summary}
+    \begin{tabular}{p{0.24\textwidth} p{0.36\textwidth} p{0.16\textwidth} p{0.14\textwidth}}
+        \toprule
+        \textbf{Workspace} & \textbf{Phạm vi kiểm thử chính} & \textbf{Test suite} & \textbf{Test case} \\
+        \midrule
+        \texttt{@ffp/backend} & Evaluation engine, rollout hash, cache, audit, RBAC, DTO, controller, service, repository, statistics & 52 & 416 \\
+        \texttt{@ffp/js-sdk} & SDK client, response validation, helper API, timeout, lỗi mạng và fallback fail-closed & 1 & 21 \\
+        Tổng & Unit test toàn workspace qua \texttt{npm run test -- --runInBand} & 53 & 437 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Integration test và E2E test}
+
+Repository đã cấu hình Jest cho integration test qua \texttt{apps/backend/test/jest-integration.json} và script \texttt{npm run test:integration --workspace=@ffp/backend}. Ở trạng thái hiện tại, không có file \texttt{*.integration-spec.ts} riêng; các kiểm thử tích hợp được thể hiện chủ yếu qua nhóm E2E test trong \texttt{apps/backend/test}.
+
+E2E test dùng \texttt{@nestjs/testing} để khởi tạo \texttt{AppModule}, áp dụng global validation pipe, exception filter, request context middleware và demo RBAC giống runtime. Các test gọi HTTP bằng \texttt{supertest}, thao tác dữ liệu qua Prisma và dọn dữ liệu bằng helper test database. Hiện có 10 file \texttt{*.e2e-spec.ts}, bao phủ health check, management API, vertical slice tạo project/flag/rule/evaluate, API hardening, demo flow, flag history, group kill switch, evaluation cache, evaluation statistics và server-resolved RBAC.
+
+\subsection{Luồng CI trong CI/CD}
+
+Luồng CI được triển khai bằng GitHub Actions tại \texttt{.github/workflows/ci.yml}. Workflow chạy khi push hoặc pull request vào nhánh \texttt{develop} và \texttt{main}, đồng thời hỗ trợ chạy thủ công bằng \texttt{workflow\_dispatch}. Job \texttt{validate} sử dụng Ubuntu 24.04, Node.js 22.22.2 và PostgreSQL 16 service để mô phỏng môi trường kiểm thử có cơ sở dữ liệu thật.
+
+Các bước CI lần lượt gồm kiểm tra whitespace bằng \texttt{git diff --check}, cài dependencies bằng \texttt{npm ci}, validate và generate Prisma client, chạy lint, chạy unit test backend, build toàn bộ workspace, apply database migration, chạy seed hai lần để kiểm tra idempotency, chạy integration test và cuối cùng chạy backend E2E test. Luồng này giúp phát hiện sớm lỗi định dạng, lỗi schema, lỗi TypeScript/build, lỗi unit test và lỗi end-to-end trước khi thay đổi được hợp nhất.
