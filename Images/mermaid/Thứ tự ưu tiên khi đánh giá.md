@@ -1,5 +1,5 @@
 ```mermaid
-flowchart TD
+flowchart LR
     A[Request] --> B{Snapshot?}
     B -- No --> N[OFF<br/>NOT_FOUND]
     B -- Yes --> C{System<br/>precedence}
