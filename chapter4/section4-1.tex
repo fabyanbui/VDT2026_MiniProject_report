@@ -1,9 +1,29 @@
-\section{Tổng kết kết quả đạt được}
+\section{Tổng kết}
 
-Đề tài đã hoàn thành mục tiêu nghiên cứu Feature Flag và xây dựng một nền tảng quản lý phát hành tính năng an toàn ở phạm vi mini project. Báo cáo đã trình bày nền tảng lý thuyết, khảo sát giải pháp hiện có, phân tích yêu cầu, thiết kế kiến trúc, thiết kế dữ liệu, Rule Evaluation Engine, API, bảo mật, kiểm thử và kết quả triển khai.
+\subsection{Kết quả và đóng góp}
 
-Về sản phẩm, hệ thống gồm Backend API, Admin Dashboard, Demo Application, JavaScript SDK và PostgreSQL. Các chức năng bắt buộc được triển khai đầy đủ; nhiều chức năng khuyến khích như cache snapshot, audit-backed history, RBAC demo, statistics, group kill switch và Docker Compose cũng được hoàn thành.
+Đề tài đã hoàn thành mục tiêu nghiên cứu Feature Flag và xây dựng một nền tảng quản lý phát hành tính năng an toàn ở phạm vi mini project. Các kết quả và đóng góp chính gồm:
 
-Về kiểm chứng, hệ thống đã được kiểm thử ở các lớp engine, API, persistence, cache, RBAC, giao diện, demo app và quy trình triển khai. Các kịch bản trình diễn cho thấy người quản trị có thể thay đổi cấu hình flag trên Dashboard và quan sát hành vi ứng dụng thay đổi thông qua Evaluation API mà không cần deploy lại.
+\begin{itemize}
+    \item Hệ thống hóa kiến thức về Feature Flag, bao gồm vai trò trong release management, sự khác nhau giữa deployment và release, các loại flag phổ biến, rollout strategy, kill switch, audit log, caching, consistency và bảo mật endpoint evaluation.
+    \item Xây dựng Backend API bằng NestJS, Prisma và PostgreSQL, hỗ trợ quản lý project, feature flag, rule, group, sample user, audit log, history, statistics và Evaluation API.
+    \item Hiện thực Rule Evaluation Engine có thứ tự ưu tiên rõ ràng, deterministic percentage rollout bằng stable hashing, reason code ổn định và mặc định fail-closed khi không thể đánh giá an toàn.
+    \item Xây dựng Admin Dashboard để quản lý project, flag, rule, group kill switch, audit log, configuration history, statistics và trạng thái quyền theo vai trò admin/developer/viewer.
+    \item Xây dựng Demo Application và JavaScript SDK để chứng minh ứng dụng khách có thể gọi Evaluation API, hiển thị kết quả \texttt{enabled}/\texttt{reason} và bật/tắt tính năng mà không cần deploy lại.
+    \item Bổ sung các yêu cầu khuyến khích như evaluation snapshot cache, SDK, unit test, audit-backed history, RBAC demo, statistics dashboard, group kill switch và Docker Compose.
+    \item Chuẩn bị seed data, kịch bản demo, CI workflow và bộ kiểm thử tự động để sản phẩm có thể chạy, kiểm chứng và trình bày được.
+\end{itemize}
 
-Như vậy, kết quả đạt được không chỉ là một ứng dụng quản lý bật/tắt tính năng, mà là một mô hình nhỏ thể hiện được tư duy release management, thiết kế hệ thống, phân tách control plane/data plane, fail-closed evaluation và auditability trong vận hành phần mềm.
+\subsection{Bài học kinh nghiệm}
+
+Trong quá trình thực hiện đề tài, một số bài học kinh nghiệm quan trọng được rút ra như sau:
+
+\begin{itemize}
+    \item Cần xác định phạm vi MVP rõ ràng trước khi mở rộng, vì Feature Flag là miền bài toán dễ phát triển sang A/B testing, realtime sync, approval workflow hoặc hệ thống phân tán.
+    \item Thiết kế phải bắt đầu từ contract và precedence của Evaluation Engine; nếu thứ tự ưu tiên không rõ, kết quả bật/tắt sẽ khó giải thích và khó kiểm thử.
+    \item Tách control plane và data plane giúp hệ thống dễ trình bày, dễ kiểm thử và hạn chế ảnh hưởng của các thao tác quản trị đến luồng evaluation runtime.
+    \item Audit log nên được thiết kế ngay từ đầu trong cùng transaction với mutation để tránh mất dấu vết cấu hình và tạo nền tảng cho history.
+    \item Cache chỉ an toàn khi có invalidation rõ ràng; với Feature Flag, snapshot cũ có thể trực tiếp làm sai quyết định release.
+    \item Seed data và demo scenario cần được chuẩn bị cùng với tính năng để người xem thấy được giá trị thực tế thay vì chỉ nhìn thấy các API rời rạc.
+    \item CI, unit test và E2E test giúp bảo vệ các quyết định quan trọng như fail-closed, deterministic rollout, RBAC và auditability khi hệ thống được refactor hoặc mở rộng.
+\end{itemize}

@@ -1,19 +1,29 @@
-\section{Các đóng góp chính}
+\section{Hạn chế và hướng phát triển}
 
-Các đóng góp của đề tài được tổng hợp theo ba nhóm, tránh lặp lại phần mô tả chi tiết đã trình bày ở các chương trước.
+\subsection{Hạn chế}
 
-\subsection{Đóng góp về nghiên cứu}
+Mặc dù đáp ứng mục tiêu mini project, hệ thống vẫn còn một số hạn chế khi so với nền tảng Feature Flag ở mức production:
 
-Báo cáo hệ thống hóa kiến thức về Feature Flag trong bối cảnh release management: tách deploy khỏi release, phân loại flag, các chiến lược targeting/rollout, rủi ro feature flag debt và yêu cầu vận hành an toàn. Việc khảo sát LaunchDarkly, Unleash, OpenFeature và các khuyến nghị bảo mật giúp xác định những thành phần cốt lõi cần có trong một nền tảng Feature Flag thu nhỏ.
+\begin{itemize}
+    \item Hệ thống chưa được đánh giá dưới tải lớn; các kiểm thử hiện tập trung chủ yếu vào tính đúng đắn, luồng API và kịch bản demo.
+    \item Kiến trúc hiện phù hợp với một backend service trong môi trường demo, chưa có cơ chế đồng bộ cấu hình/cache giữa nhiều instance.
+    \item SDK mới có phiên bản JavaScript và vẫn gọi Evaluation API theo request/response, chưa hỗ trợ streaming hoặc push update thời gian thực.
+    \item Rule engine mới hỗ trợ các rule cơ bản như user allowlist, role targeting và percentage rollout, chưa có targeting theo thuộc tính phức tạp, thời gian, vị trí hoặc organization.
+    \item Hệ thống chưa hỗ trợ multi-variant experiment và A/B testing hoàn chỉnh, dù response đã có khái niệm variant đơn giản.
+    \item RBAC hiện phục vụ demo, chưa tích hợp OAuth2/OIDC, SSO, quản lý người dùng thật hoặc chính sách bảo mật ở mức doanh nghiệp.
+    \item Chưa có approval workflow, stale flag detection, rate limiting đầy đủ, monitoring hạ tầng, backup/recovery và disaster recovery.
+\end{itemize}
 
-\subsection{Đóng góp về thiết kế}
+\subsection{Hướng phát triển}
 
-Đề tài đề xuất thiết kế có ranh giới rõ giữa control plane và data plane. Control plane đảm nhiệm quản trị cấu hình, phân quyền và audit log; data plane đảm nhiệm evaluation với snapshot, precedence, reason code và fallback an toàn. Mô hình dữ liệu hỗ trợ project, environment, flag, config, rule, group, sample context, audit log và statistics theo cách đủ đơn giản cho mini project nhưng vẫn có khả năng mở rộng.
+Các hướng phát triển tương ứng với các hạn chế trên gồm:
 
-\subsection{Đóng góp về triển khai}
-
-Sản phẩm hiện thực đầy đủ luồng end-to-end từ quản trị flag đến thay đổi hành vi trong demo app. Backend, Dashboard, SDK, Demo Application, migration/seed, test và Docker Compose tạo thành một hệ thống có thể chạy, kiểm thử và trình bày được. Đây là bằng chứng thực tế cho các quyết định thiết kế đã phân tích trong báo cáo.
-
-\subsection{Đóng góp về tư duy hệ thống}
-
-Đề tài thể hiện cách tiếp cận hệ thống đối với một bài toán tưởng như chỉ là bật/tắt tính năng. Mỗi quyết định đều được đặt trong quan hệ giữa độ an toàn, khả năng giải thích, hiệu năng, bảo mật, trải nghiệm quản trị và khả năng mở rộng. Đây là giá trị quan trọng nhất của mini project khi so sánh với việc chỉ xây dựng một API CRUD đơn giản.
+\begin{itemize}
+    \item Bổ sung benchmark và load test cho Evaluation API, đo latency, throughput, cache hit/miss và hành vi khi database hoặc cache gặp lỗi.
+    \item Mở rộng kiến trúc sang nhiều backend instance, dùng distributed cache hoặc event-based invalidation để đồng bộ snapshot cấu hình giữa các instance.
+    \item Phát triển thêm SDK cho các ngôn ngữ phổ biến như Java, Go, Python hoặc C\#, đồng thời nghiên cứu polling tối ưu, SSE/WebSocket hoặc streaming update.
+    \item Mở rộng Rule Evaluation Engine để hỗ trợ targeting theo thuộc tính người dùng, organization/tenant, thời gian, khu vực địa lý và điều kiện kết hợp.
+    \item Thiết kế mô hình multi-variant flag và A/B testing, kết hợp statistics để đo lường hiệu quả từng biến thể.
+    \item Thay thế mô hình RBAC demo bằng cơ chế xác thực chuẩn như OAuth2/OIDC hoặc SSO, kèm quản lý người dùng, nhóm quyền và chính sách truy cập chi tiết.
+    \item Bổ sung approval workflow cho thay đổi production, stale flag detection để giảm feature flag debt, rate limiting, monitoring/alerting, backup/recovery và tài liệu vận hành production.
+\end{itemize}
