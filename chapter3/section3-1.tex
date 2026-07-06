@@ -2,91 +2,27 @@
 
 \subsection{Cấu trúc mã nguồn}
 
-Nhằm tách biệt các thành phần của hệ thống nhưng vẫn thuận tiện cho việc phát triển, kiểm thử và triển khai, toàn bộ mã nguồn được tổ chức theo mô hình monorepo. Kiến trúc này cho phép Backend API, Admin Dashboard, Demo Application và JavaScript SDK cùng sử dụng chung quy trình quản lý phiên bản, phụ thuộc và môi trường phát triển. Đồng thời, việc đặt các thành phần trong cùng một kho mã nguồn giúp giảm chi phí đồng bộ API contract, chia sẻ kiểu dữ liệu và triển khai Docker Compose cho toàn bộ hệ thống \cite{docker_compose}.
+Mã nguồn được tổ chức theo mô hình npm workspace để tách rõ các thành phần nhưng vẫn quản lý chung trong một repository. Cấu trúc chính gồm \texttt{apps/backend} cho Backend API NestJS, \texttt{apps/admin} cho Admin Dashboard React, \texttt{apps/demo} cho Demo Application React và \texttt{packages/js-sdk} cho SDK JavaScript dùng bởi ứng dụng demo. Cách tổ chức này giúp các thành phần dùng chung quy trình cài đặt, build, kiểm thử và triển khai, đồng thời giảm rủi ro lệch API contract giữa control plane và data plane \cite{microsoft_devops,docker_compose}.
 
-\subsubsection{Tổ chức monorepo}
+Ở Backend API, mã nguồn được chia theo module nghiệp vụ như project, feature flag, flag group, rule, evaluation, statistics, audit log, sample user và auth. Các controller chỉ tiếp nhận request và trả response; service/repository xử lý nghiệp vụ và truy cập PostgreSQL thông qua Prisma. Các phần dùng chung như validation, request context, exception filter và permission guard được đặt trong các module \texttt{common} và \texttt{auth} để tránh lặp lại xử lý ở từng endpoint.
 
-Dự án được tổ chức theo mô hình workspace với hai thư mục chính là \texttt{apps} và \texttt{packages}. Thư mục \texttt{apps} chứa các ứng dụng có thể triển khai độc lập, bao gồm Backend API, Admin Dashboard và Demo Application. Thư mục \texttt{packages} chứa JavaScript SDK dùng chung để các ứng dụng khách gọi Evaluation API.
-
-Cấu trúc này giúp giảm trùng lặp mã nguồn, dễ dàng chia sẻ các kiểu dữ liệu giữa các thành phần và hỗ trợ mở rộng thêm ứng dụng mới mà không ảnh hưởng đến kiến trúc hiện có. Việc phát triển theo monorepo cũng phù hợp với quy trình tích hợp và triển khai liên tục khi toàn bộ hệ thống được quản lý trong cùng một repository \cite{microsoft_devops,docker_compose}.
-
-\subsubsection{Cấu trúc Backend API}
-
-Backend API được xây dựng bằng NestJS theo kiến trúc module nhằm tách biệt các miền chức năng của hệ thống. Mỗi module đảm nhiệm một nghiệp vụ riêng như quản lý project, feature flag, flag group, rule evaluation, audit log, authentication, sample user và thống kê evaluation.
-
-Tầng controller chịu trách nhiệm tiếp nhận và xác thực request, tầng service xử lý nghiệp vụ, còn tầng repository thực hiện truy cập cơ sở dữ liệu thông qua Prisma ORM. Các DTO được sử dụng để kiểm tra dữ liệu đầu vào, trong khi middleware, guard, interceptor và exception filter đảm nhiệm các chức năng cắt ngang như xác thực, phân quyền, ghi nhận request ID, logging và xử lý lỗi thống nhất. Kiến trúc phân lớp này giúp tăng khả năng bảo trì, kiểm thử và mở rộng hệ thống khi bổ sung các loại rule hoặc endpoint mới.
-
-\subsubsection{Cấu trúc Admin Dashboard}
-
-Admin Dashboard được xây dựng bằng React theo hướng component-based. Giao diện được chia thành các nhóm thành phần độc lập như trang quản lý project, feature flag, flag group, audit log, statistics và màn hình cấu hình rule.
-
-Các thành phần dùng chung như layout, biểu mẫu, bảng dữ liệu, hộp thoại xác nhận, badge trạng thái và hook xử lý API được tách riêng để tái sử dụng trong toàn bộ ứng dụng. Dữ liệu được lấy từ Backend API thông qua các service riêng biệt, giúp tách logic giao diện khỏi logic giao tiếp mạng và đơn giản hóa việc bảo trì khi API thay đổi.
-
-\subsubsection{Cấu trúc Demo Application và SDK}
-
-Demo Application là một ứng dụng React độc lập dùng để minh họa việc tích hợp Feature Flag vào ứng dụng khách. Thay vì gọi trực tiếp Evaluation API, ứng dụng sử dụng JavaScript SDK được phát triển trong thư mục \texttt{packages/js-sdk}. SDK chịu trách nhiệm xây dựng request, gửi Evaluation API, kiểm tra tính hợp lệ của response và trả về kết quả dưới dạng giao diện lập trình thống nhất cho ứng dụng.
-
-Việc tách SDK thành một package riêng giúp giảm sự phụ thuộc giữa ứng dụng khách và Backend API, đồng thời tạo điều kiện tái sử dụng cho nhiều ứng dụng khác nhau. Cách tổ chức này cũng phù hợp với mô hình Feature Flag Platform trong thực tế, nơi client chỉ cần tích hợp SDK mà không cần quan tâm đến chi tiết triển khai của Evaluation Engine \cite{launchdarkly_feature_flags,openfeature_flag_evaluation}.
+Admin Dashboard được xây dựng theo hướng component-based với các trang project, danh sách flag, cấu hình rule, flag group, audit log và statistics. Những thành phần dùng lặp lại như badge trạng thái, dialog xác nhận, data state, history panel và API client được tách riêng để giao diện nhất quán và dễ mở rộng. Demo Application là một ứng dụng React độc lập mô phỏng storefront thương mại điện tử; thay vì gọi HTTP thủ công, ứng dụng tích hợp SDK trong \texttt{packages/js-sdk} để đánh giá flag, kiểm tra response và áp dụng mặc định fail-closed khi API lỗi \cite{openfeature_flag_evaluation}.
 
 \subsection{Môi trường phát triển}
 
-Để bảo đảm tính ổn định, khả năng tái lập môi trường và thuận tiện trong quá trình phát triển, hệ thống được xây dựng trên nền tảng Node.js với kiến trúc monorepo. Backend API, Admin Dashboard, Demo Application và JavaScript SDK cùng sử dụng chung hệ sinh thái công cụ, đồng thời cơ sở dữ liệu được quản lý thông qua Prisma ORM và PostgreSQL. Ngoài ra, dự án tích hợp các công cụ kiểm thử, kiểm tra chất lượng mã nguồn và tài liệu hóa API nhằm nâng cao khả năng bảo trì và mở rộng hệ thống.
+Toàn bộ hệ thống sử dụng TypeScript trên Node.js. Backend dùng NestJS, frontend dùng React/Vite, còn npm workspaces quản lý các package trong \texttt{apps} và \texttt{packages}. Các lệnh phát triển ở cấp root gồm \texttt{npm run dev:backend}, \texttt{npm run dev:admin}, \texttt{npm run dev:demo}, \texttt{npm run build}, \texttt{npm run test} và \texttt{npm run lint}. Việc thống nhất công cụ giúp quá trình phát triển, kiểm thử và đóng gói các thành phần diễn ra đồng nhất.
 
-\subsubsection{Runtime và package manager}
-
-Toàn bộ hệ thống được phát triển bằng TypeScript trên nền tảng Node.js. Backend sử dụng NestJS, trong khi Admin Dashboard và Demo Application được xây dựng bằng React. Các thành phần trong monorepo được quản lý bằng npm workspaces, cho phép chia sẻ package nội bộ, đồng bộ phiên bản phụ thuộc và đơn giản hóa quá trình cài đặt.
-
-Việc sử dụng cùng một runtime giúp giảm sự khác biệt giữa các thành phần của hệ thống, đồng thời tạo điều kiện thuận lợi cho việc xây dựng quy trình build, kiểm thử và triển khai thống nhất. Đây cũng là mô hình thường được áp dụng trong các hệ thống web hiện đại theo quy trình DevOps \cite{microsoft_devops}.
-
-\subsubsection{Database và công cụ ORM}
-
-Hệ thống sử dụng PostgreSQL làm hệ quản trị cơ sở dữ liệu chính. PostgreSQL đáp ứng tốt các yêu cầu về tính toàn vẹn dữ liệu, hỗ trợ transaction, khóa ngoại, chỉ mục và kiểu dữ liệu JSONB phục vụ lưu trữ linh hoạt các tham số rule, thuộc tính người dùng và snapshot của audit log \cite{postgresql_json_types}.
-
-Lớp truy cập dữ liệu được xây dựng bằng Prisma ORM. Prisma cung cấp cơ chế mô hình hóa dữ liệu thông qua schema, hỗ trợ migration, sinh mã truy cập cơ sở dữ liệu theo kiểu dữ liệu tĩnh và giảm đáng kể lượng mã SQL thủ công. Việc sử dụng Prisma cũng giúp tăng tính an toàn kiểu dữ liệu, đơn giản hóa thao tác CRUD và thuận tiện khi mở rộng mô hình dữ liệu trong tương lai.
-
-\subsubsection{Công cụ kiểm thử và kiểm tra mã nguồn}
-
-Dự án sử dụng Jest để xây dựng các bài kiểm thử đơn vị cho các thành phần nghiệp vụ quan trọng, đặc biệt là Rule Evaluation Engine, cache, SDK và các hàm tiện ích. Các trường hợp kiểm thử bao gồm đánh giá theo user allowlist, role, percentage rollout, group/flag kill switch, default off, \texttt{NOT\_FOUND}, \texttt{INVALID\_CONTEXT} và các tình huống ngoại lệ nhằm bảo đảm tính đúng đắn của thuật toán evaluation.
-
-Bên cạnh đó, ESLint được sử dụng để kiểm tra chất lượng mã nguồn và phát hiện các lỗi phổ biến trong quá trình phát triển. Việc kết hợp TypeScript với ESLint giúp chuẩn hóa phong cách lập trình, hạn chế lỗi tiềm ẩn và nâng cao khả năng bảo trì của toàn bộ hệ thống.
-
-\subsubsection{Công cụ tài liệu hóa API}
-
-Backend API tích hợp OpenAPI thông qua Swagger để tự động sinh tài liệu REST API. Các endpoint được mô tả đầy đủ về request, response, tham số đầu vào, mã lỗi và kiểu dữ liệu, giúp lập trình viên dễ dàng kiểm thử và tích hợp với các ứng dụng khách.
-
-Việc sử dụng Swagger giúp tài liệu API luôn đồng bộ với mã nguồn, giảm công sức cập nhật tài liệu thủ công và hỗ trợ kiểm thử trực tiếp ngay trên giao diện trình duyệt. Cách tiếp cận này phù hợp với các hệ thống Feature Flag hiện đại, nơi Evaluation API đóng vai trò là điểm tích hợp giữa nền tảng quản trị và các ứng dụng khách \cite{openfeature_flag_evaluation}.
+Cơ sở dữ liệu chính là PostgreSQL, được truy cập thông qua Prisma ORM. Prisma Schema định nghĩa các bảng, khóa ngoại, chỉ mục, quan hệ và kiểu enum; PostgreSQL JSONB được dùng cho tham số rule, thuộc tính user context và snapshot before/after của audit log \cite{postgresql_json_types}. Backend bật \texttt{ValidationPipe}, Swagger/OpenAPI, CORS theo biến môi trường và exception filter để chuẩn hóa lỗi. Jest được dùng cho unit test và e2e/integration test, tập trung vào rule evaluation, cache, statistics, RBAC, persistence và các luồng demo quan trọng.
 
 \subsection{Database migration và seed data}
 
-Để bảo đảm cơ sở dữ liệu luôn đồng bộ với mã nguồn và có thể tái tạo trên nhiều môi trường khác nhau, hệ thống sử dụng Prisma Migrate để quản lý schema và lịch sử thay đổi cơ sở dữ liệu. Bên cạnh đó, các tập dữ liệu mẫu được chuẩn bị sẵn nhằm hỗ trợ phát triển, kiểm thử và trình diễn các kịch bản Feature Flag mà không cần nhập dữ liệu thủ công.
+Schema hệ thống nằm tại \texttt{apps/backend/prisma/schema.prisma} và được triển khai bằng Prisma Migrate. Các migration hiện có tạo và mở rộng các nhóm bảng cho project, environment, feature flag, cấu hình theo môi trường, rule, flag group, sample user, audit log và evaluation metrics. Những ràng buộc như unique key theo project, chỉ mục truy vấn, cascade/restrict relation và soft delete được khai báo trong schema để bảo vệ tính nhất quán dữ liệu.
 
-\subsubsection{Khởi tạo database schema}
-
-Toàn bộ mô hình dữ liệu của hệ thống được định nghĩa trong Prisma Schema và sinh tự động thành các bảng trong PostgreSQL thông qua Prisma Migrate. Schema bao gồm các thực thể chính như Project, Environment, Feature Flag, Flag Group, FlagEnvironmentConfig, FlagRule, SampleUserContext, AuditLogEntry và các bảng phục vụ thống kê evaluation.
-
-Các ràng buộc toàn vẹn như khóa chính, khóa ngoại, chỉ mục, giá trị duy nhất và các quan hệ một-nhiều được khai báo trực tiếp trong schema. Ngoài các kiểu dữ liệu cơ bản, PostgreSQL còn sử dụng kiểu dữ liệu JSONB để lưu trữ linh hoạt các tham số rule, thuộc tính người dùng và snapshot của audit log, giúp hệ thống dễ dàng mở rộng khi bổ sung các loại rule mới \cite{postgresql_json_types}.
-
-\subsubsection{Quản lý migration}
-
-Mỗi thay đổi đối với mô hình dữ liệu đều được quản lý dưới dạng migration độc lập. Prisma tự động sinh các tập lệnh SQL tương ứng và lưu lại lịch sử migration trong cơ sở dữ liệu, bảo đảm mọi môi trường phát triển và triển khai đều sử dụng cùng một phiên bản schema.
-
-Cách tiếp cận này giúp kiểm soát sự thay đổi của cơ sở dữ liệu theo thời gian, hỗ trợ cập nhật hoặc khôi phục schema khi cần thiết, đồng thời giảm rủi ro sai khác giữa môi trường phát triển, kiểm thử và production.
-
-\subsubsection{Seed project, environment và Feature Flag}
-
-Sau khi hoàn tất migration, hệ thống cung cấp các script seed để tạo dữ liệu mẫu phục vụ quá trình phát triển và trình diễn. Dữ liệu khởi tạo bao gồm một hoặc nhiều project, các environment mặc định như \texttt{development}, \texttt{staging} và \texttt{production}, các flag group cùng nhiều feature flag đại diện cho các kịch bản phổ biến.
-
-Mỗi feature flag được cấu hình với trạng thái, serving mode, kill switch và các rule phù hợp để minh họa các chiến lược rollout như bật hoặc tắt toàn cục, targeting theo user, targeting theo role, percentage rollout và group kill switch. Nhờ đó, các chức năng của Evaluation Engine và Dashboard có thể được kiểm thử ngay sau khi khởi tạo dữ liệu.
-
-\subsubsection{Seed sample user và thuộc tính organization mẫu}
-
-Hệ thống đồng thời tạo tập sample user và thuộc tính organization mẫu nhằm phục vụ các kịch bản đánh giá Feature Flag. Mỗi người dùng được gán một \texttt{targetingKey} duy nhất cùng với các thuộc tính như vai trò, organization và các metadata cần thiết cho quá trình evaluation.
-
-Việc chuẩn bị sẵn dữ liệu mẫu giúp dễ dàng kiểm thử các trường hợp targeting theo user ID, role và rollout theo organization-level targetingKey trong demo, đồng thời bảo đảm các kết quả percentage rollout luôn ổn định nhờ sử dụng cùng một định danh người dùng trong quá trình đánh giá. Các tập dữ liệu này cũng được sử dụng để minh họa các kịch bản demo và hỗ trợ kiểm thử tự động của hệ thống.
+Seed script \texttt{apps/backend/prisma/seed.ts} được thiết kế không phá hủy dữ liệu đang có: script chỉ tạo bản ghi còn thiếu và không reset các chỉnh sửa demo hiện tại. Dữ liệu mẫu bao gồm project \texttt{demo-project}, các environment \texttt{production}, \texttt{staging}, \texttt{development}, các nhóm \texttt{customer-experience}, \texttt{checkout-experience}, \texttt{recommendations}, nhiều feature flag mẫu như \texttt{new-checkout}, \texttt{express-payment}, \texttt{coupon-engine}, \texttt{personalized-recommendations}, cùng ba user mẫu \texttt{demo-user-beta}, \texttt{demo-user-regular} và \texttt{demo-user-admin}. Các rule user allowlist, role targeting và percentage rollout được seed kèm audit log ban đầu, nhờ đó hệ thống có dữ liệu sẵn để kiểm thử và trình diễn ngay sau khi khởi tạo.
 
 \subsection{Triển khai bằng Docker Compose}
 
-Để đơn giản hóa quá trình cài đặt và bảo đảm tính nhất quán giữa các môi trường phát triển, hệ thống được triển khai bằng Docker Compose. Cách tiếp cận này cho phép khởi tạo đồng thời các thành phần của nền tảng Feature Flag thông qua một cấu hình thống nhất, giảm sự phụ thuộc vào môi trường cài đặt của từng máy và hỗ trợ tái tạo hệ thống một cách nhanh chóng \cite{docker_compose}.
+Hệ thống có thể chạy bằng Docker Compose để tái tạo đầy đủ môi trường trình diễn. Tệp \texttt{docker-compose.yml} định nghĩa PostgreSQL, backend, admin, demo, \texttt{demo-staging}, các job \texttt{migrate} và \texttt{demo-seed}; ngoài ra có profile tùy chọn cho Prisma Studio và Redis. Hình~\ref{fig:docker-compose-deployment} minh họa các service chính và quan hệ phụ thuộc khi triển khai bằng Docker Compose.
 
 \begin{figure}[H]
     \centering
@@ -95,55 +31,10 @@ Việc chuẩn bị sẵn dữ liệu mẫu giúp dễ dàng kiểm thử các t
     \label{fig:docker-compose-deployment}
 \end{figure}
 
-
-\subsubsection{Các service trong Docker Compose}
-
-Docker Compose được sử dụng để quản lý các service chính của hệ thống. Trong phiên bản hiện tại, các service bao gồm cơ sở dữ liệu PostgreSQL và các ứng dụng chạy trong môi trường Node.js như Backend API, Admin Dashboard và Demo Application. Khi cần mở rộng, các service này có thể được bổ sung thêm Redis để cache snapshot cấu hình evaluation hoặc các thành phần giám sát mà không làm thay đổi kiến trúc tổng thể.
-
-Mỗi service được khai báo độc lập với image, cổng truy cập, biến môi trường, volume và các phụ thuộc cần thiết. Việc quản lý tập trung giúp quá trình khởi động, dừng và cập nhật toàn bộ hệ thống chỉ cần thực hiện bằng một số lệnh Docker Compose thống nhất.
-
-\subsubsection{Network giữa các service}
-
-Các service được kết nối thông qua mạng nội bộ do Docker Compose tự động tạo. Nhờ đó, Backend API có thể truy cập PostgreSQL thông qua tên service thay vì địa chỉ IP cố định, trong khi Admin Dashboard và Demo Application giao tiếp với Backend API thông qua các endpoint được cấu hình trong biến môi trường.
-
-Việc sử dụng mạng nội bộ giúp cô lập các thành phần của hệ thống với môi trường bên ngoài, giảm sự phụ thuộc vào cấu hình mạng của máy chủ và đơn giản hóa quá trình triển khai trên nhiều thiết bị khác nhau \cite{docker_compose}.
-
-\subsubsection{Volume lưu trữ dữ liệu}
-
-Để bảo đảm dữ liệu không bị mất khi container được khởi động lại hoặc cập nhật phiên bản, PostgreSQL sử dụng Docker Volume để lưu trữ dữ liệu lâu dài. Toàn bộ schema, dữ liệu nghiệp vụ, audit log và các thông tin cấu hình Feature Flag được lưu trên volume thay vì bên trong container.
-
-Việc tách dữ liệu khỏi vòng đời của container giúp hệ thống dễ dàng sao lưu, phục hồi và nâng cấp mà không ảnh hưởng đến dữ liệu đã tồn tại. Đây cũng là phương pháp triển khai được khuyến nghị đối với các dịch vụ sử dụng cơ sở dữ liệu \cite{docker_compose}.
-
-\subsubsection{Biến môi trường và cấu hình runtime}
-
-Các thông số cấu hình của hệ thống được quản lý thông qua biến môi trường nhằm tách biệt mã nguồn với thông tin triển khai. Các biến quan trọng bao gồm chuỗi kết nối PostgreSQL, cổng dịch vụ, khóa bí mật phục vụ xác thực, cấu hình CORS, địa chỉ Backend API và các tham số runtime khác.
-
-Việc sử dụng biến môi trường giúp cùng một mã nguồn có thể triển khai trên nhiều môi trường như development, staging và production mà không cần chỉnh sửa chương trình. Đồng thời, các thông tin nhạy cảm không được ghi trực tiếp trong mã nguồn, góp phần nâng cao tính bảo mật và khả năng quản lý cấu hình của hệ thống \cite{owasp_rest_security,docker_compose}.
+Các container giao tiếp qua mạng nội bộ do Docker Compose tạo. Backend kết nối PostgreSQL bằng tên service \texttt{postgres}; Admin Dashboard và Demo Application gọi Backend API thông qua biến \texttt{VITE\_API\_BASE\_URL}. Service \texttt{postgres} dùng volume \texttt{postgres-data} để giữ dữ liệu sau khi container khởi động lại. Những cấu hình như database URL, cổng API, origin frontend, cache provider/TTL và token demo RBAC được đặt ngoài mã nguồn để cùng một image có thể chạy trên nhiều môi trường \cite{owasp_rest_security,docker_compose}.
 
 \subsection{Quy trình khởi chạy hệ thống}
 
-Hệ thống được thiết kế để có thể khởi tạo nhanh trên một môi trường mới thông qua quy trình gồm chuẩn bị môi trường, khởi tạo cơ sở dữ liệu, sinh dữ liệu mẫu và khởi chạy các dịch vụ. Các bước này bảo đảm toàn bộ thành phần của nền tảng Feature Flag được đồng bộ trước khi đưa vào sử dụng hoặc trình diễn.
+Quy trình khởi chạy được chuẩn hóa theo thứ tự phụ thuộc. Trên môi trường phát triển cục bộ, lập trình viên cài package bằng \texttt{npm install}, chuẩn bị biến môi trường, chạy PostgreSQL, sau đó dùng các script workspace để chạy backend, admin và demo. Với Docker Compose, PostgreSQL được kiểm tra healthcheck trước; job \texttt{migrate} chạy \texttt{prisma migrate deploy}; job \texttt{demo-seed} sinh dữ liệu mẫu; cuối cùng các service backend, admin, demo và demo staging được khởi động khi các bước trước hoàn tất.
 
-\subsubsection{Khởi tạo môi trường}
-
-Bước đầu tiên là cài đặt các công cụ cần thiết như Node.js, npm và Docker Desktop. Sau khi tải mã nguồn, toàn bộ các package trong monorepo được cài đặt thông qua npm workspaces để đồng bộ các phụ thuộc giữa Backend API, Admin Dashboard, Demo Application và JavaScript SDK.
-
-Tiếp theo, các biến môi trường được cấu hình thông qua tệp cấu hình tương ứng. Các tham số như chuỗi kết nối PostgreSQL, cổng dịch vụ, khóa bí mật và địa chỉ Backend API được thiết lập trước khi khởi động hệ thống nhằm bảo đảm các thành phần có thể giao tiếp với nhau một cách chính xác.
-
-\subsubsection{Chạy migration và seed}
-
-Sau khi cơ sở dữ liệu PostgreSQL được khởi động, Prisma Migrate được sử dụng để tạo hoặc cập nhật schema theo phiên bản mới nhất của hệ thống. Quá trình migration đồng thời thiết lập các bảng dữ liệu, khóa ngoại, chỉ mục và các ràng buộc toàn vẹn cần thiết.
-
-Khi migration hoàn tất, các script seed được thực thi để tạo dữ liệu mẫu phục vụ phát triển và kiểm thử. Dữ liệu khởi tạo bao gồm project, environment, feature flag, flag group, rule và sample user, cho phép hệ thống có thể sử dụng ngay sau khi cài đặt mà không cần cấu hình thủ công.
-
-\subsubsection{Khởi chạy các service}
-
-Các service của hệ thống được khởi động thông qua Docker Compose hoặc chạy trực tiếp trong môi trường phát triển. PostgreSQL được khởi động trước, tiếp theo là Backend API, Admin Dashboard và Demo Application. Trong quá trình khởi động, Backend API tự động kết nối đến cơ sở dữ liệu và sẵn sàng phục vụ các yêu cầu từ Dashboard cũng như Demo Application.
-
-Việc khởi chạy theo thứ tự giúp bảo đảm các dịch vụ phụ thuộc luôn sẵn sàng trước khi ứng dụng bắt đầu xử lý yêu cầu, đồng thời giảm khả năng phát sinh lỗi kết nối trong giai đoạn khởi động \cite{docker_compose}.
-
-\subsubsection{Kiểm tra trạng thái hệ thống}
-
-Sau khi toàn bộ service được khởi động, trạng thái hệ thống được kiểm tra bằng cách truy cập giao diện Admin Dashboard, Demo Application và tài liệu Swagger của Backend API. Các endpoint quản lý project, feature flag và evaluation được sử dụng để xác nhận Backend API đã kết nối thành công với cơ sở dữ liệu.
-
-Cuối cùng, một số kịch bản đánh giá Feature Flag như bật hoặc tắt toàn cục, targeting theo role và percentage rollout được thực hiện trên Demo Application nhằm xác nhận Rule Evaluation Engine, Dashboard và cơ sở dữ liệu hoạt động đúng theo thiết kế trước khi tiến hành kiểm thử hoặc trình diễn hệ thống.
+Sau khi hệ thống chạy, trạng thái được xác nhận qua endpoint \texttt{/v1/health}, Swagger UI của Backend API, Admin Dashboard và Demo Application. Các kiểm tra thực tế gồm mở danh sách project/flag, xem audit log, gọi evaluation cho các user mẫu và bật/tắt một số cấu hình để xác nhận Dashboard, Evaluation API, SDK và dữ liệu PostgreSQL hoạt động đồng bộ. Quy trình này giúp môi trường luôn sẵn sàng cho kiểm thử, trình diễn và đánh giá mà không cần cấu hình thủ công nhiều lần.
