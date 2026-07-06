@@ -1,85 +1,54 @@
 \section{Thiết kế Rule Evaluation Engine}
 
-Rule Evaluation Engine là thành phần quyết định một Feature Flag bật hay tắt cho từng request. Mục này là nơi duy nhất trình bày chi tiết thứ tự đánh giá, cách dùng context, stable hashing, reason code và fallback; các mục dữ liệu/API chỉ tham chiếu đến contract này ở mức tổng quan.
+Rule Evaluation Engine là lõi quyết định của data plane: với một request runtime và một snapshot cấu hình đã chuẩn hóa, engine trả về flag đang \textit{on/off}, variant, reason code và rule được match nếu có. Phần này được viết dựa trên source code backend hiện tại: các file engine, type, stable hash, service và repository trong module evaluation. Mục tiêu thiết kế là giữ kết quả xác định, mặc định an toàn, tách engine khỏi controller/ORM, đồng thời đủ rõ để dashboard, demo app và \texttt{@ffp/js-sdk} cùng hiểu một contract thống nhất.
 
-\subsection{Evaluation request và context}
+\subsection{Contract đầu vào và evaluation context}
 
-Evaluation request gồm khóa project, environment, flag và một evaluation context do ứng dụng khách cung cấp. Context chỉ là đầu vào cho rollout/targeting, không thay thế cơ chế xác thực hay phân quyền nghiệp vụ.
+Evaluation API nhận khóa cấu hình gồm \texttt{projectKey}, \texttt{environmentKey} tùy chọn, \texttt{flagKey} và một \texttt{context} do ứng dụng khách gửi lên. \texttt{environmentKey} dùng để chọn cấu hình theo môi trường; nếu bỏ trống, backend dùng environment mặc định của project. Context chỉ phục vụ targeting/rollout, không thay thế xác thực người dùng cuối hay phân quyền nghiệp vụ của ứng dụng tích hợp.
 
 \begin{lstlisting}[
     caption={Cấu trúc evaluation request},
     label={lst:evaluation-request}
 ]
 {
-  "projectKey": "ecommerce-demo",
+  "projectKey": "demo-project",
   "environmentKey": "production",
   "flagKey": "new-checkout",
   "context": {
-    "targetingKey": "user-123",
-    "userId": "user-123",
-    "role": "BETA_CUSTOMER",
+    "targetingKey": "demo-user-regular",
+    "userId": "demo-user-regular",
+    "roles": ["beta-tester"],
     "attributes": {
-      "organizationId": "org-01"
+      "plan": "pro",
+      "country": "VN"
     }
   }
 }
 \end{lstlisting}
 
-\subsubsection{Project key, environment key và flag key}
+Trong contract này, \texttt{targetingKey} là khóa ổn định, không chứa PII, dùng cho percentage rollout; \texttt{userId} dùng cho user allowlist; \texttt{roles} dùng cho role targeting; \texttt{attributes} là vùng mở rộng cho các rule tương lai. Backend validate định dạng key và kiểu dữ liệu bằng DTO trước khi vào service. Request sai schema bị chặn ở biên API, còn request hợp lệ nhưng thiếu dữ liệu cho một loại rule sẽ được engine xử lý an toàn: allowlist hoặc role rule bị bỏ qua khi thiếu \texttt{userId}/\texttt{roles}; riêng percentage rollout trả \texttt{INVALID\_CONTEXT} nếu đã đến lượt xét percentage rule nhưng \texttt{targetingKey} rỗng hoặc chỉ có khoảng trắng.
 
-Ba khóa này xác định chính xác cấu hình cần evaluate. Nếu project hoặc flag không tồn tại, engine trả kết quả tắt an toàn với reason \texttt{NOT\_FOUND}.
+\subsection{Snapshot cấu hình và luồng thực thi data plane}
 
-\subsubsection{Targeting key}
+Engine không truy cập database trực tiếp. \texttt{EvaluationService} tạo \texttt{EvaluationInput}, thử đọc snapshot từ cache bằng \texttt{projectKey}, \texttt{environmentKey} và \texttt{flagKey}; nếu cache miss thì \texttt{EvaluationRepository} nạp dữ liệu từ PostgreSQL qua Prisma. Snapshot gồm lifecycle của flag, trạng thái config theo environment, serving mode, flag kill switch, group kill switch nếu flag thuộc group, danh sách rule đã có \texttt{id}, \texttt{type}, \texttt{priority}, \texttt{enabled} và \texttt{parameters}. Nếu project, environment, flag hoặc config không tồn tại, service không trả lỗi \texttt{404} cho data plane mà trả \texttt{enabled=false} với reason \texttt{NOT\_FOUND}. Nếu cache lỗi, service fallback về repository; nếu repository hoặc engine lỗi bất ngờ, kết quả là \texttt{ERROR} theo nguyên tắc fail-closed. Việc ghi metric được thực hiện an toàn sau khi có kết quả và không được phép làm thay đổi response evaluation.
 
-\texttt{targetingKey} là định danh ổn định, không chứa PII, dùng cho percentage rollout. Khi thiếu trường này, rule percentage không đủ điều kiện để match.
-
-\subsubsection{User ID, role và organization ID}
-
-\texttt{userId} phục vụ allowlist; \texttt{role} phục vụ role targeting; \texttt{attributes.organizationId} được giữ như dữ liệu mở rộng cho demo và hướng phát triển sau này.
-
-\subsubsection{Thuộc tính mở rộng}
-
-\texttt{attributes} cho phép bổ sung dữ liệu mà không đổi contract chính. Engine hiện chỉ dùng một phần nhỏ, các rule theo thuộc tính nâng cao được để ở hướng phát triển.
-
-\subsubsection{Validation evaluation request}
-
-Backend kiểm tra kiểu dữ liệu và định dạng bắt buộc trước khi gọi engine. Request sai định dạng bị từ chối ở biên API, còn request hợp lệ nhưng thiếu dữ liệu cho một rule sẽ được engine xử lý theo hướng bỏ qua rule đó.
-
-\subsection{Evaluation snapshot}
-
-Snapshot là ảnh chụp cấu hình cần thiết tại thời điểm evaluate, gồm trạng thái flag, config theo environment, group config và danh sách rule đã chuẩn hóa.
-
-\subsubsection{Khái niệm evaluation snapshot}
-
-Snapshot giúp engine không phụ thuộc trực tiếp vào ORM hoặc controller. Cùng một snapshot và cùng một context phải luôn tạo ra cùng một kết quả.
-
-\subsubsection{Dữ liệu cấu hình cần truy xuất}
-
-Snapshot chứa lifecycle flag, trạng thái enabled/disabled, serving mode, kill switch, group kill switch và rule parameters. Dữ liệu audit/history không nằm trong snapshot runtime.
-
-\subsubsection{Sắp xếp rule trước khi evaluation}
-
-Repository chuẩn bị rule theo loại và priority để engine chỉ tập trung vào logic quyết định. Cách sắp xếp này làm kết quả ổn định giữa các lần gọi.
-
-\subsubsection{Tính nhất quán của snapshot}
-
-Snapshot được lấy từ database hoặc cache đã invalidation sau mutation. Nếu cache miss, backend nạp lại snapshot từ nguồn dữ liệu chính.
+Cách tách snapshot khỏi engine tạo ba lợi ích. Thứ nhất, cùng một snapshot và cùng một context luôn tạo ra cùng một kết quả, thuận lợi cho unit test. Thứ hai, controller/service có thể thay đổi cache hoặc repository mà không làm nhiễu logic quyết định. Thứ ba, audit log và history vẫn thuộc control plane, không bị đưa vào runtime snapshot, giúp đường evaluate gọn và không phơi bày cấu hình quản trị cho client.
 
 \subsection{Thứ tự ưu tiên khi đánh giá}
 
-Thứ tự ưu tiên là hợp đồng quan trọng nhất của engine. Các điều kiện an toàn được xét trước rule rollout để tránh việc một flag bị tắt nhưng vẫn vô tình được bật bởi rule phía sau.
+Thứ tự ưu tiên là hợp đồng quan trọng nhất của Rule Evaluation Engine. Các điều kiện an toàn và kill switch luôn được xét trước rollout rule để không có rule nào vô tình bật lại một flag đã bị archive, disabled hoặc đang bị ngắt khẩn cấp. Hình~\ref{fig:evaluation-precedence-flowchart} giữ nguyên sơ đồ flowchart của engine; các nhánh trong hình tương ứng trực tiếp với thứ tự trong source code \texttt{evaluateFlag}.
 
 \begin{lstlisting}[
     caption={Thứ tự ưu tiên của Rule Evaluation Engine},
     label={lst:evaluation-precedence}
 ]
-ARCHIVED_FLAG
+FLAG_ARCHIVED
 FLAG_DISABLED
 GROUP_KILL_SWITCH
 KILL_SWITCH
 GLOBAL_ON
 USER_ALLOWLIST
-ROLE_TARGETING
+ROLE_MATCH
 PERCENTAGE_ROLLOUT
 DEFAULT_OFF
 \end{lstlisting}
@@ -91,200 +60,87 @@ DEFAULT_OFF
     \label{fig:evaluation-precedence-flowchart}
 \end{figure}
 
-\subsubsection{Flag đã được archive}
-
-
-Flag archived không tham gia phục vụ runtime, vì vậy engine trả tắt trước mọi cấu hình khác.
-
-\subsubsection{Flag bị disabled}
-
-Nếu config theo environment đang disabled, engine trả tắt ngay cả khi còn rule đang enabled.
-
-\subsubsection{Group kill switch}
-
-Khi group kill switch bật cho environment hiện tại, toàn bộ flag thuộc group bị tắt sau khi đã qua kiểm tra archived/disabled.
-
-\subsubsection{Flag kill switch}
-
-Flag-level kill switch là lớp dừng khẩn cấp cho một flag riêng lẻ.
-
-\subsubsection{Global on}
-
-Nếu config enabled và serving mode là global on, engine bật flag cho mọi context hợp lệ mà không cần xét rule targeting.
-
-\subsubsection{User allowlist}
-
-Allowlist được xét trước các rule mở rộng phạm vi vì đây là điều kiện cụ thể nhất.
-
-\subsubsection{Role targeting}
-
-Role targeting được xét sau allowlist để hỗ trợ phát hành theo nhóm người dùng.
-
-\subsubsection{Percentage rollout}
-
-Percentage rollout là lớp cuối trong nhóm rule vì nó mở rộng phát hành theo tỷ lệ.
-
-\subsubsection{Default off}
-
-Nếu không có điều kiện nào match, engine trả tắt an toàn.
-
-\subsection{Đánh giá trạng thái toàn cục}
-
-Trạng thái lifecycle, enabled/disabled, serving mode và kill switch quyết định các nhánh đầu của engine. Bảng~\ref{tab:status-serving-mode-interaction} tóm tắt các trường hợp chính.
-
 \begin{table}[H]
     \centering
     \caption{Tương tác giữa trạng thái và serving mode}
     \label{tab:status-serving-mode-interaction}
-    \begin{tabular}{p{0.22\textwidth} p{0.22\textwidth} p{0.22\textwidth} p{0.24\textwidth}}
+    \begin{tabular}{p{0.20\textwidth} p{0.18\textwidth} p{0.20\textwidth} p{0.25\textwidth}}
         \toprule
         \textbf{Lifecycle/config} & \textbf{Kill switch} & \textbf{Serving mode} & \textbf{Kết quả ưu tiên} \\
         \midrule
         Archived & Bất kỳ & Bất kỳ & Tắt, \texttt{FLAG\_ARCHIVED} \\
         Disabled & Bất kỳ & Bất kỳ & Tắt, \texttt{FLAG\_DISABLED} \\
         Enabled & Group on & Bất kỳ & Tắt, \texttt{GROUP\_KILL\_SWITCH} \\
-        Enabled & Flag on & Bất kỳ & Tắt, \texttt{FLAG\_KILL\_SWITCH} \\
+        Enabled & Flag on & Bất kỳ & Tắt, \texttt{KILL\_SWITCH} \\
         Enabled & Off & Global on & Bật, \texttt{GLOBAL\_ON} \\
         Enabled & Off & Targeted & Xét rule theo precedence \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\subsection{Targeting theo người dùng}
+Các nhánh hệ thống có ý nghĩa như sau. \texttt{FLAG\_ARCHIVED} đứng đầu vì flag đã archive không còn được phục vụ runtime. \texttt{FLAG\_DISABLED} phản ánh config theo environment đang tắt, nên mọi rule phía sau đều bị bỏ qua. \texttt{GROUP\_KILL\_SWITCH} cho phép tắt nhanh cả nhóm flag trong một environment sau khi đã qua kiểm tra archived/disabled. \texttt{KILL\_SWITCH} là công tắc khẩn cấp riêng của flag. \texttt{GLOBAL\_ON} bật flag cho mọi context khi flag đang enabled và serving mode là global on. Chỉ khi tất cả nhánh này không kết thúc evaluation, engine mới xét rule targeting theo thứ tự allowlist, role, percentage và cuối cùng là \texttt{DEFAULT\_OFF}.
 
-User targeting dựa trên \texttt{context.userId}. Rule chỉ match khi user ID trong context thuộc danh sách đã cấu hình.
+\subsection{Rule targeting và stable percentage rollout}
 
-\subsubsection{User allowlist}
+Rule runtime hiện có ba loại đúng với enum \texttt{RuleType}: \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_TARGETING} và \texttt{PERCENTAGE\_ROLLOUT}. Engine lọc các rule \texttt{enabled=true}, sắp xếp theo \texttt{priority} tăng dần, rồi xét theo type precedence cố định. Trong từng loại, rule nào match trước sẽ trả kết quả ngay kèm \texttt{matchedRuleId}. User allowlist so khớp chính xác \texttt{context.userId} với mảng \texttt{parameters.userIds}; role targeting match khi ít nhất một role trong \texttt{context.roles} nằm trong \texttt{parameters.roles}. Engine cố tình tách \texttt{userId} và \texttt{targetingKey}: \texttt{userId} là định danh nghiệp vụ cho allowlist, còn \texttt{targetingKey} là khóa rollout ổn định và nên không chứa PII.
 
-Allowlist phù hợp cho kiểm thử nội bộ hoặc mở tính năng cho một nhóm nhỏ đã biết trước.
-
-\subsubsection{So khớp user ID}
-
-Việc so khớp dùng giá trị chính xác, không suy diễn từ targeting key để tránh nhầm giữa định danh rollout và định danh nghiệp vụ.
-
-\subsubsection{Tách userId và targetingKey}
-
-\texttt{userId} dùng cho allowlist; \texttt{targetingKey} dùng cho hashing. Tách hai trường giúp hệ thống dùng một khóa rollout không chứa PII.
-
-\subsubsection{Xử lý khi thiếu định danh người dùng}
-
-Nếu thiếu \texttt{userId}, allowlist không match nhưng engine vẫn có thể xét role hoặc percentage nếu context còn đủ dữ liệu cho các rule đó.
-
-\subsection{Targeting theo vai trò}
-
-Role targeting dựa trên vai trò do context cung cấp và phù hợp với demo phân nhóm người dùng.
-
-\subsubsection{Cấu trúc role trong evaluation context}
-
-Role có thể là một chuỗi hoặc danh sách chuỗi tùy contract triển khai; backend chuẩn hóa trước khi so khớp.
-
-\subsubsection{So khớp một hoặc nhiều role}
-
-Rule match khi ít nhất một role của context nằm trong danh sách role được cấu hình.
-
-\subsubsection{Quan hệ giữa role targeting và user targeting}
-
-Allowlist có precedence cao hơn role targeting, vì một người dùng được chỉ định trực tiếp nên được quyết định trước nhóm vai trò rộng hơn.
-
-\subsubsection{Xử lý khi context không chứa role}
-
-Nếu thiếu role, các rule role targeting bị bỏ qua và engine tiếp tục xét lớp rule tiếp theo.
-
-\subsection{Rollout theo phần trăm người dùng}
-
-Percentage rollout dùng stable hashing để phân bổ một targeting key vào bucket cố định từ 0 đến 99.
-
-\subsubsection{Mục tiêu của percentage rollout}
-
-Mục tiêu là phát hành dần tính năng cho một tỷ lệ người dùng ổn định, tránh thay đổi kết quả ngẫu nhiên giữa các request.
-
-\subsubsection{Stable hashing}
-
-Hệ thống băm tổ hợp project/environment/flag/targeting key để cùng một người dùng giữ kết quả ổn định trong phạm vi flag và environment.
+Percentage rollout dùng stable hashing để chia \texttt{targetingKey} vào bucket cố định trong khoảng từ \texttt{0.00} đến dưới \texttt{100}. Source code hiện băm tổ hợp khóa project, khóa flag và targeting key đã trim; không dùng thời gian, số ngẫu nhiên hoặc trạng thái request. Vì vậy một người dùng giữ quyết định ổn định cho cùng project/flag. Digest SHA-256 được đọc 64 bit đầu tiên, lấy modulo \texttt{10000} rồi chia \texttt{100} để hỗ trợ percentage có hai chữ số thập phân. Rule hợp lệ khi \texttt{percentage} là số hữu hạn từ \texttt{0} đến \texttt{100} và tối đa hai chữ số thập phân; engine bật flag khi bucket nhỏ hơn percentage.
 
 \begin{lstlisting}[
     caption={Tạo giá trị băm ổn định bằng SHA-256},
     label={lst:stable-hashing}
 ]
-const hashInput = `${projectKey}:${environmentKey}:${flagKey}:${targetingKey}`;
-const digest = sha256(hashInput);
+const normalizedTargetingKey = targetingKey.trim();
+const hashInput =
+  `${projectKey}:${flagKey}:${normalizedTargetingKey}`;
+const digest = createHash('sha256')
+  .update(hashInput, 'utf8')
+  .digest();
 \end{lstlisting}
-
-\subsubsection{Thành phần đầu vào của hàm băm}
-
-Đầu vào băm bao gồm các khóa cấu hình và targeting key. Không sử dụng thời gian hiện tại hoặc số ngẫu nhiên để đảm bảo tính xác định.
-
-\subsubsection{Chuyển đổi kết quả băm thành bucket}
-
-Một phần digest được chuyển thành số nguyên rồi lấy modulo 100 để tạo bucket phần trăm.
 
 \begin{lstlisting}[
     caption={Chuyển đổi SHA-256 digest thành bucket phần trăm},
     label={lst:hash-to-percentage-bucket}
 ]
-const bucket = parseInt(digest.slice(0, 8), 16) % 100;
-const enabled = bucket < percentage;
+const first64Bits = digest.readBigUInt64BE(0);
+const bucketPercentage = Number(first64Bits % 10000n) / 100;
+const enabled = bucketPercentage < percentage;
 \end{lstlisting}
 
-\subsubsection{Persistent assignment}
+Thiết kế này cho phép rollout tăng dần theo tỷ lệ mà không làm người dùng ``nhảy'' giữa on/off sau mỗi request. Nếu targeting key thay đổi, bucket cũng có thể thay đổi, nên demo app và SDK cần chọn khóa rollout ổn định ngay từ đầu. Rule sai tham số bị bỏ qua thay vì bật tính năng ngoài ý muốn; đây là một phần của chiến lược safe default.
 
-Nếu input không đổi, bucket không đổi; vì vậy người dùng không bị nhảy qua lại giữa enabled và disabled.
+\subsection{EvaluationResult, reason code và fallback}
 
-\subsubsection{Ảnh hưởng khi thay đổi targeting key}
-
-Thay đổi targeting key làm thay đổi bucket, do đó ứng dụng cần chọn khóa ổn định ngay từ đầu.
-
-\subsection{Thực thi rule theo độ ưu tiên}
-
-Rule chỉ được thực thi sau khi các điều kiện hệ thống đã cho phép flag tham gia evaluation.
-
-\subsubsection{Sắp xếp rule}
-
-Trong từng loại rule, các rule enabled được xét theo priority tăng dần.
-
-\subsubsection{Type precedence và first match}
-
-Engine áp dụng type precedence cố định: allowlist, role targeting, percentage rollout. Khi một rule match, engine trả kết quả ngay.
-
-\subsubsection{Rule không hợp lệ hoặc không đủ context}
-
-Rule sai tham số hoặc thiếu dữ liệu context bị bỏ qua thay vì làm bật tính năng ngoài ý muốn.
-
-\subsection{Variant, EvaluationResult và reason code}
-
-Kết quả evaluation phải vừa đủ cho ứng dụng dùng, Dashboard/debug hiểu được, nhưng không phơi bày toàn bộ cấu hình quản trị.
-
-\subsubsection{Variant và response shape}
+Response của data plane được giữ nhỏ và ổn định: client chỉ cần \texttt{enabled}/\texttt{variant} để quyết định hành vi, còn dashboard/demo/debug dùng \texttt{reason} và \texttt{matchedRuleId} để giải thích vì sao có kết quả đó. Response không trả toàn bộ rule parameters, danh sách user hay cấu hình quản trị nội bộ.
 
 \begin{lstlisting}[
     caption={Cấu trúc EvaluationResult},
     label={lst:evaluation-result-structure}
 ]
 {
+  "projectKey": "demo-project",
+  "flagKey": "new-checkout",
   "enabled": true,
   "variant": "on",
   "reason": "USER_ALLOWLIST",
-  "projectKey": "ecommerce-demo",
-  "flagKey": "new-checkout"
+  "matchedRuleId": "rule_123"
 }
 \end{lstlisting}
-
-\subsubsection{Tập reason code}
 
 \begin{lstlisting}[
     caption={Tập reason code của Evaluation API},
     label={lst:evaluation-reason-codes}
 ]
-NOT_FOUND
-FLAG_ARCHIVED
+GLOBAL_ON
 FLAG_DISABLED
+FLAG_ARCHIVED
 GROUP_KILL_SWITCH
 KILL_SWITCH
-GLOBAL_ON
 USER_ALLOWLIST
 ROLE_MATCH
 PERCENTAGE_ROLLOUT
 DEFAULT_OFF
+NOT_FOUND
 INVALID_CONTEXT
 ERROR
 \end{lstlisting}
@@ -297,12 +153,13 @@ ERROR
         \toprule
         \textbf{Reason} & \textbf{Ý nghĩa} \\
         \midrule
-        \texttt{NOT\_FOUND} & Không tìm thấy project hoặc flag. \\
+        \texttt{NOT\_FOUND} & Không tìm thấy project, environment, flag hoặc config cần evaluate. \\
         \texttt{FLAG\_ARCHIVED} & Flag không còn phục vụ runtime. \\
         \texttt{FLAG\_DISABLED} & Config theo environment đang disabled. \\
-        \texttt{GROUP\_KILL\_SWITCH} & Group kill switch đang bật. \\
-        \texttt{FLAG\_KILL\_SWITCH} & Kill switch riêng của flag đang bật. \\
-        \texttt{ERROR} & Lỗi không mong muốn, trả fail-closed. \\
+        \texttt{GROUP\_KILL\_SWITCH} & Group kill switch đang bật cho environment hiện tại. \\
+        \texttt{KILL\_SWITCH} & Kill switch riêng của flag đang bật. \\
+        \texttt{GLOBAL\_ON} & Flag được bật toàn cục trong environment hiện tại. \\
+        \texttt{ERROR} & Lỗi không mong muốn, backend trả fail-closed. \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -313,27 +170,18 @@ ERROR
     \label{tab:reason-matched-rule}
     \begin{tabular}{p{0.36\textwidth} p{0.54\textwidth}}
         \toprule
-        \textbf{Reason} & \textbf{Matched rule} \\
+        \textbf{Reason} & \textbf{Matched rule hoặc tình huống} \\
         \midrule
-        \texttt{USER\_TARGET\_MATCH} & Rule allowlist match \texttt{userId}. \\
-        \texttt{ROLE\_TARGET\_MATCH} & Rule role targeting match role của context. \\
-        \texttt{PERCENTAGE\_ROLLOUT\_MATCH} & Bucket stable hashing nằm trong tỷ lệ rollout. \\
-        \texttt{DEFAULT\_OFF} & Không rule nào match. \\
+        \texttt{USER\_ALLOWLIST} & Rule allowlist match \texttt{context.userId}. \\
+        \texttt{ROLE\_MATCH} & Rule role targeting match ít nhất một role của context. \\
+        \texttt{PERCENTAGE\_ROLLOUT} & Bucket stable hashing nằm trong tỷ lệ rollout. \\
+        \texttt{INVALID\_CONTEXT} & Đến percentage rollout nhưng thiếu \texttt{targetingKey} hợp lệ. \\
+        \texttt{DEFAULT\_OFF} & Không có điều kiện hệ thống hoặc rule nào bật flag. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\subsubsection{Metadata phục vụ truy vết}
-
-Response có thể kèm metadata như matched rule ID hoặc cache status khi cần debug, nhưng metadata này không bắt buộc đối với ứng dụng khách.
-
-\subsection{Default off và error fallback}
-
-Nguyên tắc chung là fail-closed: khi thiếu thông tin hoặc gặp lỗi, hệ thống ưu tiên tắt tính năng mới.
-
-\subsubsection{Nguyên tắc fail-safe và fail-closed}
-
-Fail-closed giúp lỗi hạ tầng không trở thành hành vi mở tính năng ngoài kế hoạch.
+Nguyên tắc fallback chung là fail-closed: khi không chắc có nên bật tính năng hay không, hệ thống trả tắt. Vì vậy project/flag/config không tồn tại trả \texttt{NOT\_FOUND}; lỗi bất ngờ trả \texttt{ERROR}; rule không đủ tham số hoặc không đủ context không được phép tạo kết quả bật ngoài ý muốn. Đây là điểm quan trọng của feature flag trong release management: sự cố ở control plane, cache hoặc rule malformed không được biến thành phát hành ngoài kế hoạch.
 
 \begin{lstlisting}[
     caption={Kết quả fallback mặc định},
@@ -346,31 +194,20 @@ Fail-closed giúp lỗi hạ tầng không trở thành hành vi mở tính năn
 }
 \end{lstlisting}
 
-\subsubsection{Flag không tồn tại}
-
-Không tìm thấy project hoặc flag trả \texttt{enabled=false} và \texttt{reason=NOT\_FOUND}.
-
-\subsubsection{Context không đầy đủ}
-
-Context thiếu dữ liệu chỉ làm rule tương ứng không match; nếu không còn rule nào match thì kết quả cuối là \texttt{DEFAULT\_OFF} hoặc \texttt{INVALID\_CONTEXT} tùy loại lỗi.
-
-\subsubsection{Lỗi database hoặc cache}
-
-Khi không tải được snapshot, backend không suy đoán kết quả mà trả fallback tắt.
-
-\subsubsection{Lỗi nội bộ của Evaluation Engine}
-
 \begin{lstlisting}[
     caption={Xử lý lỗi nội bộ của Evaluation Engine},
     label={lst:evaluation-engine-error-handling}
 ]
 try {
-  return evaluateWithSnapshot(snapshot, context);
+  return evaluateFlag(input, snapshot);
 } catch (error) {
-  return disabled("ERROR");
+  // enabled=false, variant="off", reason="ERROR"
+  return errorResult(input);
 }
 \end{lstlisting}
 
-\subsection{Khả năng mở rộng Rule Evaluation Engine}
+\subsection{Khả năng mở rộng và kiểm chứng}
 
-Engine được thiết kế theo hướng thêm loại rule mới mà không thay đổi contract response. Các hướng mở rộng phù hợp gồm targeting theo thuộc tính, organization, thời gian, vị trí và phân phối nhiều variant cho A/B testing.
+Engine được thiết kế để mở rộng bằng cách thêm \texttt{RuleType}, hàm evaluate tương ứng và reason code mới mà không phá vỡ response shape hiện tại. Những hướng phù hợp cho giai đoạn sau gồm targeting theo thuộc tính, organization, thời gian, vị trí hoặc multi-variant/A-B testing. Tuy nhiên mọi mở rộng phải giữ các ràng buộc cốt lõi: precedence hệ thống đứng trước targeting rule, percentage rollout xác định bằng stable hashing, response không lộ PII/cấu hình nhạy cảm, cache miss không đổi kết quả, metric lỗi không ảnh hưởng evaluation và default luôn là off.
+
+Các unit test hiện khóa những hành vi quan trọng: \texttt{FLAG\_ARCHIVED} đứng trước \texttt{FLAG\_DISABLED}, \texttt{FLAG\_DISABLED} đứng trước \texttt{GROUP\_KILL\_SWITCH}, \texttt{GROUP\_KILL\_SWITCH} đứng trước \texttt{KILL\_SWITCH}, \texttt{KILL\_SWITCH} đứng trước \texttt{GLOBAL\_ON}; rule disabled bị bỏ qua; allowlist, role và percentage trả đúng \texttt{matchedRuleId}; targeting key rỗng trả \texttt{INVALID\_CONTEXT}; stable hash trả bucket lặp lại ổn định trong khoảng \texttt{0.00--99.99}. Nhờ đó phần engine vừa là nền tảng kỹ thuật của demo, vừa là bằng chứng thiết kế cho các yêu cầu recommended như cache snapshot, statistics dashboard, group kill switch và JavaScript SDK.
