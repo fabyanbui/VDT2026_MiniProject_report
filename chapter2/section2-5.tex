@@ -1,237 +1,375 @@
 \section{Thiết kế dữ liệu}
 
-Mô hình dữ liệu được thiết kế để lưu cấu hình Feature Flag, phục vụ Evaluation API và ghi nhận lịch sử thay đổi. Nội dung phần này chỉ mô tả cấu trúc lưu trữ; thứ tự đánh giá nằm ở mục Rule Evaluation Engine và contract HTTP nằm ở mục API.
+Phần này mô tả mô hình dữ liệu đang được triển khai trong source code backend, chủ yếu dựa trên Prisma schema tại \texttt{apps/backend/prisma/schema.prisma} và các migration PostgreSQL tương ứng. Mô hình được thiết kế để lưu cấu hình Feature Flag, cấu hình theo environment, rule targeting, group kill switch, user context mẫu, audit log append-only và metric tổng hợp phục vụ dashboard quan sát.
 
 \subsection{Mô hình dữ liệu tổng thể}
 
-Các thực thể chính của hệ thống được tóm tắt trong Bảng~\ref{tab:quan-he-thuc-the}. PostgreSQL được lựa chọn vì hỗ trợ giao dịch, khóa ngoại và kiểu \texttt{JSONB} cho rule parameters hoặc audit snapshot \cite{postgresql_json_types}.
-
-\begin{table}[H]
-    \centering
-    \caption{Các thực thể và quan hệ chính trong mô hình dữ liệu}
-    \label{tab:quan-he-thuc-the}
-    \begin{tabular}{p{0.26\textwidth} p{0.64\textwidth}}
-        \toprule
-        \textbf{Thực thể} & \textbf{Vai trò chính} \\
-        \midrule
-        \texttt{Project} & Phạm vi quản lý cao nhất của một ứng dụng/sản phẩm. \\
-        \texttt{Environment} & Môi trường triển khai như staging hoặc production. \\
-        \texttt{FeatureFlag} & Định nghĩa ổn định của flag trong project. \\
-        \texttt{FlagEnvironmentConfig} & Cấu hình runtime của một flag trong một environment. \\
-        \texttt{FlagRule} & Rule targeting thuộc một cấu hình runtime. \\
-        \texttt{FlagGroup} & Nhóm các flag liên quan trong cùng project. \\
-        \texttt{FlagGroupConfig} & Trạng thái group kill switch theo environment. \\
-        \texttt{SampleUserContext} & Dữ liệu người dùng mẫu phục vụ demo/kiểm thử. \\
-        \texttt{AuditLogEntry} & Bản ghi append-only cho mutation quản trị. \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-\subsubsection{Các thực thể chính}
-
-Các thực thể được tổ chức theo chuỗi: project chứa environment và flag; flag có cấu hình theo environment; cấu hình có rule; group và audit log bổ sung khả năng vận hành/truy vết.
-
-\subsubsection{Quan hệ giữa các thực thể}
-
-Quan hệ quan trọng nhất là \texttt{FeatureFlag} -- \texttt{FlagEnvironmentConfig} -- \texttt{Environment}, cho phép một flag có cấu hình khác nhau theo từng môi trường. Group và audit log đều nằm trong phạm vi project để tránh lẫn dữ liệu giữa các ứng dụng.
-
-\subsubsection{Phân tách định nghĩa flag và cấu hình runtime}
-
-\texttt{FeatureFlag} lưu danh tính, tên, mô tả và lifecycle; \texttt{FlagEnvironmentConfig} lưu enabled/disabled, serving mode và kill switch theo environment. Việc tách này tránh nhân bản flag khi production và staging cần cấu hình khác nhau.
-
-\subsubsection{Sơ đồ thực thể liên kết}
-
-Sơ đồ rút gọn trong Hình~\ref{fig:feature-flag-er-diagram} nhấn mạnh đường đi dữ liệu phục vụ evaluation.
+Hình~\ref{fig:feature-flag-er-diagram} là sơ đồ thực entity liên kết rút gọn của hệ thống Feature Flag Platform. Sơ đồ chỉ nhấn mạnh quan hệ chính giữa các bảng để người đọc dễ theo dõi luồng dữ liệu từ cấu hình quản trị đến runtime evaluation.
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}[
-        entity/.style={rectangle, draw, rounded corners, minimum width=3.1cm, minimum height=0.9cm, text width=3.0cm, align=center},
-        relation/.style={-{Latex[length=2mm]}, thick},
-        node distance=1.4cm and 1.7cm
-    ]
-        \node[entity] (project) {\textbf{Project}};
-        \node[entity, below left=of project] (environment) {\textbf{Environment}};
-        \node[entity, below right=of project] (flag) {\textbf{FeatureFlag}};
-        \node[entity, below=2.4cm of project] (config) {\textbf{FlagEnvironmentConfig}};
-        \node[entity, below=of config] (rule) {\textbf{FlagRule}};
-        \node[entity, left=of config] (group) {\textbf{FlagGroup / Config}};
-        \node[entity, right=of config] (audit) {\textbf{AuditLogEntry}};
-        \draw[relation] (project) -- node[left] {\small 1:N} (environment);
-        \draw[relation] (project) -- node[right] {\small 1:N} (flag);
-        \draw[relation] (environment) -- node[left] {\small 1:N} (config);
-        \draw[relation] (flag) -- node[right] {\small 1:N} (config);
-        \draw[relation] (config) -- node[right] {\small 1:N} (rule);
-        \draw[relation] (project) -- node[above] {\small 1:N} (group);
-        \draw[relation] (project) -- node[above] {\small 1:N} (audit);
-    \end{tikzpicture}
-    \caption{Sơ đồ thực thể liên kết rút gọn của hệ thống Feature Flag}
+    \includegraphics[width=0.95\textwidth]{\detokenize{Images/mermaid/Sơ đồ thực thể liên kết rút gọn.png}}
+    \caption{Sơ đồ thực thể liên kết rút gọn của hệ thống Feature Flag Platform}
     \label{fig:feature-flag-er-diagram}
 \end{figure}
 
-\subsection{Project và environment}
+Trung tâm của mô hình là \texttt{projects}. Mỗi project sở hữu nhiều environment, feature flag, flag group, sample user context, audit log và metric evaluation. Bảng \texttt{feature\_flags} lưu định nghĩa ổn định của flag, trong khi \texttt{flag\_environment\_configs} lưu trạng thái runtime của từng flag theo từng environment; nhờ đó cùng một flag có thể tắt ở production, bật thử ở staging hoặc chạy theo rule targeting mà không cần nhân bản định nghĩa flag. Bảng \texttt{flag\_rules} phụ thuộc vào từng cấu hình flag--environment và lưu rule có thứ tự bằng trường \texttt{priority}. Bảng \texttt{flag\_groups} cho phép gom các flag liên quan, còn \texttt{flag\_group\_configs} lưu group kill switch theo environment để ngắt nhanh cả nhóm nhưng không ảnh hưởng môi trường khác. \texttt{sample\_user\_contexts} là dữ liệu mẫu phục vụ demo và kiểm thử targeting; đây không phải user store bắt buộc của hệ thống production. \texttt{audit\_log\_entries} ghi lại mutation quản trị theo dạng append-only với actor, request ID và snapshot trước/sau. \texttt{flag\_evaluation\_metrics} chỉ lưu số liệu tổng hợp theo bucket thời gian, project key, environment key, flag key, reason và kết quả bật/tắt; bảng này không lưu context người dùng thô để giữ ranh giới riêng tư của data plane.
 
-Project xác định phạm vi nghiệp vụ; environment xác định phạm vi triển khai. Khóa nghiệp vụ của hai thực thể này được dùng trong API, cache key và seed data.
+\subsubsection{Bảng \texttt{projects}}
 
-\subsubsection{Thực thể Project}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{projects}}
+    \label{tab:db-projects}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của project. \\
+        \texttt{key} & \texttt{key} / \texttt{VARCHAR(64)} & Bắt buộc, duy nhất toàn hệ thống & Khóa nghiệp vụ dùng trong API, cache key và seed data. \\
+        \texttt{name} & \texttt{name} / \texttt{VARCHAR(120)} & Bắt buộc & Tên hiển thị của project. \\
+        \texttt{description} & \texttt{description} / \texttt{TEXT} & Có thể rỗng & Mô tả mục tiêu hoặc phạm vi project. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \texttt{deletedAt} & \texttt{deleted\_at} / \texttt{TIMESTAMP(3)} & Có thể rỗng, có index & Mốc soft delete của project. \\
+        \texttt{deletedBy} & \texttt{deleted\_by} / \texttt{VARCHAR(120)} & Có thể rỗng & Actor thực hiện soft delete. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-\texttt{Project} gồm \texttt{id}, \texttt{key}, \texttt{name}, \texttt{description}, \texttt{createdAt} và \texttt{updatedAt}. \texttt{key} là duy nhất toàn hệ thống và ổn định trong vòng đời project.
+\subsubsection{Bảng \texttt{environments}}
 
-\subsubsection{Thực thể Environment}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{environments}}
+    \label{tab:db-environments}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của environment. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & FK tới \texttt{projects.id}, \texttt{ON DELETE CASCADE} & Project sở hữu environment. \\
+        \texttt{key} & \texttt{key} / \texttt{VARCHAR(64)} & Bắt buộc, duy nhất theo \texttt{project\_id} & Khóa môi trường như \texttt{staging} hoặc \texttt{production}. \\
+        \texttt{name} & \texttt{name} / \texttt{VARCHAR(120)} & Bắt buộc & Tên hiển thị của environment. \\
+        \texttt{description} & \texttt{description} / \texttt{TEXT} & Có thể rỗng & Mô tả phạm vi triển khai. \\
+        \texttt{isDefault} & \texttt{is\_default} / \texttt{BOOLEAN} & Mặc định \texttt{false}; tối đa một default trong mỗi project & Đánh dấu environment mặc định cho seed và cấu hình ban đầu. \\
+        \texttt{sortOrder} & \texttt{sort\_order} / \texttt{INTEGER} & Mặc định \texttt{0} & Thứ tự hiển thị trong UI/API. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-\texttt{Environment} gồm \texttt{id}, \texttt{projectId}, \texttt{key}, \texttt{name}, \texttt{description}, \texttt{isDefault} và timestamp. \texttt{key} là duy nhất trong phạm vi project.
+\subsubsection{Bảng \texttt{feature\_flags}}
 
-\subsubsection{Environment mặc định}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{feature\_flags}}
+    \label{tab:db-feature-flags}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của flag. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & FK tới \texttt{projects.id}, \texttt{ON DELETE RESTRICT} & Project sở hữu flag. \\
+        \texttt{groupId} & \texttt{group\_id} / \texttt{TEXT} & Có thể rỗng; FK ghép \texttt{(project\_id, group\_id)} tới \texttt{flag\_groups} & Nhóm flag tùy chọn. \\
+        \texttt{key} & \texttt{key} / \texttt{VARCHAR(64)} & Bắt buộc, duy nhất theo \texttt{project\_id} & Khóa nghiệp vụ của flag. \\
+        \texttt{name} & \texttt{name} / \texttt{VARCHAR(120)} & Bắt buộc & Tên hiển thị của flag. \\
+        \texttt{description} & \texttt{description} / \texttt{TEXT} & Có thể rỗng & Mô tả tính năng được kiểm soát. \\
+        \texttt{lifecycleStatus} & \texttt{lifecycle\_status} / enum lifecycle & Mặc định \texttt{ACTIVE}; có index theo project & Trạng thái vòng đời \texttt{ACTIVE} hoặc \texttt{ARCHIVED}. \\
+        \texttt{archivedAt} & \texttt{archived\_at} / \texttt{TIMESTAMP(3)} & Có thể rỗng & Thời điểm archive flag. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \texttt{deletedAt} & \texttt{deleted\_at} / \texttt{TIMESTAMP(3)} & Có thể rỗng, index theo project & Mốc soft delete của flag. \\
+        \texttt{deletedBy} & \texttt{deleted\_by} / \texttt{VARCHAR(120)} & Có thể rỗng & Actor thực hiện soft delete. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-Mỗi project có một environment mặc định để tạo cấu hình ban đầu cho flag mới và giúp demo chạy ngay sau seed.
+\subsubsection{Bảng \texttt{flag\_groups}}
 
-\subsubsection{Ràng buộc environment trong project}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{flag\_groups}}
+    \label{tab:db-flag-groups}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của group. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & FK tới \texttt{projects.id}, \texttt{ON DELETE RESTRICT} & Project sở hữu group. \\
+        \texttt{key} & \texttt{key} / \texttt{VARCHAR(64)} & Bắt buộc, duy nhất theo \texttt{project\_id} & Khóa nghiệp vụ của group. \\
+        \texttt{name} & \texttt{name} / \texttt{VARCHAR(120)} & Bắt buộc & Tên hiển thị của group. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-Environment luôn thuộc một project cụ thể; các truy vấn evaluation dùng cặp \texttt{projectKey}/\texttt{environmentKey} để tránh nhầm cấu hình giữa project.
+\subsubsection{Bảng \texttt{flag\_group\_configs}}
 
-\subsection{Feature Flag và cấu hình theo environment}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{flag\_group\_configs}}
+    \label{tab:db-flag-group-configs}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của cấu hình group. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & FK tới \texttt{projects.id}, \texttt{ON DELETE RESTRICT} & Project chứa group và environment. \\
+        \texttt{groupId} & \texttt{group\_id} / \texttt{TEXT} & FK ghép tới \texttt{flag\_groups(project\_id,id)}, \texttt{ON DELETE CASCADE} & Group được cấu hình. \\
+        \texttt{environmentId} & \texttt{environment\_id} / \texttt{TEXT} & FK ghép tới \texttt{environments(project\_id,id)}, \texttt{ON DELETE RESTRICT} & Environment áp dụng cấu hình group. \\
+        \texttt{killSwitch} & \texttt{kill\_switch} / \texttt{BOOLEAN} & Mặc định \texttt{false}; duy nhất theo \texttt{(group\_id, environment\_id)} & Trạng thái ngắt nhanh toàn bộ group trong environment. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-Thiết kế tách metadata của flag khỏi trạng thái runtime nhằm hỗ trợ nhiều environment.
+\subsubsection{Bảng \texttt{flag\_environment\_configs}}
 
-\subsubsection{Thực thể FeatureFlag}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{flag\_environment\_configs}}
+    \label{tab:db-flag-environment-configs}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của cấu hình flag. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & FK tới \texttt{projects.id}, \texttt{ON DELETE RESTRICT} & Project chứa flag và environment. \\
+        \texttt{flagId} & \texttt{flag\_id} / \texttt{TEXT} & FK ghép tới \texttt{feature\_flags(project\_id,id)}, \texttt{ON DELETE CASCADE} & Flag được cấu hình. \\
+        \texttt{environmentId} & \texttt{environment\_id} / \texttt{TEXT} & FK ghép tới \texttt{environments(project\_id,id)}, \texttt{ON DELETE RESTRICT} & Environment áp dụng cấu hình flag. \\
+        \texttt{status} & \texttt{status} / enum \texttt{FlagConfigStatus} & Mặc định \texttt{DISABLED}; có index theo environment & Trạng thái cấu hình \texttt{ENABLED} hoặc \texttt{DISABLED}. \\
+        \texttt{servingMode} & \texttt{serving\_mode} / enum \texttt{ServingMode} & Mặc định \texttt{TARGETED} & Chế độ \texttt{GLOBAL\_ON} hoặc \texttt{TARGETED}. \\
+        \texttt{killSwitch} & \texttt{kill\_switch} / \texttt{BOOLEAN} & Mặc định \texttt{false} & Công tắc ngắt nhanh riêng cho flag trong environment. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-\texttt{FeatureFlag} gồm \texttt{id}, \texttt{projectId}, \texttt{key}, \texttt{name}, \texttt{description}, \texttt{status} và timestamp.
+\subsubsection{Bảng \texttt{flag\_rules}}
 
-\subsubsection{Trạng thái vòng đời của flag}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{flag\_rules}}
+    \label{tab:db-flag-rules}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của rule. \\
+        \texttt{flagConfigId} & \texttt{flag\_config\_id} / \texttt{TEXT} & FK tới \texttt{flag\_environment\_configs.id}, \texttt{ON DELETE CASCADE} & Cấu hình flag--environment chứa rule. \\
+        \texttt{type} & \texttt{type} / enum \texttt{RuleType} & Bắt buộc & Loại rule: \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_TARGETING} hoặc \texttt{PERCENTAGE\_ROLLOUT}. \\
+        \texttt{priority} & \texttt{priority} / \texttt{INTEGER} & Bắt buộc, duy nhất theo \texttt{flag\_config\_id}; validation \texttt{>= 0} & Thứ tự xét rule trong cùng cấu hình. \\
+        \texttt{enabled} & \texttt{enabled} / \texttt{BOOLEAN} & Mặc định \texttt{true} & Cho phép bỏ qua một rule mà không xóa dữ liệu. \\
+        \texttt{parameters} & \texttt{parameters} / \texttt{JSONB} & Bắt buộc; validate theo \texttt{type} ở backend & Tham số rule như danh sách user, role hoặc phần trăm rollout. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-Lifecycle status gồm active và archived. Archived giữ lịch sử nhưng không còn phục vụ runtime.
+\subsubsection{Bảng \texttt{flag\_evaluation\_metrics}}
 
-\subsubsection{Thực thể FlagEnvironmentConfig}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{flag\_evaluation\_metrics}}
+    \label{tab:db-flag-evaluation-metrics}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của bucket metric. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & Có thể rỗng; FK tới \texttt{projects.id}, \texttt{ON DELETE SET NULL} & Liên kết tùy chọn tới project hiện còn tồn tại. \\
+        \texttt{environmentId} & \texttt{environment\_id} / \texttt{TEXT} & Có thể rỗng; FK tới \texttt{environments.id}, \texttt{ON DELETE SET NULL} & Liên kết tùy chọn tới environment hiện còn tồn tại. \\
+        \texttt{flagId} & \texttt{flag\_id} / \texttt{TEXT} & Có thể rỗng; FK tới \texttt{feature\_flags.id}, \texttt{ON DELETE SET NULL} & Liên kết tùy chọn tới flag hiện còn tồn tại. \\
+        \texttt{projectKey} & \texttt{project\_key} / \texttt{VARCHAR(64)} & Bắt buộc; thuộc unique bucket & Khóa project được giữ lại cho thống kê lịch sử. \\
+        \texttt{environmentKey} & \texttt{environment\_key} / \texttt{VARCHAR(64)} & Bắt buộc; thuộc unique bucket & Khóa environment được giữ lại cho thống kê lịch sử. \\
+        \texttt{flagKey} & \texttt{flag\_key} / \texttt{VARCHAR(64)} & Bắt buộc; thuộc unique bucket & Khóa flag được giữ lại cho thống kê lịch sử. \\
+        \texttt{bucketStart} & \texttt{bucket\_start} / \texttt{TIMESTAMPTZ(3)} & Bắt buộc; thuộc unique bucket & Thời điểm bắt đầu bucket tổng hợp. \\
+        \texttt{reason} & \texttt{reason} / \texttt{VARCHAR(40)} & Bắt buộc; thuộc unique bucket & Reason code của kết quả evaluation. \\
+        \texttt{enabled} & \texttt{enabled} / \texttt{BOOLEAN} & Bắt buộc; thuộc unique bucket & Kết quả bật/tắt của evaluation. \\
+        \texttt{count} & \texttt{count} / \texttt{INTEGER} & Mặc định \texttt{1} & Số lượt evaluation được cộng dồn trong bucket. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bucket. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật bucket gần nhất. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-\texttt{FlagEnvironmentConfig} nối flag với environment và lưu \texttt{enabled}, \texttt{servingMode}, \texttt{killSwitch} cùng timestamp.
+\subsubsection{Bảng \texttt{sample\_user\_contexts}}
 
-\subsubsection{Trạng thái cấu hình và serving mode}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{sample\_user\_contexts}}
+    \label{tab:db-sample-user-contexts}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của user context mẫu. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & FK tới \texttt{projects.id}, \texttt{ON DELETE CASCADE} & Project chứa context mẫu. \\
+        \texttt{displayName} & \texttt{display\_name} / \texttt{VARCHAR(120)} & Bắt buộc & Tên hiển thị trong dashboard/demo. \\
+        \texttt{targetingKey} & \texttt{targeting\_key} / \texttt{VARCHAR(120)} & Bắt buộc, duy nhất theo \texttt{project\_id} & Khóa ổn định, không chứa PII, dùng cho percentage rollout. \\
+        \texttt{userId} & \texttt{user\_id} / \texttt{VARCHAR(120)} & Có thể rỗng & User ID mẫu dùng cho user allowlist. \\
+        \texttt{roles} & \texttt{roles} / \texttt{JSONB} & Mặc định \texttt{[]} & Danh sách role mẫu. \\
+        \texttt{attributes} & \texttt{attributes} / \texttt{JSONB} & Mặc định \texttt{\{\}} & Thuộc tính mở rộng phục vụ demo. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo & Thời điểm tạo bản ghi. \\
+        \texttt{updatedAt} & \texttt{updated\_at} / \texttt{TIMESTAMP(3)} & Prisma \texttt{@updatedAt} & Thời điểm cập nhật gần nhất. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-Config disabled dừng flag trong environment; serving mode quyết định bật toàn cục hay xét rule khi config enabled.
+\subsubsection{Bảng \texttt{audit\_log\_entries}}
 
-\subsubsection{Cấu hình flag theo từng environment}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả dữ liệu bảng \texttt{audit\_log\_entries}}
+    \label{tab:db-audit-log-entries}
+    \begingroup
+    \singlespacing
+    \scriptsize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.18\textwidth} p{0.22\textwidth} p{0.30\textwidth} p{0.20\textwidth}}
+        \toprule
+        \textbf{Trường Prisma} & \textbf{Cột DB / kiểu} & \textbf{Ràng buộc / mặc định} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{id} & \texttt{id} / \texttt{TEXT} & Khóa chính, \texttt{@default(cuid())} & Định danh nội bộ của audit entry. \\
+        \texttt{projectId} & \texttt{project\_id} / \texttt{TEXT} & FK tới \texttt{projects.id}, \texttt{ON DELETE RESTRICT} & Project phát sinh thay đổi. \\
+        \texttt{projectKey} & \texttt{project\_key} / \texttt{VARCHAR(64)} & Bắt buộc, có index theo thời gian & Khóa project được lưu kèm để truy vết ổn định. \\
+        \texttt{environmentId} & \texttt{environment\_id} / \texttt{TEXT} & Có thể rỗng; FK tới \texttt{environments.id}, \texttt{ON DELETE SET NULL} & Environment liên quan nếu mutation có phạm vi môi trường. \\
+        \texttt{environmentKey} & \texttt{environment\_key} / \texttt{VARCHAR(64)} & Có thể rỗng, có index theo project và thời gian & Khóa environment được lưu kèm để truy vết. \\
+        \texttt{targetType} & \texttt{target\_type} / enum \texttt{AuditTargetType} & Bắt buộc & Loại đối tượng bị thay đổi. \\
+        \texttt{targetId} & \texttt{target\_id} / \texttt{TEXT} & Bắt buộc & ID đối tượng bị thay đổi. \\
+        \texttt{targetKey} & \texttt{target\_key} / \texttt{VARCHAR(120)} & Có thể rỗng, có index theo target & Khóa nghiệp vụ của đối tượng bị thay đổi. \\
+        \texttt{action} & \texttt{action} / enum \texttt{AuditAction} & Bắt buộc, có index theo project và thời gian & Hành động quản trị đã xảy ra. \\
+        \texttt{actor} & \texttt{actor} / \texttt{VARCHAR(120)} & Bắt buộc, có index theo project và thời gian & Danh tính actor do backend resolve. \\
+        \texttt{before} & \texttt{before} / \texttt{JSONB} & Có thể rỗng & Snapshot trước khi thay đổi. \\
+        \texttt{after} & \texttt{after} / \texttt{JSONB} & Có thể rỗng & Snapshot sau khi thay đổi. \\
+        \texttt{metadata} & \texttt{metadata} / \texttt{JSONB} & Có thể rỗng & Dữ liệu bổ sung như lý do hoặc phạm vi tác động. \\
+        \texttt{requestId} & \texttt{request\_id} / \texttt{VARCHAR(120)} & Bắt buộc & ID request để tương quan log. \\
+        \texttt{createdAt} & \texttt{created\_at} / \texttt{TIMESTAMP(3)} & Mặc định thời điểm tạo; có trigger cấm update/delete & Thời điểm ghi audit entry. \\
+        \bottomrule
+    \end{tabular}
+    \endgroup
+\end{table}
 
-Cùng một flag có thể bật ở staging, rollout một phần ở production và disabled ở environment khác mà không cần tạo nhiều flag.
+\subsection{Chuẩn hóa dữ liệu}
 
-\subsection{Rule và tham số rule}
+Mô hình dữ liệu của hệ thống được thiết kế chủ yếu theo các dạng chuẩn cơ bản của cơ sở dữ liệu quan hệ. Ở mức 1NF, mỗi bảng có khóa chính riêng và mỗi cột lưu một loại giá trị xác định; các quan hệ nhiều giá trị như nhiều rule của một cấu hình flag không được nhồi vào bảng flag mà được tách sang \texttt{FlagRule}. Một số trường linh hoạt như \texttt{parameters}, \texttt{roles}, \texttt{attributes} hoặc snapshot audit dùng \texttt{JSONB}; đây là ngoại lệ có kiểm soát để biểu diễn dữ liệu bán cấu trúc, không dùng để thay thế các quan hệ lõi giữa project, environment, flag, group và rule.
 
-Rule được lưu riêng để có thể thay đổi chiến lược rollout mà không sửa định nghĩa flag.
+Ở mức 2NF và 3NF, các thuộc tính phụ thuộc vào đúng thực thể sở hữu chúng. Thông tin định danh của flag như key, tên, mô tả và lifecycle nằm trong \texttt{FeatureFlag}; trạng thái runtime theo từng môi trường nằm trong \texttt{FlagEnvironmentConfig}; group kill switch theo môi trường nằm trong \texttt{FlagGroupConfig}; rule targeting nằm trong \texttt{FlagRule}. Cách tách này loại bỏ phụ thuộc bộ phận và phụ thuộc bắc cầu phổ biến, ví dụ không lặp lại tên flag trong từng environment config và không lưu trạng thái production/staging trực tiếp trong bảng \texttt{FeatureFlag}.
 
-\subsubsection{Thực thể FlagRule}
-
-\texttt{FlagRule} gồm \texttt{id}, \texttt{flagConfigId}, \texttt{type}, \texttt{priority}, \texttt{enabled}, \texttt{parameters} và timestamp.
-
-\subsubsection{Kiểu rule}
-
-Mini project hỗ trợ ba kiểu: \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_TARGETING} và \texttt{PERCENTAGE\_ROLLOUT}.
-
-\subsubsection{Thứ tự ưu tiên của rule}
-
-Database lưu \texttt{priority} cho rule cùng loại; type precedence của engine được định nghĩa riêng trong mục evaluation.
-
-\subsubsection{Lưu trữ tham số bằng JSON}
-
-\texttt{parameters} dùng \texttt{JSONB} để lưu danh sách user, danh sách role hoặc tỷ lệ rollout mà không cần tạo bảng phụ cho từng kiểu rule.
-
-\subsubsection{Validation tham số theo loại rule}
-
-Backend kiểm tra shape của \texttt{parameters}: user/role phải là danh sách chuỗi, percentage phải nằm trong miền hợp lệ.
-
-\subsection{User context mẫu}
-
-\texttt{SampleUserContext} phục vụ demo và kiểm thử, không phải nguồn danh tính bắt buộc của Evaluation API.
-
-\subsubsection{Targeting key}
-
-\texttt{targetingKey} là khóa ổn định cho percentage rollout và là duy nhất trong project demo.
-
-\subsubsection{Các trường nghiệp vụ và attributes}
-
-Dữ liệu mẫu có thể chứa \texttt{userId}, \texttt{role} và \texttt{attributes} như organization ID.
-
-\subsubsection{Phạm vi sử dụng dữ liệu mẫu}
-
-Dữ liệu này giúp chọn nhanh context trên Dashboard/Demo Application và không đại diện cho user store sản xuất.
-
-\subsection{Flag group và group kill switch}
-
-Flag group hỗ trợ quản lý các flag liên quan và cho phép ngắt nhanh cả nhóm trong một environment.
-
-\subsubsection{Thực thể FlagGroup và FlagGroupConfig}
-
-\texttt{FlagGroup} lưu định danh nhóm; \texttt{FlagGroupConfig} lưu kill switch của nhóm theo environment.
-
-\subsubsection{Quan hệ giữa group và flag}
-
-Một group có nhiều flag; trong phạm vi mini project, một flag thuộc tối đa một group.
-
-\subsubsection{Trạng thái group kill switch theo environment}
-
-Kill switch của group được lưu theo environment để tránh ảnh hưởng đồng thời staging và production.
-
-\subsubsection{Audit log và cache invalidation cho group}
-
-Mutation group tạo audit entry và invalidation snapshot của các flag thành viên bị ảnh hưởng.
-
-\subsection{Audit log và lịch sử cấu hình}
-
-Audit log là nguồn truy vết chính cho mọi mutation quản trị và cũng là cơ sở cho audit-backed history \cite{owasp_logging}.
-
-\subsubsection{Cấu trúc AuditLogEntry}
-
-\texttt{AuditLogEntry} gồm \texttt{id}, \texttt{projectId}, \texttt{actor}, \texttt{requestId}, \texttt{targetType}, \texttt{targetId}, \texttt{targetKey}, \texttt{action}, \texttt{before}, \texttt{after} và \texttt{createdAt}.
-
-\subsubsection{Thông tin actor và request}
-
-Actor và request ID được xác định ở backend, không lấy trực tiếp từ body request, để tránh giả mạo lịch sử.
-
-\subsubsection{Snapshot trước và sau thay đổi}
-
-Snapshot \texttt{before}/\texttt{after} dùng \texttt{JSONB}, đủ để so sánh thay đổi nhưng không lưu bí mật hoặc dữ liệu cá nhân không cần thiết.
-
-\subsubsection{Tính chất append-only}
-
-Ứng dụng chỉ thêm audit entry mới, không cung cấp luồng sửa hoặc xóa bản ghi đã tạo.
-
-\subsubsection{Lịch sử cấu hình dựa trên audit log}
-
-History API dựng lại diễn biến cấu hình từ các audit entry liên quan thay vì duy trì bảng version riêng.
+Một số dữ liệu được phi chuẩn hóa có chủ đích để phục vụ vận hành. \texttt{AuditLogEntry} lưu thêm các key và snapshot trước/sau để lịch sử vẫn đọc được khi bản ghi nghiệp vụ thay đổi; \texttt{FlagEvaluationMetric} lưu key dạng chuỗi bên cạnh khóa ngoại tùy chọn để thống kê lịch sử không mất ý nghĩa khi bản ghi gốc bị xóa mềm hoặc không còn liên kết. Những điểm này không làm thay đổi nguồn sự thật của cấu hình Feature Flag, mà chỉ hỗ trợ audit, history và dashboard thống kê.
 
 \subsection{Ràng buộc toàn vẹn dữ liệu}
 
-Ràng buộc dữ liệu được đặt ở cả Prisma/database và tầng validation để giữ cấu hình hợp lệ trước khi đi vào engine.
+Ràng buộc dữ liệu được đặt ở cả Prisma/PostgreSQL và tầng validation của backend để cấu hình Feature Flag hợp lệ trước khi đi vào Rule Evaluation Engine. Nội dung dưới đây chỉ tổng hợp các ràng buộc toàn vẹn chính; mô tả trường dữ liệu chi tiết của từng bảng đã được trình bày ở mục 2.5.1.
 
 \subsubsection{Ràng buộc khóa và tính duy nhất}
 
 \begin{table}[H]
     \centering
-    \caption{Các ràng buộc duy nhất tiêu biểu}
+    \caption{Các ràng buộc duy nhất chính trong mô hình dữ liệu}
     \label{tab:unique-constraints}
-    \begin{tabular}{p{0.30\textwidth} p{0.55\textwidth}}
+    \begingroup
+    \singlespacing
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabular}{p{0.30\textwidth} p{0.58\textwidth}}
         \toprule
         \textbf{Thực thể} & \textbf{Ràng buộc} \\
         \midrule
         \texttt{Project} & \texttt{key} duy nhất toàn hệ thống. \\
-        \texttt{Environment} & \texttt{projectId, key} duy nhất trong project. \\
+        \texttt{Environment} & \texttt{projectId, key} duy nhất trong project; mỗi project có tối đa một environment mặc định. \\
         \texttt{FeatureFlag} & \texttt{projectId, key} duy nhất trong project. \\
-        \texttt{FlagEnvironmentConfig} & \texttt{featureFlagId, environmentId} duy nhất. \\
-        \texttt{FlagGroupConfig} & \texttt{groupId, environmentId} duy nhất. \\
+        \texttt{FlagGroup} & \texttt{projectId, key} duy nhất trong project. \\
+        \texttt{FlagEnvironmentConfig} & \texttt{flagId, environmentId} duy nhất để một flag chỉ có một cấu hình trong một environment. \\
+        \texttt{FlagGroupConfig} & \texttt{groupId, environmentId} duy nhất để một group chỉ có một kill switch trong một environment. \\
+        \texttt{FlagRule} & \texttt{flagConfigId, priority} duy nhất để thứ tự rule trong một cấu hình là xác định. \\
+        \texttt{SampleUserContext} & \texttt{projectId, targetingKey} duy nhất trong project. \\
+        \texttt{FlagEvaluationMetric} & Một bucket metric duy nhất theo project key, environment key, flag key, thời điểm bucket, reason và kết quả bật/tắt. \\
         \bottomrule
     \end{tabular}
+    \endgroup
 \end{table}
+
+Ngoài các khóa nghiệp vụ trên, schema còn có các unique constraint ghép \texttt{projectId, id} cho \texttt{Environment}, \texttt{FeatureFlag} và \texttt{FlagGroup}. Các cặp này được dùng làm đích của khóa ngoại ghép, giúp ngăn trường hợp một config vô tình nối flag, group hoặc environment thuộc project khác.
 
 \subsubsection{Ràng buộc quan hệ tham chiếu}
 
-Khóa ngoại bảo đảm flag, config, rule, group và audit entry không trỏ đến project hoặc environment không tồn tại.
+Khóa ngoại bảo đảm các bảng con không trỏ tới project, environment, flag, group hoặc config không tồn tại. Các quan hệ cấu hình quan trọng dùng khóa ngoại ghép theo \texttt{projectId}: \texttt{FlagEnvironmentConfig} nối tới \texttt{FeatureFlag} và \texttt{Environment} trong cùng project; \texttt{FlagGroupConfig} nối tới \texttt{FlagGroup} và \texttt{Environment} trong cùng project; \texttt{FeatureFlag.groupId} cũng tham chiếu group theo cùng project. Nhờ đó, dữ liệu runtime không thể ghép lẫn cấu hình giữa hai project khác nhau.
 
-\subsubsection{Ràng buộc giá trị phần trăm rollout}
+Hành vi xóa được chọn theo vòng đời dữ liệu. \texttt{FlagRule} bị xóa cascade theo \texttt{FlagEnvironmentConfig}; \texttt{FlagEnvironmentConfig} cascade theo \texttt{FeatureFlag}; \texttt{FlagGroupConfig} cascade theo \texttt{FlagGroup}; \texttt{SampleUserContext} cascade theo \texttt{Project}. Ngược lại, các quan hệ cần bảo toàn lịch sử như project--feature flag, project--flag group, project--flag config và project--audit log dùng \texttt{Restrict}. Bảng \texttt{AuditLogEntry} và \texttt{FlagEvaluationMetric} dùng \texttt{SetNull} cho một số liên kết environment/metric để vẫn giữ được bản ghi lịch sử hoặc số liệu tổng hợp khi bản ghi gốc không còn tồn tại.
 
-Percentage rollout phải nằm trong miền hợp lệ, thường từ 0 đến 100.
+\subsubsection{Ràng buộc giá trị và tham số rule}
 
-\subsubsection{Ràng buộc không sửa hoặc xóa audit log}
+Các trường trạng thái dùng enum thay vì chuỗi tự do: lifecycle của flag chỉ là \texttt{ACTIVE} hoặc \texttt{ARCHIVED}; trạng thái config chỉ là \texttt{ENABLED} hoặc \texttt{DISABLED}; serving mode chỉ là \texttt{GLOBAL\_ON} hoặc \texttt{TARGETED}; rule type chỉ thuộc ba loại \texttt{USER\_ALLOWLIST}, \texttt{ROLE\_TARGETING} và \texttt{PERCENTAGE\_ROLLOUT}. Các key nghiệp vụ được backend validate theo định dạng slug chữ thường dài 3--64 ký tự, chỉ gồm chữ cái, chữ số và dấu gạch ngang.
 
-Audit log không có API update/delete; triển khai production có thể bổ sung trigger database để cưỡng chế thêm.
+Với \texttt{FlagRule.parameters}, database lưu bằng \texttt{JSONB} còn backend kiểm tra shape theo \texttt{type}. Rule \texttt{USER\_ALLOWLIST} cần danh sách \texttt{userIds} không rỗng; \texttt{ROLE\_TARGETING} cần danh sách \texttt{roles} không rỗng; \texttt{PERCENTAGE\_ROLLOUT} cần \texttt{percentage} là số từ 0 đến 100 và có tối đa hai chữ số thập phân. Tầng service cũng kiểm tra trùng \texttt{priority} khi thay thế rule để nhất quán với unique constraint trong database.
 
-\subsubsection{Chiến lược archive thay cho xóa vật lý}
+\subsubsection{Ràng buộc append-only cho audit log}
 
-Flag không còn dùng được archive thay vì xóa vật lý để giữ lịch sử và tránh phá vỡ audit/history.
+Audit log là nguồn truy vết cấu hình nên không được sửa hoặc xóa sau khi ghi. Backend không cung cấp luồng update/delete cho \texttt{AuditLogEntry}; đồng thời migration PostgreSQL đã tạo trigger \texttt{audit\_log\_entries\_no\_update} và \texttt{audit\_log\_entries\_no\_delete} để chặn trực tiếp thao tác \texttt{UPDATE} và \texttt{DELETE} trên bảng audit. Các mutation quản trị quan trọng ghi audit entry trong cùng transaction với thay đổi cấu hình, giúp snapshot trước/sau phản ánh đúng trạng thái đã commit.
+
+\subsubsection{Chiến lược archive và soft delete}
+
+Flag không còn phục vụ runtime được chuyển sang lifecycle \texttt{ARCHIVED} để giữ lại định nghĩa, cấu hình và lịch sử thay đổi. Ngoài archive, hệ thống hiện có soft delete cho \texttt{Project} và \texttt{FeatureFlag} thông qua \texttt{deletedAt} và \texttt{deletedBy}; bản ghi bị soft delete được ẩn khỏi danh sách thông thường nhưng vẫn còn trong database để phục vụ khôi phục, audit/history và tránh phá vỡ các ràng buộc tham chiếu.
