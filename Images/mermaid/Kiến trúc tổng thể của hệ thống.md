@@ -2,7 +2,8 @@
 flowchart TB
     subgraph Clients["Frontend / Client layer"]
         Admin["Admin Dashboard<br/>apps/admin"]
-        Demo["Demo Application<br/>apps/demo"]
+        Demo["Demo Application UI<br/>apps/demo"]
+        DemoAPI["Demo Backend API<br/>/api/demo/features/*"]
         SDK["@ffp/js-sdk"]
     end
 
@@ -36,6 +37,8 @@ flowchart TB
     CacheInvalidator --> Cache
 
     Demo --> SDK
+    Demo -->|"Feature action GET"| DemoAPI
+    DemoAPI --> SDK
     SDK -->|"Evaluation API"| API
 
     API --> EvalService

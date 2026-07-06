@@ -1,7 +1,8 @@
 ```mermaid
 flowchart TD
     Admin["Admin Dashboard<br/>apps/admin"]
-    Demo["Demo App<br/>apps/demo"]
+    Demo["Demo App UI<br/>apps/demo"]
+    DemoAPI["Demo Backend API<br/>/api/demo/features/*"]
     SDK["@ffp/js-sdk"]
 
     subgraph CP["Control Plane"]
@@ -26,11 +27,14 @@ flowchart TD
     Mgmt --> Invalidate -.-> Cache
 
     Demo --> SDK --> EvalAPI
+    Demo -->|"Feature action GET"| DemoAPI
+    DemoAPI --> SDK
     EvalAPI --> Cache
     Cache -. "miss" .-> DB
     EvalAPI --> Engine
     Engine --> Metrics --> DB
     Engine --> SDK --> Demo
+    SDK --> DemoAPI --> Demo
 
     CP -. "config changes" .-> DP
 ```

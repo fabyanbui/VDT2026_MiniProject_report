@@ -19,8 +19,8 @@ flowchart LR
         backend["backend<br/>NestJS API<br/>:3000"]
 
         admin["admin<br/>React + Nginx<br/>:80"]
-        demo["demo<br/>Production env<br/>:80"]
-        demoStg["demo-staging<br/>Staging env<br/>:80"]
+        demo["demo<br/>UI + Demo API<br/>:80"]
+        demoStg["demo-staging<br/>UI + Demo API<br/>:80"]
 
         redis[("redis<br/>optional cache")]
         studio["prisma-studio<br/>optional tools"]
@@ -50,6 +50,8 @@ flowchart LR
     hAdmin --> hApi
     hDemo --> hApi
     hDemoStg --> hApi
+    demo -->|"server-side evaluate"| backend
+    demoStg -->|"server-side evaluate"| backend
 
     classDef service fill:#E8F3FF,stroke:#2563EB,stroke-width:1px,color:#111827;
     classDef job fill:#FFF7ED,stroke:#EA580C,stroke-width:1px,color:#111827;
