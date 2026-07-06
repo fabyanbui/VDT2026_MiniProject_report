@@ -1,50 +1,22 @@
 \section{Hiệu năng, nhất quán và bảo mật}
 
-Mục này tổng hợp các quyết định phi chức năng của hệ thống. Nội dung chỉ tập trung vào nguyên tắc thiết kế; cơ chế triển khai cụ thể của cache, RBAC và statistics được trình bày trong chương kết quả.
+Mục này tổng hợp các quyết định phi chức năng quan trọng của hệ thống dựa trên hiện trạng triển khai trong source code. Trọng tâm là cách data plane giữ độ trễ thấp nhưng vẫn fail-closed, cách control plane bảo vệ các thao tác thay đổi cấu hình, và cách hệ thống duy trì khả năng truy vết khi cấu hình feature flag thay đổi. Các chi tiết giao diện và kết quả chạy thử được trình bày ở chương kết quả.
 
-\subsection{Caching evaluation snapshot}
+\subsection{Hiệu năng data plane: snapshot cache, TTL và thống kê}
 
-Cache được dùng để giảm số lần đọc cấu hình lặp lại khi Evaluation API được gọi thường xuyên. Hệ thống cache snapshot cấu hình thay vì cache final decision theo người dùng, vì quyết định cuối cùng còn phụ thuộc vào evaluation context của từng request.
+Evaluation API là đường chạy thường xuyên nhất vì demo application và JavaScript SDK gọi endpoint này để quyết định bật/tắt tính năng. Để giảm số lần đọc PostgreSQL lặp lại, backend cache \textit{evaluation snapshot} thay vì cache quyết định cuối cùng theo từng người dùng. Snapshot chứa phần cấu hình cần thiết để engine đánh giá một flag trong một environment: trạng thái lifecycle của flag, trạng thái cấu hình theo environment, serving mode, kill switch, group kill switch nếu có, và danh sách rule đã nạp từ database. Khi cache miss, \texttt{EvaluationRepository.findSnapshot} đọc lại cấu hình từ PostgreSQL; khi cache hit, engine vẫn tự tính kết quả dựa trên evaluation context của request.
 
-\subsubsection{Mục tiêu của caching}
+Cách cache snapshot này phù hợp với yêu cầu an toàn của mini project. Hệ thống không ưu tiên cache final decision theo user context, vì quyết định cuối cùng phụ thuộc vào \texttt{targetingKey}, \texttt{userId}, \texttt{roles} và các thuộc tính đi kèm. Nếu cache trực tiếp kết quả cuối, hệ thống dễ phải đưa định danh người dùng vào cache key hoặc lưu dữ liệu context nhạy cảm. Do đó thiết kế hiện tại đánh đổi một phần hiệu năng để giữ mô hình đơn giản hơn, ít rủi ro dữ liệu cá nhân hơn, và không làm thay đổi tính xác định của engine.
 
-Mục tiêu chính là giảm độ trễ và giảm tải database cho các flag được evaluate nhiều lần. Cache không được làm thay đổi thứ tự ưu tiên hoặc kết quả xác định của engine.
+Cache provider được đóng gói sau interface \texttt{EvaluationSnapshotCache}. Source code hiện hỗ trợ ba lựa chọn: \texttt{memory}, \texttt{redis} và \texttt{none}. Mặc định hệ thống dùng in-memory cache với TTL 30 giây thông qua \texttt{DEFAULT\_EVALUATION\_CACHE\_TTL\_MS}; giá trị này có thể cấu hình bằng biến môi trường \texttt{EVALUATION\_CACHE\_TTL\_MS}. In-memory cache phù hợp cho demo, kiểm thử cục bộ và một backend instance. Redis được triển khai như provider mở rộng cho trường hợp nhiều backend instance cần chia sẻ snapshot hoặc cần invalidation phân tán; nếu không muốn cache, provider \texttt{none} cho phép tắt cache mà không đổi API đánh giá.
 
-\subsubsection{Cache configuration snapshot}
+Ngoài cache, backend còn ghi thống kê evaluation theo hướng không chặn response. Sau khi engine trả kết quả, \texttt{EvaluationMetricsService} ghi tăng bộ đếm theo project, environment, flag, reason, enabled result và bucket thời gian theo giờ UTC. Nếu ghi thống kê thất bại, hệ thống chỉ log cảnh báo và vẫn giữ nguyên response evaluation. Điều này giúp statistics dashboard có dữ liệu quan sát vận hành nhưng không biến thống kê thành điểm lỗi của data plane.
 
-Snapshot bao gồm các cấu hình cần thiết để engine ra quyết định cho một flag trong một environment. Khi cache miss, snapshot được nạp lại từ PostgreSQL.
+\subsection{Cache key, invalidation và tính nhất quán cấu hình}
 
-\subsubsection{Cache kết quả evaluation}
+Cache key được thiết kế theo dữ liệu cấu hình, không theo dữ liệu người dùng. Hàm tạo cache key ghép bốn thành phần: prefix \texttt{evaluation-snapshot}, \texttt{projectKey}, \texttt{environmentKey} và \texttt{flagKey}. Khi request không truyền environment, backend dùng scope mặc định \texttt{\_\_default\_\_} để phân biệt với các environment cụ thể. Nhờ đó snapshot của staging, production hoặc default environment không bị dùng nhầm lẫn cho nhau. Evaluation context không nằm trong cache key vì hệ thống chỉ cache snapshot cấu hình, không cache quyết định cuối cùng.
 
-Hệ thống không ưu tiên cache kết quả cuối theo từng context để tránh lưu dữ liệu người dùng và tránh sai lệch khi context thay đổi. Quyết định này đánh đổi một phần hiệu năng để giữ mô hình đơn giản và an toàn hơn.
-
-\subsubsection{Lựa chọn in-memory cache và Redis}
-
-In-memory cache phù hợp cho demo và kiểm thử cục bộ. Redis được xem là lựa chọn mở rộng khi nhiều backend instance cần dùng chung cache hoặc invalidation phân tán.
-
-\subsection{Thiết kế cache key và thời gian tồn tại}
-
-Cache key phải đủ cụ thể để phân biệt project, environment và flag, nhưng không chứa dữ liệu cá nhân từ evaluation context.
-
-\subsubsection{Thành phần của cache key}
-
-Khóa cache sử dụng các định danh ổn định của project, environment và flag. Đây là dữ liệu cấu hình, không phải dữ liệu nhận dạng người dùng cuối.
-
-\subsubsection{Cache key theo environment}
-
-Mỗi environment có cấu hình riêng nên cache key luôn bao gồm environment key. Điều này ngăn việc cấu hình staging bị dùng nhầm cho production.
-
-\subsubsection{Cache key theo evaluation context}
-
-Context không được đưa vào key snapshot. Nếu sau này cache final decision, hệ thống cần thiết kế khóa riêng và đánh giá kỹ rủi ro lưu định danh người dùng.
-
-\subsubsection{Lựa chọn thời gian tồn tại}
-
-TTL đóng vai trò lớp bảo vệ phụ trong trường hợp invalidation bị bỏ sót. TTL không thay thế invalidation sau mutation cấu hình.
-
-\subsection{Cache invalidation}
-
-Invalidation được kích hoạt khi cấu hình có thể ảnh hưởng đến kết quả evaluation. Nguyên tắc là ưu tiên loại bỏ snapshot hơi rộng còn hơn giữ snapshot lỗi thời.
+Invalidation được kích hoạt khi một mutation có thể làm thay đổi kết quả evaluation. Các thay đổi như cập nhật lifecycle của flag, bật/tắt config theo environment, đổi serving mode, đổi flag kill switch, thay rule, đổi priority rule, assign/unassign flag group, hoặc cập nhật group kill switch đều cần loại bỏ snapshot liên quan. \texttt{EvaluationCacheInvalidator} hỗ trợ invalidation một flag hoặc nhiều flag theo project, flag key và optional environment key. Nguyên tắc triển khai là thà invalidation hơi rộng còn hơn giữ snapshot lỗi thời; ví dụ khi không chứng minh được scope environment, cache của default alias cũng được xóa để tránh stale read.
 
 \begin{figure}[H]
     \centering
@@ -53,111 +25,32 @@ Invalidation được kích hoạt khi cấu hình có thể ảnh hưởng đ�
     \label{fig:cache-invalidation-consistency}
 \end{figure}
 
+TTL đóng vai trò lớp bảo vệ phụ trong trường hợp một lần invalidation bị bỏ sót hoặc provider cache gặp lỗi. TTL không thay thế invalidation sau mutation cấu hình, vì yêu cầu của hệ thống là thay đổi cấu hình phải được phản ánh nhanh trên data plane. Trong phạm vi một backend instance, mutation ghi database xong rồi invalidation cache giúp hệ thống gần với strong consistency sau thao tác quản trị. Khi mở rộng nhiều instance, Redis hoặc cơ chế pub/sub sẽ cần thiết hơn để giảm độ trễ đồng bộ giữa các instance.
 
-\subsubsection{Invalidation khi cập nhật flag}
+Tính nhất quán của cấu hình cũng được bảo vệ bằng transaction và audit log. Các mutation quan trọng ghi thay đổi cấu hình và audit entry trong cùng một transaction, tránh tình trạng cấu hình đã đổi nhưng không có bằng chứng truy vết. Evaluation path fail-closed: nếu không tìm thấy project, environment, flag hoặc config thì trả \texttt{enabled=false} với \texttt{reason=NOT\_FOUND}; nếu quá trình đọc snapshot hoặc đánh giá gặp lỗi bất thường thì trả \texttt{enabled=false} với \texttt{reason=ERROR}. Cache chỉ là tối ưu hiệu năng, không được phép thay đổi thứ tự ưu tiên hoặc kết quả xác định của engine.
 
-Thay đổi lifecycle, serving mode hoặc kill switch của flag làm mất hiệu lực snapshot tương ứng.
+\subsection{Trust boundary của evaluation context và SDK}
 
-\subsubsection{Invalidation khi cập nhật rule}
+Evaluation API được đánh dấu public vì ứng dụng tích hợp cần gọi endpoint này ở runtime. Do đó evaluation context do client gửi lên phải luôn được xem là dữ liệu không tin cậy. Engine có thể dùng context để quyết định rollout, nhưng không dùng context thay cho xác thực hoặc phân quyền nghiệp vụ. Trong demo, các trường như \texttt{userId}, \texttt{roles} hoặc attribute mô phỏng người dùng giúp minh họa user allowlist, role targeting và percentage rollout; trong hệ thống production, các trường nhạy cảm nên được xác nhận bởi backend nghiệp vụ hoặc hệ thống định danh đáng tin cậy.
 
-Tạo, cập nhật, xóa mềm hoặc thay đổi priority của rule đều yêu cầu làm mới snapshot của flag chứa rule đó.
+Thiết kế rollout ưu tiên định danh ổn định nhưng không nhạy cảm. Rule percentage rollout dùng \texttt{targetingKey} cùng \texttt{projectKey} và \texttt{flagKey} để tính bucket bằng stable hashing. Cùng một user context hợp lệ sẽ nhận cùng một kết quả cho cùng một flag, trong khi hệ thống không cần lưu trạng thái rollout riêng cho từng người dùng. Nếu thiếu \texttt{targetingKey} khi có percentage rollout rule, engine trả kết quả fail-closed với \texttt{reason=INVALID\_CONTEXT}.
 
-\subsubsection{Invalidation khi thay đổi group kill switch}
+Ranh giới giữa client-side và server-side evaluation cũng cần được hiểu rõ. Client-side evaluation thuận tiện cho việc ẩn/hiện UI, còn server-side evaluation an toàn hơn cho chức năng nhạy cảm. Mini project dùng API tập trung ở backend để giữ logic đánh giá trong một nơi và để demo app cũng như SDK không tự triển khai lại rule engine. Tuy nhiên, feature flag chỉ quyết định phát hành tính năng; nó không thay thế authorization. Các endpoint quan trọng vẫn phải kiểm tra quyền ở backend ngay cả khi UI bị ẩn bởi feature flag.
 
-Khi group kill switch thay đổi, các snapshot của flag thuộc group trong environment liên quan cần được loại bỏ.
+JavaScript SDK hỗ trợ tích hợp an toàn hơn bằng cách đóng gói các hàm \texttt{evaluate}, \texttt{isEnabled} và \texttt{getVariant}. SDK validate response từ backend, giới hạn thời gian chờ mặc định 1500 ms, và khi gặp lỗi request, timeout, network, HTTP, JSON hoặc schema response thì trả kết quả fail-closed: \texttt{enabled=false}, \texttt{variant=off}, \texttt{reason=ERROR}. Nhờ đó ứng dụng tích hợp không phải tự xử lý quá nhiều trường hợp lỗi và vẫn giữ mặc định an toàn.
 
-\subsubsection{Invalidation theo environment}
+\subsection{Bảo vệ Management API bằng RBAC và validation}
 
-Invalidation luôn giới hạn theo environment để tránh ảnh hưởng không cần thiết đến cấu hình của môi trường khác.
+Management API thuộc control plane vì các endpoint này thay đổi project, feature flag, rule, group, sample user, kill switch và các cấu hình liên quan. Khác với Evaluation API public, các controller quản trị dùng bearer token demo và decorator \texttt{RequirePermissions} để yêu cầu quyền phù hợp. Backend là nơi quyết định quyền cuối cùng; dashboard chỉ ẩn hoặc vô hiệu hóa thao tác không được phép nhằm cải thiện trải nghiệm người dùng, không phải lớp bảo vệ chính.
 
-\subsection{Tính nhất quán của cấu hình}
+RBAC demo phân biệt ba vai trò. \texttt{admin} có toàn quyền trong phạm vi demo, bao gồm quản lý project, flag, lifecycle, rule, group, group kill switch, sample user, audit log và statistics. \texttt{developer} có quyền đọc control plane và thực hiện các thao tác cấu hình thường gặp như quản lý flag, rule và assign group, nhưng không mặc định có quyền cho các thao tác nhạy cảm hơn như quản lý project hoặc bật group kill switch. \texttt{viewer} chỉ có quyền đọc. Actor được backend resolve từ bearer token thông qua \texttt{DemoIdentityService}; actor ghi vào audit log không lấy trực tiếp từ body request, nhờ đó giảm nguy cơ giả mạo lịch sử thao tác.
 
-Hệ thống ưu tiên tính đúng đắn của cấu hình hơn việc giữ cache lâu. Mutation được ghi vào database trước, sau đó cache bị invalidation để data plane đọc lại snapshot mới.
+Validation DTO và error handling là lớp bảo vệ bổ sung cho control plane. Các khóa project, flag, environment và group được validate ở boundary API; các request phân trang, time range, rule parameters và mutation body được chuẩn hóa trước khi đi vào service. Khi quyền không đủ hoặc dữ liệu không hợp lệ, backend trả lỗi có cấu trúc thay vì để lỗi nội bộ rò rỉ ra client. Cách này giúp API dễ demo, dễ kiểm thử và phù hợp với yêu cầu clean APIs, validation và error handling của đề bài.
 
-\subsubsection{Strong consistency và eventual consistency}
+\subsection{Auditability và khả năng truy vết thay đổi}
 
-Trong phạm vi một backend instance, hệ thống hướng tới việc phản ánh thay đổi gần như tức thời sau mutation. Khi mở rộng nhiều instance, Redis hoặc cơ chế pub/sub sẽ cần thiết để giảm độ trễ đồng bộ.
+Auditability là yêu cầu xuyên suốt của hệ thống. Mỗi mutation quan trọng cần ghi actor, action, target type, target key, request ID, timestamp, metadata và snapshot trước/sau nếu có. Bảng \texttt{AuditLogEntry} được thiết kế append-only ở mức ứng dụng: service chỉ tạo bản ghi mới cho sự kiện thay đổi, không dùng audit log như bảng trạng thái hiện tại. Dữ liệu này hỗ trợ demo rollback reasoning, kiểm thử, phân tích sự cố và mở rộng sang quy trình phê duyệt trong tương lai \cite{owasp_logging}.
 
-\subsubsection{Stale configuration}
+Hệ thống cũng dùng audit log như nguồn cho configuration history. Endpoint history của flag truy vấn các audit entry liên quan đến feature flag, flag environment config và flag rule để hiển thị lịch sử thay đổi cấu hình. Cách làm này tránh tạo một hệ thống versioning song song trong phạm vi mini project, đồng thời vẫn đáp ứng nhu cầu xem lại ai đã thay đổi gì, khi nào, trước/sau ra sao và request nào tạo ra thay đổi đó.
 
-Stale configuration là rủi ro chính của caching. Hệ thống giảm rủi ro bằng invalidation theo mutation, TTL và fallback đọc lại từ database khi cache miss.
-
-\subsubsection{Giao dịch khi cập nhật cấu hình}
-
-Các mutation quan trọng cần lưu thay đổi cấu hình và audit log trong cùng một transaction. Cách này tránh trạng thái có cấu hình mới nhưng thiếu bằng chứng truy vết.
-
-\subsubsection{Cân bằng giữa hiệu năng và độ mới dữ liệu}
-
-Thiết kế chỉ cache snapshot, không cache mọi response, nhằm giữ latency thấp mà vẫn duy trì khả năng cập nhật cấu hình nhanh.
-
-\subsection{Trust boundary của evaluation context}
-
-Evaluation context do ứng dụng khách gửi lên nên phải được xem là dữ liệu không tin cậy. Engine có thể dùng context để quyết định rollout, nhưng không nên dùng context thay cho xác thực hay phân quyền nghiệp vụ.
-
-\subsubsection{Nguồn tạo evaluation context}
-
-Context có thể được tạo bởi Demo Application, backend nghiệp vụ hoặc SDK. Nguồn nào tạo context thì nguồn đó chịu trách nhiệm cung cấp định danh ổn định và không nhạy cảm.
-
-\subsubsection{Dữ liệu do client tự khai báo}
-
-Các trường như role hoặc organization ID trong demo có giá trị minh họa. Trong hệ thống sản xuất, những trường này nên được xác nhận từ server hoặc hệ thống định danh đáng tin cậy.
-
-\subsubsection{Nguy cơ giả mạo user ID và role}
-
-Nếu client tự khai báo role, người dùng có thể giả mạo để nhận tính năng ngoài ý muốn. Vì vậy Feature Flag không được dùng như cơ chế bảo vệ quyền truy cập duy nhất.
-
-\subsubsection{Evaluation phía client và phía server}
-
-Client-side evaluation thuận tiện cho UI, còn server-side evaluation an toàn hơn cho chức năng nhạy cảm. Mini project dùng API tập trung để giữ logic đánh giá ở backend.
-
-\subsubsection{Giới hạn sử dụng Feature Flag cho phân quyền}
-
-Feature Flag chỉ quyết định việc phát hành tính năng, không thay thế authorization. Các endpoint quan trọng vẫn cần kiểm tra quyền ở backend.
-
-\subsection{Bảo vệ Management API}
-
-Management API thay đổi cấu hình hệ thống nên cần được bảo vệ chặt hơn Evaluation API. Các nguyên tắc áp dụng gồm xác thực actor, kiểm tra quyền, validation DTO và audit log.
-
-\subsubsection{Xác thực người dùng quản trị}
-
-Trong demo, actor được resolver phía server theo bearer token mẫu. Trong production, lớp này cần thay bằng cơ chế định danh thật như OAuth2/OIDC hoặc SSO.
-
-\subsubsection{Bảo vệ mutation endpoint}
-
-Các endpoint tạo, sửa, archive, restore, thay đổi rule và kill switch phải kiểm tra quyền trước khi ghi dữ liệu.
-
-\subsubsection{Validation actor}
-
-Actor ghi vào audit log phải đến từ backend sau khi xác thực, không lấy trực tiếp từ body request để tránh giả mạo lịch sử.
-
-\subsubsection{Giới hạn truy cập audit log}
-
-Audit log có thể chứa snapshot cấu hình nên chỉ các vai trò phù hợp mới được xem hoặc lọc dữ liệu này.
-
-\subsection{Phân quyền quản trị}
-
-RBAC demo phân biệt admin, developer và viewer để thể hiện cách hệ thống kiểm soát thao tác quản trị.
-
-\subsubsection{Quyền của admin}
-
-Admin có toàn quyền quản lý cấu hình, group, audit log và thống kê trong phạm vi demo.
-
-\subsubsection{Quyền của developer}
-
-Developer được phép thực hiện các thao tác cấu hình thường gặp nhưng có thể bị giới hạn ở một số thao tác nhạy cảm tùy permission matrix.
-
-\subsubsection{Quyền của viewer}
-
-Viewer chỉ xem dữ liệu và không được thực hiện mutation.
-
-\subsubsection{Kiểm tra quyền tại Backend API}
-
-Backend là nơi quyết định quyền cuối cùng. Dashboard chỉ phản ánh trạng thái quyền để cải thiện trải nghiệm, không phải lớp bảo vệ chính.
-
-\subsubsection{Hiển thị quyền trên Dashboard}
-
-Dashboard ẩn hoặc vô hiệu hóa thao tác không được phép, đồng thời hiển thị role hiện tại để người dùng hiểu phạm vi thao tác.
-
-\subsection{Auditability và truy vết thay đổi}
-
-Auditability được thiết kế như một yêu cầu xuyên suốt: mỗi mutation quan trọng phải có actor, action, target, request ID và snapshot trước/sau. Dữ liệu này hỗ trợ kiểm thử, trình diễn, phân tích sự cố và mở rộng sang các quy trình phê duyệt trong tương lai \cite{owasp_logging}.
+Audit log cần được bảo vệ như dữ liệu quản trị vì snapshot cấu hình có thể tiết lộ rule targeting, rollout strategy hoặc thông tin vận hành. Vì vậy quyền đọc audit/history nằm trong control-plane read permission và đi qua RBAC demo. Khi kết hợp audit log với statistics dashboard, người vận hành có thể trả lời hai câu hỏi khác nhau: cấu hình đã thay đổi như thế nào, và sau thay đổi đó runtime evaluation đang trả những reason nào. Đây là nền tảng để trình diễn system thinking của dự án: hiệu năng, tính nhất quán, bảo mật và khả năng quan sát được thiết kế cùng nhau thay vì xử lý rời rạc.
