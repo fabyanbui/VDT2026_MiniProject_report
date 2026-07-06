@@ -41,7 +41,7 @@ Phạm vi triển khai của đề tài là một Feature Flag Platform phục v
     \item \textbf{Backend API}: cung cấp REST API cho project, feature flag, rule, flag group, evaluation, audit log, history, statistics, sample user và RBAC demo.
     \item \textbf{Rule Evaluation Engine}: đánh giá flag theo lifecycle, trạng thái cấu hình, group/flag kill switch, global on, ordered rules và default off.
     \item \textbf{Admin Dashboard}: hỗ trợ quản trị project, flag, rule, group kill switch, audit log, history, statistics và hiển thị trạng thái theo quyền người dùng.
-    \item \textbf{Demo Application}: mô phỏng ứng dụng web tích hợp Feature Flag, gọi SDK để hiển thị hoặc ẩn tính năng theo kết quả evaluation.
+    \item \textbf{Demo Application}: mô phỏng ứng dụng web tích hợp Feature Flag, gồm storefront React và một demo backend nhỏ. Frontend gọi SDK để hiển thị hoặc ẩn tính năng theo kết quả evaluation; demo backend cung cấp các endpoint được guard bởi cùng quyết định evaluation để chứng minh API phía server cũng bị chặn khi flag tắt.
     \item \textbf{JavaScript SDK}: cung cấp hàm \texttt{evaluate}, \texttt{isEnabled}, \texttt{getVariant}, validate response, xử lý timeout và fallback fail-closed.
     \item \textbf{Persistence và delivery}: dùng PostgreSQL, Prisma migration/seed, Jest/Supertest, GitHub Actions CI và Docker Compose cho môi trường chạy thử.
 \end{itemize}

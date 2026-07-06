@@ -4,7 +4,7 @@ Các kịch bản dưới đây sẽ được trình bày cụ thể trong phầ
 
 \subsection{Quan sát project, flag và ứng dụng demo}
 
-Kịch bản mở đầu giới thiệu project \texttt{demo-project}, các feature flag đã seed, các nhóm flag như \texttt{checkout-experience} và \texttt{recommendations}, sau đó mở Demo Application để cho thấy ứng dụng đang nhận quyết định từ Evaluation API thông qua SDK.
+Kịch bản mở đầu giới thiệu project \texttt{demo-project}, các feature flag và nhóm flag đã seed, sau đó mở Demo Application để cho thấy ứng dụng đang nhận quyết định từ Evaluation API thông qua SDK.
 
 \subsection{Bật và tắt tính năng toàn cục}
 
@@ -20,7 +20,14 @@ Kịch bản này dùng nhiều tài khoản mẫu có \texttt{targetingKey} ổ
 
 \subsection{Kill switch cấp flag và group}
 
-Kịch bản này bật kill switch ở cấp một flag hoặc cấp group, ví dụ nhóm \texttt{checkout-experience}. Demo sẽ nhấn mạnh rằng trạng thái runtime chuyển sang Off ngay lập tức, trong khi lifecycle/configuration của từng flag vẫn được giữ lại để có thể khôi phục nhanh.
+Kịch bản này bật kill switch ở cấp một flag hoặc cấp group tương ứng. Demo sẽ nhấn mạnh rằng trạng thái runtime chuyển sang Off ngay lập tức, trong khi lifecycle/configuration của từng flag vẫn được giữ lại để có thể khôi phục nhanh.
+
+\subsection{Backend API guard cho tính năng}
+
+Kịch bản này chứng minh Feature Flag không chỉ ẩn giao diện ở frontend. Demo Application có các endpoint \path|GET /api/demo/features/{featureKey}| tương ứng với các feature flag đã seed. Khi người dùng thực hiện một thao tác thuộc tính năng đang được flag bảo vệ, storefront gọi endpoint backend tương ứng. Demo backend dùng SDK để evaluate flag trước khi trả dữ liệu hoặc thực thi hành vi demo của tính năng.
+
+Nếu flag đang bật, endpoint trả \texttt{200 OK} và UI hiển thị thông báo thao tác thành công. Sau đó, người trình bày có thể tắt flag tương ứng trên Admin Dashboard hoặc bật group kill switch của nhóm chứa flag rồi gọi lại endpoint bằng \texttt{curl}. Kết quả mong đợi là \texttt{403 FEATURE\_DISABLED} kèm evaluation result, cho thấy người dùng không thể bypass feature flag bằng cách gọi API trực tiếp.
+
 
 \subsection{Audit log, history và statistics}
 

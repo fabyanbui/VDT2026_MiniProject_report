@@ -15,7 +15,7 @@ Hình~\ref{fig:system-overall-architecture} mô tả hệ thống theo ba lớp 
 
 \subsubsection{Frontend / Client layer}
 
-Lớp client gồm \texttt{apps/admin}, \texttt{apps/demo} và \texttt{packages/js-sdk}. Admin Dashboard là React/Vite SPA cho project, flag, rule, group, audit log, history, RBAC demo và statistics. Demo Application mô phỏng ứng dụng thương mại điện tử nhỏ và dùng kết quả evaluation để bật hoặc ẩn tính năng. \texttt{@ffp/js-sdk} chuẩn hóa cách gọi Evaluation API, validate response, xử lý timeout/lỗi mạng và trả fallback fail-closed cho ứng dụng web.
+Lớp client gồm \texttt{apps/admin}, \texttt{apps/demo} và \texttt{packages/js-sdk}. Admin Dashboard là React/Vite SPA cho project, flag, rule, group, audit log, history, RBAC demo và statistics. Demo Application mô phỏng ứng dụng thương mại điện tử nhỏ, gồm frontend storefront và một demo backend cùng service; frontend dùng kết quả evaluation để bật hoặc ẩn tính năng, còn demo backend dùng cùng SDK để guard các endpoint tính năng trước khi trả dữ liệu. \texttt{@ffp/js-sdk} chuẩn hóa cách gọi Evaluation API, validate response, xử lý timeout/lỗi mạng và trả fallback fail-closed cho cả luồng tích hợp phía browser và phía server demo.
 
 \subsubsection{Backend API và lớp bảo vệ}
 
@@ -31,7 +31,7 @@ Data plane bắt đầu tại \texttt{POST /v1/evaluate}. \texttt{EvaluationServ
 
 \subsubsection{Persistence, cache và deployment}
 
-PostgreSQL là nguồn sự thật cho project, environment, flag, config, rule, group, audit log, sample user và aggregate metric. Evaluation Snapshot Cache chỉ lưu cấu hình cần cho evaluation, không lưu context người dùng hay kết quả theo user; provider có thể là \texttt{memory}, \texttt{none} hoặc optional \texttt{redis}. Repository hỗ trợ chạy bằng npm workspace hoặc Docker Compose với PostgreSQL, migration, seed, backend, admin, demo, demo staging và optional Redis.
+PostgreSQL là nguồn sự thật cho project, environment, flag, config, rule, group, audit log, sample user và aggregate metric. Evaluation Snapshot Cache chỉ lưu cấu hình cần cho evaluation, không lưu context người dùng hay kết quả theo user; provider có thể là \texttt{memory}, \texttt{none} hoặc optional \texttt{redis}. Repository hỗ trợ chạy bằng npm workspace hoặc Docker Compose với PostgreSQL, migration, seed, backend, admin, demo, demo staging và optional Redis. Riêng service demo chạy Node server để vừa phục vụ frontend đã build vừa expose \path|/api/demo/*| cho phần backend API minh họa.
 
 \subsection{Control plane và data plane}
 
@@ -44,7 +44,7 @@ Kiến trúc tách \textit{control plane} và \textit{data plane} vì Feature Fl
     \label{fig:control-plane-data-plane}
 \end{figure}
 
-Trong control plane, mọi mutation quan trọng được backend kiểm tra quyền, validate dữ liệu, ghi PostgreSQL và tạo audit entry với before/after snapshot. Trong data plane, ứng dụng khách chỉ gửi project key, environment key nếu có, flag key và context không nhạy cảm; Evaluation API đọc snapshot cấu hình, chạy engine và trả reason code. Cache và metric chỉ là tối ưu/quan sát best-effort nên không được làm thay đổi quyết định bật/tắt.
+Trong control plane, mọi mutation quan trọng được backend kiểm tra quyền, validate dữ liệu, ghi PostgreSQL và tạo audit entry với before/after snapshot. Trong data plane, ứng dụng khách chỉ gửi project key, environment key nếu có, flag key và context không nhạy cảm; Evaluation API đọc snapshot cấu hình, chạy engine và trả reason code. Demo backend trong \texttt{apps/demo} được xem như một ứng dụng tích hợp phía server: nó gọi data plane qua SDK trước khi trả dữ liệu tính năng cho browser. Cache và metric chỉ là tối ưu/quan sát best-effort nên không được làm thay đổi quyết định bật/tắt.
 
 \subsection{Luồng quản trị Feature Flag}
 
@@ -67,7 +67,7 @@ Nếu snapshot không tồn tại, service trả \texttt{enabled=false} với \t
 
 \subsection{Luồng tích hợp ứng dụng khách}
 
-Ứng dụng khách có thể gọi trực tiếp Evaluation API hoặc dùng \texttt{@ffp/js-sdk}. Trong project này, Demo Application dùng SDK để cấu hình \texttt{baseUrl}, \texttt{projectKey}, optional \texttt{environmentKey}, timeout và \texttt{fetch}; sau đó gọi \texttt{evaluate}, \texttt{isEnabled} hoặc \texttt{getVariant}. Context chỉ là đầu vào targeting, thường gồm \texttt{targetingKey}, \texttt{userId} mẫu, \texttt{roles} và \texttt{attributes}, không phải bằng chứng phân quyền.
+Ứng dụng khách có thể gọi trực tiếp Evaluation API hoặc dùng \texttt{@ffp/js-sdk}. Trong project này, Demo Application dùng SDK để cấu hình \texttt{baseUrl}, \texttt{projectKey}, optional \texttt{environmentKey}, timeout và \texttt{fetch}; sau đó gọi \texttt{evaluate}, \texttt{isEnabled} hoặc \texttt{getVariant}. Frontend dùng SDK để quyết định UI, còn demo backend dùng SDK để guard \path|GET /api/demo/features/{featureKey}| trước khi trả dữ liệu tính năng. Context chỉ là đầu vào targeting, thường gồm \texttt{targetingKey}, \texttt{userId} mẫu, \texttt{roles} và \texttt{attributes}, không phải bằng chứng phân quyền.
 
 Khi API timeout, lỗi mạng, HTTP lỗi, JSON sai shape hoặc response không khớp project/flag, SDK trả fallback an toàn: \texttt{enabled=false}, \texttt{variant=off}, \texttt{reason=ERROR} và \texttt{errorSource=CLIENT}. Quy tắc này ngăn lỗi hạ tầng vô tình mở tính năng chưa sẵn sàng.
 

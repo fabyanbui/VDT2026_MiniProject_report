@@ -13,15 +13,15 @@ Một flag thường có các thành phần cốt lõi: khóa định danh, tr�
     label={lst:feature-flag-runtime}
 ]
 const result = await featureFlagClient.evaluate(
-    "new-checkout-page",
+    "sample-feature",
     userContext
 );
 
 if (result.enabled) {
-    return showNewCheckout();
+    return showFlaggedFeature();
 }
 
-return showCurrentCheckout();
+return showDefaultExperience();
 \end{lstlisting}
 
 Điểm quan trọng là Feature Flag không tự thay đổi mã nguồn; nó chỉ thay đổi cấu hình quyết định nhánh xử lý nào được sử dụng.

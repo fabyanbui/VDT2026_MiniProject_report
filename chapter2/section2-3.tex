@@ -75,6 +75,7 @@ Các yêu cầu phi chức năng áp dụng cho cả MVP và các phần khuyế
     \item \textbf{Truy vết và nhất quán dữ liệu}: mutation quan trọng phải ghi audit log append-only với actor, timestamp, target và snapshot trước/sau trong cùng giao dịch lưu dữ liệu.
     \item \textbf{Hiệu năng evaluation}: Evaluation API cần độ trễ thấp; cache snapshot chỉ là tầng tăng tốc và có thể bị xóa mà không làm mất nguồn sự thật trong database.
     \item \textbf{Bảo mật và quyền truy cập}: Management API cần kiểm tra quyền theo RBAC demo; evaluation context do client gửi chỉ dùng để targeting, không được xem là bằng chứng phân quyền thật.
+    \item \textbf{Không xem frontend hiding là lớp bảo vệ}: việc ẩn nút hoặc ẩn trang ở frontend chỉ cải thiện trải nghiệm người dùng; API phục vụ tính năng vẫn cần kiểm tra Feature Flag ở backend trước khi trả dữ liệu hoặc thực thi nghiệp vụ.
     \item \textbf{Bảo vệ dữ liệu cá nhân}: hệ thống ưu tiên stable targeting key và dữ liệu mẫu không nhạy cảm; rollout không phụ thuộc vào thông tin định danh trực tiếp của người dùng thật.
     \item \textbf{Khả dụng cho demo}: seed data, README và Docker Compose phải giúp người chấm khởi chạy lại hệ thống trong môi trường mới với ít bước thủ công.
     \item \textbf{Khả năng bảo trì và mở rộng}: logic evaluation phải tách khỏi controller, có test tự động và có thể mở rộng thêm rule, SDK hoặc backend triển khai khác trong tương lai.

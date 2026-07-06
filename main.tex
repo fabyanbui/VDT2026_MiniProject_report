@@ -82,7 +82,7 @@ Báo cáo trình bày quá trình nghiên cứu Feature Flag và xây dựng m�
 
 Nội dung báo cáo gồm bốn phần chính: giới thiệu bài toán và phạm vi triển khai; trình bày cơ sở lý thuyết, khảo sát giải pháp hiện có, yêu cầu, kiến trúc, dữ liệu, API và Rule Evaluation Engine; mô tả kết quả xây dựng, kiểm thử, CI và các kịch bản demo; cuối cùng là tổng kết, hạn chế và hướng phát triển.
 
-Sản phẩm được triển khai dưới dạng npm workspace gồm Backend API, Admin Dashboard, Demo Application, JavaScript SDK và PostgreSQL. Backend sử dụng NestJS, Prisma và PostgreSQL để quản lý project, feature flag, rule, flag group, audit log, history, statistics và Evaluation API. Dashboard hỗ trợ cấu hình và quan sát hệ thống; Demo Application dùng SDK để gọi Evaluation API và thay đổi giao diện theo kết quả flag.
+Sản phẩm được triển khai dưới dạng npm workspace gồm Backend API, Admin Dashboard, Demo Application, JavaScript SDK và PostgreSQL. Backend sử dụng NestJS, Prisma và PostgreSQL để quản lý project, feature flag, rule, flag group, audit log, history, statistics và Evaluation API. Dashboard hỗ trợ cấu hình và quan sát hệ thống; Demo Application dùng SDK để gọi Evaluation API, thay đổi giao diện theo kết quả flag và bổ sung demo backend API để chứng minh tính năng cũng bị chặn ở phía server khi flag tắt.
 
 Rule Evaluation Engine được thiết kế với thứ tự ưu tiên rõ ràng: archived flag, disabled config, group kill switch, flag kill switch, global on, các rule targeting và default off. Hệ thống hỗ trợ user allowlist, role targeting, percentage rollout bằng stable hashing, reason code ổn định và mặc định fail-closed khi không thể đánh giá an toàn.
 
@@ -92,6 +92,7 @@ Các đóng góp chính của đề tài bao gồm:
     \item Hệ thống hóa kiến thức về Feature Flag, deploy/release separation, rollout strategy, kill switch, audit log, caching, consistency và bảo mật evaluation endpoint.
     \item Thiết kế kiến trúc tách rõ control plane và data plane, giúp phân biệt phần quản trị cấu hình với luồng evaluation runtime.
     \item Xây dựng luồng end-to-end gồm Backend API, Admin Dashboard, Demo Application, JavaScript SDK, PostgreSQL migration/seed và Docker Compose.
+    \item Bổ sung demo backend API cho Demo Application với các endpoint GET tương ứng từng feature flag, dùng JavaScript SDK ở phía server để fail-closed trước khi trả dữ liệu tính năng.
     \item Hiện thực Evaluation Engine xác định, fail-closed, hỗ trợ rule targeting, percentage rollout ổn định và group/flag kill switch.
     \item Triển khai audit log append-only với before/after snapshot, đồng thời dùng audit log làm nguồn cho configuration history.
     \item Bổ sung các phần mở rộng gồm evaluation snapshot cache, RBAC demo, statistics dashboard, JavaScript SDK fail-closed, GitHub Actions CI và bộ kiểm thử tự động.

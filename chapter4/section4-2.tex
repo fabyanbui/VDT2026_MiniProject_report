@@ -8,6 +8,7 @@ Mặc dù đáp ứng mục tiêu mini project, hệ thống vẫn còn một s�
     \item Hệ thống chưa được đánh giá dưới tải lớn; các kiểm thử hiện tập trung chủ yếu vào tính đúng đắn, luồng API và kịch bản demo.
     \item Kiến trúc hiện phù hợp với một backend service trong môi trường demo, chưa có cơ chế đồng bộ cấu hình/cache giữa nhiều instance.
     \item SDK mới có phiên bản JavaScript và vẫn gọi Evaluation API theo request/response, chưa hỗ trợ streaming hoặc push update thời gian thực.
+    \item Demo backend hiện chỉ là minh họa server-side feature gating đơn giản, chưa phải Backend SDK hoàn chỉnh và chưa có middleware route guard tái sử dụng cho nhiều framework.
     \item Rule engine mới hỗ trợ các rule cơ bản như user allowlist, role targeting và percentage rollout, chưa có targeting theo thuộc tính phức tạp, thời gian, vị trí hoặc organization.
     \item Hệ thống chưa hỗ trợ multi-variant experiment và A/B testing hoàn chỉnh, dù response đã có khái niệm variant đơn giản.
     \item RBAC hiện phục vụ demo, chưa tích hợp OAuth2/OIDC, SSO, quản lý người dùng thật hoặc chính sách bảo mật ở mức doanh nghiệp.
@@ -22,6 +23,7 @@ Các hướng phát triển tương ứng với các hạn chế trên gồm:
     \item Bổ sung benchmark và load test cho Evaluation API, đo latency, throughput, cache hit/miss và hành vi khi database hoặc cache gặp lỗi.
     \item Mở rộng kiến trúc sang nhiều backend instance, dùng distributed cache hoặc event-based invalidation để đồng bộ snapshot cấu hình giữa các instance.
     \item Phát triển thêm SDK cho các ngôn ngữ phổ biến như Java, Go, Python hoặc C\#, đồng thời nghiên cứu polling tối ưu, SSE/WebSocket hoặc streaming update.
+    \item Phát triển Backend SDK hoặc middleware chính thức cho Node.js, NestJS hoặc Express để backend nghiệp vụ có thể guard route/service bằng Feature Flag một cách chuẩn hóa.
     \item Mở rộng Rule Evaluation Engine để hỗ trợ targeting theo thuộc tính người dùng, organization/tenant, thời gian, khu vực địa lý và điều kiện kết hợp.
     \item Thiết kế mô hình multi-variant flag và A/B testing, kết hợp statistics để đo lường hiệu quả từng biến thể.
     \item Thay thế mô hình RBAC demo bằng cơ chế xác thực chuẩn như OAuth2/OIDC hoặc SSO, kèm quản lý người dùng, nhóm quyền và chính sách truy cập chi tiết.

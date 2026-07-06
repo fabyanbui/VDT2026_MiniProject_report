@@ -22,6 +22,10 @@ Kết quả xây dựng của hệ thống được lưu tại GitHub repository
 
 \subsection{Demo Application}
 
+Demo Application đã được mở rộng từ ứng dụng frontend thuần thành storefront có kèm demo backend API nhẹ. Mỗi feature flag trong demo có một endpoint GET tương ứng dưới \path|/api/demo/features/*|; endpoint này dùng \texttt{@ffp/js-sdk} ở phía server để gọi Evaluation API trước khi trả dữ liệu tính năng. Nếu flag tắt, bị archive, bị group/flag kill switch hoặc SDK không xác minh được trạng thái bật, demo backend trả \texttt{403 FEATURE\_DISABLED}.
+
+Một số thao tác có sẵn trong giao diện storefront được nối với endpoint backend tương ứng với feature flag, không cần thêm panel minh họa riêng. Nhờ đó phần demo thể hiện đồng thời hai lớp tích hợp: frontend ẩn/hiện UI theo flag và backend API vẫn tự guard khi bị gọi trực tiếp.
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{\detokenize{Images/screenshot/Kết quả xây dựng Demo Application.png}}
