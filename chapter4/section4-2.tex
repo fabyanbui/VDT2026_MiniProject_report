@@ -13,6 +13,7 @@ Mặc dù đáp ứng mục tiêu mini project, hệ thống vẫn còn một s�
     \item Hệ thống chưa hỗ trợ multi-variant experiment và A/B testing hoàn chỉnh, dù response đã có khái niệm variant đơn giản.
     \item RBAC hiện phục vụ demo, chưa tích hợp OAuth2/OIDC, SSO, quản lý người dùng thật hoặc chính sách bảo mật ở mức doanh nghiệp.
     \item Chưa có approval workflow, stale flag detection, rate limiting đầy đủ, monitoring hạ tầng, backup/recovery và disaster recovery.
+    \item Hệ thống mới được triển khai và đánh giá trên kiến trúc modular monolith, chưa xem xét đầy đủ các yêu cầu về hiệu năng, tính sẵn sàng và khả năng mở rộng trong môi trường microservices.
 \end{itemize}
 
 \subsection{Hướng phát triển}
@@ -28,4 +29,5 @@ Các hướng phát triển tương ứng với các hạn chế trên gồm:
     \item Thiết kế mô hình multi-variant flag và A/B testing, kết hợp statistics để đo lường hiệu quả từng biến thể.
     \item Thay thế mô hình RBAC demo bằng cơ chế xác thực chuẩn như OAuth2/OIDC hoặc SSO, kèm quản lý người dùng, nhóm quyền và chính sách truy cập chi tiết.
     \item Bổ sung approval workflow cho thay đổi production, stale flag detection để giảm feature flag debt, rate limiting, monitoring/alerting, backup/recovery và tài liệu vận hành production.
+    \item Trong tương lai, hệ thống có thể được mở rộng để hỗ trợ kiến trúc microservices thông qua SDK cho backend, cache phân tán và cơ chế đồng bộ cấu hình theo thời gian thực giữa các service.
 \end{itemize}
